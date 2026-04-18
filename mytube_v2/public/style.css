@@ -1,0 +1,47 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+:root {
+    --bg-main: #0f0f0f;
+    --text-main: #ffffff;
+    --accent-blue: #3ea6ff;
+    --border: rgba(255, 255, 255, 0.1);
+}
+
+body { font-family: 'Pretendard', sans-serif; margin: 0; background: var(--bg-main); color: var(--text-main); overflow-x: hidden; }
+
+/* 헤더 & 사이드바 (image_f9bdc9.jpg 기준) */
+header { display: flex; justify-content: space-between; align-items: center; padding: 0 16px; height: 56px; background: #0f0f0f; position: sticky; top: 0; z-index: 2000; }
+.search-bar { display: flex; width: 40%; max-width: 600px; }
+.search-bar input { flex: 1; background: #121212; border: 1px solid #333; color: #fff; padding: 10px 16px; border-radius: 40px 0 0 40px; outline: none; }
+.search-bar button { background: #222; border: 1px solid #333; border-left: none; padding: 0 20px; border-radius: 0 40px 40px 0; color: #fff; cursor: pointer; }
+
+.main-wrapper { display: flex; }
+nav.sidebar { width: 240px; height: calc(100vh - 56px); background: #0f0f0f; position: sticky; top: 56px; overflow-y: auto; padding-top: 12px; }
+.sidebar-item { padding: 0 24px; height: 40px; display: flex; align-items: center; gap: 24px; cursor: pointer; border-radius: 10px; margin: 0 12px; font-size: 14px; }
+.sidebar-item:hover { background: rgba(255,255,255,0.1); }
+
+/* 홈 화면 영상 그리드 (image_f9bdc9.jpg 기준) */
+.content-area { flex: 1; padding: 24px; }
+.video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px; }
+.video-card img { width: 100%; aspect-ratio: 16/9; border-radius: 12px; object-fit: cover; cursor: pointer; }
+.video-info { display: flex; gap: 12px; margin-top: 12px; }
+.avatar-small { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-blue); display: flex; align-items: center; justify-content: center; color: #000; font-weight: bold; }
+
+/* 재생 화면 레이아웃 (좌:영상/댓글, 우:추천목록) */
+#view-watch { display: none; width: 100%; padding: 24px; gap: 24px; }
+.watch-left { flex: 1; min-width: 0; }
+.watch-right { width: 400px; flex-shrink: 0; }
+#main-player { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; }
+
+/* 스튜디오 (스크린샷 153635.png 기준) */
+.channel-header { padding: 32px 100px; display: flex; gap: 24px; border-bottom: 1px solid var(--border); }
+.channel-art { width: 160px; height: 160px; border-radius: 50%; background: #333; display: flex; align-items: center; justify-content: center; font-size: 60px; font-weight: bold; color: #000; }
+
+/* 업로드 모달 (스크린샷 154642.png 기준 / 1440px 광폭) */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 3000; align-items: center; justify-content: center; }
+.upload-modal { background: #282828; width: 95%; max-width: 1440px; height: 90vh; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
+.modal-body-grid { display: grid; grid-template-columns: 1fr 420px; gap: 48px; padding: 32px 48px; overflow-y: auto; flex: 1; }
+.thumbnail-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 15px; }
+.thumb-box { aspect-ratio: 16/9; background: #121212; border: 1px solid #333; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; color: #aaa; cursor: pointer; }
+.thumb-upload { border: 1px dashed #666; }
+.progress-footer { padding: 16px 48px; border-top: 1px solid #3e3e3e; display: flex; justify-content: space-between; align-items: center; background: #282828; }

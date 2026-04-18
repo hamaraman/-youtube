@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>MyTube Premium</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+    <div style="display:flex; align-items:center; gap:16px;">
+        <button style="background:none; border:none; color:#fff; font-size:20px; cursor:pointer;">☰</button>
+        <a href="#" class="logo" onclick="switchView('home')" style="text-decoration:none; color:#fff;">▶ Premium<sup>KR</sup></a>
+    </div>
+    <div class="search-bar">
+        <input type="text" id="search-input" placeholder="검색" onkeypress="if(event.key === 'Enter') handleSearch()">
+        <button onclick="handleSearch()">🔍</button>
+    </div>
+    <div style="display:flex; gap:20px; align-items:center;">
+        <button onclick="openUploadModal()" style="background:rgba(255,255,255,0.1); color:#fff; border:none; padding:8px 16px; border-radius:20px; cursor:pointer; font-weight:bold;">📹 만들기</button>
+        <div id="header-avatar" class="avatar-small" onclick="switchView('studio')" style="cursor:pointer;">?</div>
+    </div>
+</header>
+
+<div class="main-wrapper">
+    <nav class="sidebar">
+        <div class="sidebar-item" onclick="switchView('home')">🏠 홈</div>
+        <div class="sidebar-item" onclick="switchView('studio')">👤 내 페이지</div>
+    </nav>
+
+    <main id="view-home" class="content-area">
+        <div class="video-grid" id="main-grid"></div>
+    </main>
+
+    <main id="view-watch" class="content-area" style="display:none; flex-direction:row;">
+        <div class="watch-left">
+            <video id="main-player" controls autoplay></video>
+            <h1 id="watch-title" style="margin-top:20px; font-size:22px;"></h1>
+            <div id="watch-meta" style="color:#aaa; font-size:14px; margin-bottom:20px;"></div>
+            <hr style="border:0; border-top:1px solid #333;">
+            <div class="comment-section" style="margin-top:24px;">
+                <h4 id="comment-count">댓글 0개</h4>
+                <div style="display:flex; gap:12px; margin-bottom:24px;">
+                    <input type="text" id="comment-input" placeholder="댓글 추가..." style="flex:1; background:none; border:none; border-bottom:1px solid #333; color:#fff; outline:none; padding:8px 0;">
+                    <button onclick="addComment()" style="background:var(--accent-blue); color:#000; border:none; padding:8px 16px; border-radius:18px; font-weight:bold; cursor:pointer;">댓글</button>
+                </div>
+                <div id="comment-list"></div>
+            </div>
+        </div>
+        <div class="watch-right" id="recommend-grid" style="display:flex; flex-direction:column; gap:12px;"></div>
+    </main>
+
+    <main id="view-studio" class="content-area" style="display:none;">
+        <div class="channel-header">
+            <div class="channel-art" id="stu-avatar">?</div>
+            <div>
+                <h1 id="stu-name">채널명</h1>
+                <p id="stu-meta">@handle • 동영상 0개</p>
+                <button style="background:#272727; color:#fff; border:none; padding:10px 20px; border-radius:20px; cursor:pointer;">동영상 관리</button>
+            </div>
+        </div>
+        <div class="video-grid" id="studio-grid" style="padding:24px 100px;"></div>
+    </main>
+</div>
+
+<div id="modal-upload" class="modal-overlay">
+    <div class="upload-modal">
+        <div class="modal-header">
+            <h3 style="margin:0;">동영상 업로드</h3>
+            <button onclick="closeUploadModal()" style="background:none; border:none; color:#fff; font-size:24px; cursor:pointer;">×</button>
+        </div>
+        <div class="modal-body-grid">
+            <div class="upload-left">
+                <h2 style="font-size:24px; margin-bottom:24px;">세부정보</h2>
+                <div style="border:1px solid #666; border-radius:4px; padding:12px; margin-bottom:20px;">
+                    <label style="color:var(--accent-blue); font-size:12px; display:block;">제목(필수 항목)</label>
+                    <input type="text" id="up-title" style="width:100%; background:none; border:none; color:#fff; font-size:16px; outline:none;">
+                </div>
+                <div style="border:1px solid #333; border-radius:4px; padding:12px;">
+                    <label style="color:#aaa; font-size:12px; display:block;">설명</label>
+                    <textarea id="up-desc" style="width:100%; height:160px; background:none; border:none; color:#fff; outline:none; resize:none; font-family:inherit;"></textarea>
+                </div>
+                <div class="thumbnail-section">
+                    <div style="font-size:14px; font-weight:bold; margin:20px 0 10px 0;">썸네일</div>
+                    <div class="thumbnail-grid">
+                        <div class="thumb-box thumb-upload"><span>🖼️</span><span>파일 업로드</span></div>
+                        <div class="thumb-box">자동 생성됨</div><div class="thumb-box">자동 생성됨</div><div class="thumb-box">자동 생성됨</div>
+                    </div>
+                </div>
+            </div>
+            <div class="preview-box" style="background:#1e1e1e; border-radius:12px; padding:24px; align-self:start;">
+                <video id="mini-preview" style="width:100%; aspect-ratio:16/9; background:#000;" muted controls></video>
+                <p id="up-filename" style="font-size:12px; color:#aaa; margin-top:10px;"></p>
+            </div>
+        </div>
+        <div class="progress-footer">
+            <div id="prog-ui" style="visibility:hidden; color:#aaa; font-size:13px;">⬆ <span id="prog-text">0% 업로드 중...</span></div>
+            <button id="btn-final-up" style="background:#fff; color:#000; border:none; padding:10px 30px; border-radius:4px; font-weight:bold; cursor:pointer;">업로드</button>
+        </div>
+    </div>
+</div>
+
+<input type="file" id="real-file" style="display:none;" accept="video/*">
+
+<script>
+    let myChannel = JSON.parse(localStorage.getItem('myChannel')) || { id: 1, name: "테리로" };
+    const mainPlayer = document.getElementById('main-player');
+    let currentVideoId = null;
+
+    function switchView(view) {
+        document.querySelectorAll('main').forEach(m => m.style.display = 'none');
+        // 🌟 홈/스튜디오로 이동 시 영상 및 소리 즉시 중단
+        if (view !== 'watch') { mainPlayer.pause(); mainPlayer.src = ""; }
+
+        const target = document.getElementById('view-' + view);
+        target.style.display = (view === 'watch' ? 'flex' : 'block');
+        if(view === 'home') loadAllVideos();
+        if(view === 'studio') loadStudio();
+        window.scrollTo(0,0);
+    }
+
+    function handleSearch() {
+        const keyword = document.getElementById('search-input').value;
+        loadAllVideos(keyword); switchView('home');
+    }
+
+    async function loadAllVideos(keyword = '') {
+        const res = await fetch(`/api/videos?keyword=${encodeURIComponent(keyword)}`);
+        const videos = await res.json();
+        document.getElementById('main-grid').innerHTML = videos.map(v => `
+                <div class="video-card" onclick="playVideo('${v.videoUrl}', '${v.title}', ${v.id})">
+                    <img src="${v.thumbnailUrl}">
+                    <div class="video-info">
+                        <div class="avatar-small" style="background:#3ea6ff; color:#000;">${v.channelName[0]}</div>
+                        <div><h3 style="margin:0; font-size:16px;">${v.title}</h3><p style="color:#aaa; font-size:14px; margin:4px 0;">${v.channelName}</p></div>
+                    </div>
+                </div>`).join('');
+    }
+
+    async function playVideo(url, title, id) {
+        currentVideoId = id; switchView('watch');
+        mainPlayer.src = url; mainPlayer.play();
+        document.getElementById('watch-title').innerText = title;
+        await fetch(`/api/videos/${id}/view`, { method: 'POST' });
+        const res = await fetch(`/api/videos/${id}/details`);
+        const data = await res.json();
+        document.getElementById('watch-meta').innerText = `@${data.video.channelName} • 조회수 ${data.video.views}회`;
+        loadComments(id); loadRecommendVideos();
+    }
+
+    async function loadComments(videoId) {
+        const res = await fetch(`/api/videos/${videoId}/comments`);
+        const comments = await res.json();
+        document.getElementById('comment-count').innerText = `댓글 ${comments.length}개`;
+        document.getElementById('comment-list').innerHTML = comments.map(c => `
+                <div style="display:flex; gap:12px; margin-bottom:16px;">
+                    <div class="avatar-small" style="width:32px; height:32px;">${c.channelName[0]}</div>
+                    <div><div style="font-weight:bold; font-size:13px;">@${c.channelName}</div><div style="margin-top:4px;">${c.text}</div></div>
+                </div>`).join('');
+    }
+
+    async function addComment() {
+        const text = document.getElementById('comment-input').value;
+        if(!text) return;
+        await fetch(`/api/videos/${currentVideoId}/comments`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ channelId: myChannel.id, text }) });
+        document.getElementById('comment-input').value = ''; loadComments(currentVideoId);
+    }
+
+    async function loadRecommendVideos() {
+        const res = await fetch('/api/videos');
+        const videos = await res.json();
+        document.getElementById('recommend-grid').innerHTML = videos.map(v => `
+                <div onclick="playVideo('${v.videoUrl}', '${v.title}', ${v.id})" style="display:flex; gap:10px; cursor:pointer;">
+                    <img src="${v.thumbnailUrl}" style="width:160px; height:90px; border-radius:8px; object-fit:cover;">
+                    <h4 style="font-size:14px; margin:0; line-height:1.2;">${v.title}</h4>
+                </div>`).join('');
+    }
+
+    function loadStudio() {
+        document.getElementById('stu-name').innerText = myChannel.name;
+        document.getElementById('header-avatar').innerText = myChannel.name[0];
+        document.getElementById('stu-avatar').innerText = myChannel.name[0];
+        loadMyVideos();
+    }
+
+    async function loadMyVideos() {
+        const res = await fetch(`/api/channels/${myChannel.id}/videos`);
+        const videos = await res.json();
+        document.getElementById('stu-meta').innerText = `@${myChannel.name} • 동영상 ${videos.length}개`;
+        document.getElementById('studio-grid').innerHTML = videos.map(v => `
+                <div class="video-card"><img src="${v.thumbnailUrl}"><h3>${v.title}</h3></div>`).join('');
+    }
+
+    function openUploadModal() { document.getElementById('real-file').click(); }
+    document.getElementById('real-file').onchange = (e) => {
+        const file = e.target.files[0]; if(!file) return;
+        document.getElementById('modal-upload').style.display = 'flex';
+        document.getElementById('up-title').value = file.name.split('.')[0];
+        document.getElementById('up-filename').innerText = file.name;
+        document.getElementById('mini-preview').src = URL.createObjectURL(file);
+    };
+
+    document.getElementById('btn-final-up').onclick = () => {
+        const fd = new FormData();
+        fd.append('video', document.getElementById('real-file').files[0]);
+        fd.append('channelId', myChannel.id);
+        fd.append('title', document.getElementById('up-title').value);
+        fd.append('description', document.getElementById('up-desc').value);
+
+        document.getElementById('prog-ui').style.visibility = 'visible';
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/upload', true);
+        xhr.upload.onprogress = (e) => {
+            const p = Math.round((e.loaded / e.total) * 100);
+            document.getElementById('prog-text').innerText = `${p}% 업로드 중...`;
+        };
+        xhr.onload = () => { alert("업로드 완료!"); location.reload(); };
+        xhr.send(fd);
+    };
+
+    function closeUploadModal() { document.getElementById('modal-upload').style.display = 'none'; }
+    window.onload = () => loadAllVideos();
+</script>
+</body>
+</html>
