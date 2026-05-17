@@ -1,0 +1,31 @@
+  name: Deploy to Cloudflare Pages
+    
+   on:
+       push:
+         branches: [ main ] # 또는 사용하시는 브랜치명
+    
+     jobs:
+       deploy:
+         runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v3
+   
+         - name: Set up JDK 17 # 프로젝트에 맞는 자바 버전
+           uses: actions/setup-java@v3
+           with:
+           java-version: '17'
+            distribution: 'temurin'
+  
+         - name: Grant execute permission for gradlew
+           run: chmod +x gradlew
+   
+         - name: Build with Gradle
+           run: ./gradlew build
+   
+         - name: Publish to Cloudflare Pages
+            uses: cloudflare/pages-action@v1
+            with:
+            apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+            accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+            projectName: 'your-project-name' # Cloudflare에 만든 프로젝트 이름
+            directory: 'build/resources/main/static' # 빌드 결과물 폴더
