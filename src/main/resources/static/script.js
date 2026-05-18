@@ -1208,7 +1208,9 @@ function initUploadPage() {
 
     function validateStep(step) {
         if (step === 2) {
-            return validateVideoFile();
+            const videoOk = validateVideoFile();
+            const thumbOk = validateThumbnailField();
+            return videoOk && thumbOk;
         }
 
         if (step === 3) {
@@ -1216,9 +1218,8 @@ function initUploadPage() {
             const descOk = validateDescription();
             const channelOk = validateChannel();
             const durationOk = validateDurationField();
-            const thumbOk = validateThumbnailField();
 
-            return titleOk && descOk && channelOk && durationOk && thumbOk;
+            return titleOk && descOk && channelOk && durationOk;
         }
 
         return true;
