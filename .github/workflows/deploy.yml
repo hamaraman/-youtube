@@ -28,19 +28,6 @@ jobs:
       run: |
         mkdir -p /home/ubuntu/app
         cp build/libs/demo-0.0.1-SNAPSHOT.jar /home/ubuntu/app/demo.jar
-
-        CURRENT_PID=$(pgrep -f "java.*jar.*demo" || true)
-        if [ -z "$CURRENT_PID" ]; then
-            echo "No running application found."
-        else
-            echo "Killing running application with PID: $CURRENT_PID"
-            kill -9 $CURRENT_PID
-            sleep 3
-        fi
-
-        nohup env DB_URL=${{ secrets.DB_URL }} \
-                  DB_USERNAME=${{ secrets.DB_USERNAME }} \
-                  DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-              java -jar /home/ubuntu/app/demo.jar > /home/ubuntu/app.log 2>&1 &
+        sudo systemctl restart youtube-clone
         sleep 5
         echo "Application started. PID: $(pgrep -f app/demo.jar || true)"
