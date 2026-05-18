@@ -1257,7 +1257,7 @@ function initUploadPage() {
         isSubmitting = true;
         if (submitBtn) {
             submitBtn.disabled = true;
-            submitBtn.textContent = "업로드 중...";
+            submitBtn.textContent = "업로드 중... 0%";
         }
 
         const formData = new FormData();
@@ -1278,16 +1278,30 @@ function initUploadPage() {
         }
 
         try {
-            const response = await fetch("/api/upload", {
-                method: "POST",
-                body: formData
+            const result = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", "/api/upload");
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable && submitBtn) {
+                        const pct = Math.round((e.loaded / e.total) * 100);
+                        submitBtn.textContent = pct < 100 ? `업로드 중... ${pct}%` : "처리 중...";
+                    }
+                };
+                xhr.onload = () => {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        if (xhr.status >= 200 && xhr.status < 300 && data.success) {
+                            resolve(data);
+                        } else {
+                            reject(new Error(data.message || "업로드 실패"));
+                        }
+                    } catch {
+                        reject(new Error("서버 응답을 처리할 수 없어."));
+                    }
+                };
+                xhr.onerror = () => reject(new Error("네트워크 오류가 발생했어."));
+                xhr.send(formData);
             });
-
-            const result = await response.json();
-
-            if (!response.ok || !result.success) {
-                throw new Error(result.message || "업로드 실패");
-            }
 
             setPendingToast("업로드가 완료되었습니다.");
             window.location.href = getVideoUrl(result.id);
