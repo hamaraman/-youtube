@@ -6,7 +6,7 @@ on:
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
     - name: Checkout Source
@@ -24,38 +24,19 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew build -x test
 
-    - name: Copy JAR to Oracle VM
-      uses: appleboy/scp-action@v0.1.4
-      with:
-        host: ${{ secrets.ORACLE_VM_HOST }}
-        username: ${{ secrets.ORACLE_VM_USERNAME }}
-        key: ${{ secrets.ORACLE_VM_SSH_KEY }}
-        source: "build/libs/*.jar"
-        target: "/home/${{ secrets.ORACLE_VM_USERNAME }}/demo-app"
-        strip_components: 2
+    - name: Restart Application
+      run: |
+        CURRENT_PID=$(pgrep -f demo-0.0.1-SNAPSHOT.jar)
+        if [ -z "$CURRENT_PID" ]; then
+            echo "No running application found."
+        else
+            echo "Killing running application with PID: $CURRENT_PID"
+            kill -15 $CURRENT_PID
+            sleep 5
+        fi
 
-    - name: Restart Application via SSH
-      uses: appleboy/ssh-action@v1.0.0
-      with:
-        host: ${{ secrets.ORACLE_VM_HOST }}
-        username: ${{ secrets.ORACLE_VM_USERNAME }}
-        key: ${{ secrets.ORACLE_VM_SSH_KEY }}
-        script: |
-          cd /home/${{ secrets.ORACLE_VM_USERNAME }}/demo-app
-          
-          # 프로세스 확인 및 종료
-          CURRENT_PID=$(pgrep -f demo-0.0.1-SNAPSHOT.jar)
-          if [ -z "$CURRENT_PID" ]; then
-              echo "No running application found."
-          else
-              echo "Killing running application with PID: $CURRENT_PID"
-              kill -15 $CURRENT_PID
-              sleep 10
-          fi
-          
-          # 백그라운드로 애플리케이션 실행
-          nohup env DB_URL=${{ secrets.DB_URL }} \
-                    DB_USERNAME=${{ secrets.DB_USERNAME }} \
-                    DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-                java -jar demo-0.0.1-SNAPSHOT.jar > app.log 2>&1 &
-          echo "Application started."
+        nohup env DB_URL=${{ secrets.DB_URL }} \
+                  DB_USERNAME=${{ secrets.DB_USERNAME }} \
+                  DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              java -jar build/libs/demo-0.0.1-SNAPSHOT.jar > ~/app.log 2>&1 &
+        echo "Application started."
