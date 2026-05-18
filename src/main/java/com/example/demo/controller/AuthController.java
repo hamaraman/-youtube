@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.UserSessionRegistry;
 import com.example.demo.dto.SignupRequest;
 import com.example.demo.entity.User;
 import com.example.demo.repository.UserRepository;
@@ -16,10 +17,12 @@ public class AuthController {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserSessionRegistry sessionRegistry;
 
-    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, UserSessionRegistry sessionRegistry) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.sessionRegistry = sessionRegistry;
     }
 
     @PostMapping("/signup")
@@ -116,6 +119,7 @@ public class AuthController {
             );
 
             session.setAttribute("loginUser", sessionUser);
+            sessionRegistry.register(user.getId(), session);
 
             return ResponseEntity.ok(new LoginResponse(true, "로그인되었습니다.", sessionUser));
         } catch (Exception e) {
@@ -137,6 +141,10 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpSession session) {
+        Object loginUser = session.getAttribute("loginUser");
+        if (loginUser instanceof SessionUser su) {
+            sessionRegistry.remove(su.getId());
+        }
         session.invalidate();
         return ResponseEntity.ok(new SimpleResponse(true, "로그아웃되었습니다."));
     }
