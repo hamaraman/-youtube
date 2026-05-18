@@ -1,22 +1,21 @@
 package com.example.demo.config;
 
-import jakarta.servlet.annotation.WebListener;
 import jakarta.servlet.http.HttpSessionEvent;
 import jakarta.servlet.http.HttpSessionListener;
-import org.springframework.stereotype.Component;
+import org.springframework.boot.web.servlet.ServletListenerRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
-@Component
-@WebListener
-public class SessionCleanupListener implements HttpSessionListener {
+@Configuration
+public class SessionCleanupListener {
 
-    private final UserSessionRegistry registry;
-
-    public SessionCleanupListener(UserSessionRegistry registry) {
-        this.registry = registry;
-    }
-
-    @Override
-    public void sessionDestroyed(HttpSessionEvent se) {
-        registry.removeBySessionId(se.getSession().getId());
+    @Bean
+    public ServletListenerRegistrationBean<HttpSessionListener> sessionCleanupListener(UserSessionRegistry registry) {
+        return new ServletListenerRegistrationBean<>(new HttpSessionListener() {
+            @Override
+            public void sessionDestroyed(HttpSessionEvent se) {
+                registry.removeBySessionId(se.getSession().getId());
+            }
+        });
     }
 }
