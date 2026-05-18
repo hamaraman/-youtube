@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 public class SessionCleanupListener {
 
     @Bean
-    public ServletListenerRegistrationBean<HttpSessionListener> sessionCleanupListener(UserSessionRegistry registry) {
+    public ServletListenerRegistrationBean<HttpSessionListener> httpSessionCleanupListener(UserSessionRegistry registry) {
         return new ServletListenerRegistrationBean<>(new HttpSessionListener() {
             @Override
             public void sessionDestroyed(HttpSessionEvent se) {
