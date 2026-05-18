@@ -723,6 +723,16 @@
                         </div>
                     </section>
 
+                    <div id="uploadProgressWrap" style="display:none; margin-top:20px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                            <span style="color:#aaa; font-size:13px;">업로드 중...</span>
+                            <span id="uploadProgressText" style="color:#fff; font-size:13px; font-weight:700;">0%</span>
+                        </div>
+                        <div style="background:#2a2a2a; border-radius:999px; height:6px; overflow:hidden;">
+                            <div id="uploadProgressBar" style="height:100%; background:#fff; border-radius:999px; width:0%; transition:width 0.3s ease;"></div>
+                        </div>
+                    </div>
+
                     <div class="upload-actions">
                         <div class="upload-actions-left">
                             <a href="index.html" class="upload-cancel">취소</a>
@@ -740,8 +750,8 @@
     </main>
 </div>
 
-<script src="auth.js?v=2"></script>
-<script src="script.js?v=2"></script>
+<script src="auth.js?v=3"></script>
+<script src="script.js?v=3"></script>
 <script>
     (function () {
         const mainSummaryMap = [

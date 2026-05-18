@@ -1257,8 +1257,13 @@ function initUploadPage() {
         isSubmitting = true;
         if (submitBtn) {
             submitBtn.disabled = true;
-            submitBtn.textContent = "업로드 중... 0%";
+            submitBtn.textContent = "업로드 중...";
         }
+
+        const progressWrap = document.getElementById("uploadProgressWrap");
+        const progressBar = document.getElementById("uploadProgressBar");
+        const progressText = document.getElementById("uploadProgressText");
+        if (progressWrap) progressWrap.style.display = "block";
 
         const formData = new FormData();
         formData.append("title", title);
@@ -1282,9 +1287,15 @@ function initUploadPage() {
                 const xhr = new XMLHttpRequest();
                 xhr.open("POST", "/api/upload");
                 xhr.upload.onprogress = (e) => {
-                    if (e.lengthComputable && submitBtn) {
+                    if (e.lengthComputable) {
                         const pct = Math.round((e.loaded / e.total) * 100);
-                        submitBtn.textContent = pct < 100 ? `업로드 중... ${pct}%` : "처리 중...";
+                        if (progressBar) progressBar.style.width = pct + "%";
+                        if (progressText) progressText.textContent = pct + "%";
+                        if (submitBtn) submitBtn.textContent = pct < 100 ? `업로드 중... ${pct}%` : "처리 중...";
+                    } else {
+                        const mb = (e.loaded / (1024 * 1024)).toFixed(1);
+                        if (progressText) progressText.textContent = `${mb}MB 전송됨`;
+                        if (submitBtn) submitBtn.textContent = `업로드 중... ${mb}MB`;
                     }
                 };
                 xhr.onload = () => {
@@ -1303,9 +1314,12 @@ function initUploadPage() {
                 xhr.send(formData);
             });
 
+            if (progressBar) progressBar.style.width = "100%";
+            if (progressText) progressText.textContent = "완료!";
             setPendingToast("업로드가 완료되었습니다.");
             window.location.href = getVideoUrl(result.id);
         } catch (error) {
+            if (progressWrap) progressWrap.style.display = "none";
             alert(error.message || "업로드 중 오류가 발생했어.");
             isSubmitting = false;
             if (submitBtn) {
