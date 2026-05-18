@@ -29,7 +29,7 @@ jobs:
         mkdir -p /home/ubuntu/app
         cp build/libs/demo-0.0.1-SNAPSHOT.jar /home/ubuntu/app/demo.jar
 
-        CURRENT_PID=$(pgrep -f app/demo.jar || true)
+        CURRENT_PID=$(pgrep -f "java.*jar.*demo" || true)
         if [ -z "$CURRENT_PID" ]; then
             echo "No running application found."
         else
