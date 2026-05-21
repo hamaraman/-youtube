@@ -1448,31 +1448,59 @@ function initUploadPage() {
 }
 
 async function initHomePage() {
-    const videoGrid = document.getElementById("videoGrid");
-    const homeSearchInput = document.getElementById("homeSearchInput");
-    const homeSearchForm = document.getElementById("homeSearchForm");
-    const homeEmptyState = document.getElementById("homeEmptyState");
-    const homeResultKicker = document.getElementById("homeResultKicker");
-    const homeResultTitle = document.getElementById("homeResultTitle");
-    const homeResultCount = document.getElementById("homeResultCount");
+    const videoGrid = document.getElementById(“videoGrid”);
+    const categoryBar = document.getElementById(“categoryBar”);
+    const homeSearchInput = document.getElementById(“homeSearchInput”);
+    const homeSearchForm = document.getElementById(“homeSearchForm”);
+    const homeEmptyState = document.getElementById(“homeEmptyState”);
 
     if (!videoGrid) return;
 
     const uploadedVideos = await fetchUploadedVideos();
     const allVideos = makeFeedVideos(uploadedVideos);
     const url = new URL(window.location.href);
-    const initialKeyword = url.searchParams.get("q") || "";
+    const initialKeyword = url.searchParams.get(“q”) || “”;
+
+    let selectedCategory = “”;
+
+    function buildCategoryBar() {
+        if (!categoryBar) return;
+        const categories = [...new Set(
+            allVideos.map((v) => (v.category || “”).trim()).filter(Boolean)
+        )].sort();
+
+        const chips = [{ label: “전체”, value: “” }, ...categories.map((c) => ({ label: c, value: c }))];
+
+        categoryBar.innerHTML = chips.map((chip) => `
+            <button class=”category-chip${chip.value === selectedCategory ? “ is-active” : “”}”
+                    data-category=”${chip.value}”>
+                ${chip.label}
+            </button>
+        `).join(“”);
+
+        categoryBar.querySelectorAll(“.category-chip”).forEach((btn) => {
+            btn.addEventListener(“click”, () => {
+                selectedCategory = btn.dataset.category;
+                categoryBar.querySelectorAll(“.category-chip”).forEach((b) => b.classList.remove(“is-active”));
+                btn.classList.add(“is-active”);
+                renderHomeVideos(homeSearchInput?.value || “”);
+            });
+        });
+    }
 
     function filterVideos(keyword) {
         const normalizedKeyword = keyword.trim().toLowerCase();
 
-        if (normalizedKeyword === "") return allVideos;
-
         return allVideos.filter((video) => {
-            const title = String(video.title || "").toLowerCase();
-            const channel = String(video.channel || "").toLowerCase();
-            const description = String(video.description || "").toLowerCase();
-            const category = String(video.category || "").toLowerCase();
+            const videoCategory = (video.category || “”).trim();
+            if (selectedCategory && videoCategory !== selectedCategory) return false;
+
+            if (!normalizedKeyword) return true;
+
+            const title = String(video.title || “”).toLowerCase();
+            const channel = String(video.channel || “”).toLowerCase();
+            const description = String(video.description || “”).toLowerCase();
+            const category = videoCategory.toLowerCase();
 
             return (
                 title.includes(normalizedKeyword) ||
@@ -1487,72 +1515,58 @@ async function initHomePage() {
         const nextUrl = new URL(window.location.href);
 
         if (keyword.trim()) {
-            nextUrl.searchParams.set("q", keyword.trim());
+            nextUrl.searchParams.set(“q”, keyword.trim());
         } else {
-            nextUrl.searchParams.delete("q");
+            nextUrl.searchParams.delete(“q”);
         }
 
-        window.history.pushState({}, "", nextUrl);
-    }
-
-    function updateResultMeta(keyword, count) {
-        const trimmedKeyword = keyword.trim();
-
-        if (!trimmedKeyword) {
-            if (homeResultKicker) homeResultKicker.textContent = "추천 영상";
-            if (homeResultTitle) homeResultTitle.textContent = "지금 볼만한 영상";
-            if (homeResultCount) homeResultCount.textContent = `전체 영상 ${formatCount(count)}개`;
-            return;
-        }
-
-        if (homeResultKicker) homeResultKicker.textContent = "검색 결과";
-        if (homeResultTitle) homeResultTitle.textContent = `“${trimmedKeyword}” 검색 결과`;
-        if (homeResultCount) homeResultCount.textContent = `${formatCount(count)}개의 영상을 찾았어`;
+        window.history.pushState({}, “”, nextUrl);
     }
 
     function updateEmptyState(keyword) {
-        const trimmedKeyword = keyword.trim();
         if (!homeEmptyState) return;
 
-        const titleEl = homeEmptyState.querySelector(".home-empty-title");
-        const textEl = homeEmptyState.querySelector(".home-empty-text");
+        const titleEl = homeEmptyState.querySelector(“.home-empty-title”);
+        const textEl = homeEmptyState.querySelector(“.home-empty-text”);
 
-        if (!trimmedKeyword) {
-            if (titleEl) titleEl.textContent = "표시할 영상이 없습니다";
-            if (textEl) textEl.textContent = "영상을 업로드하거나 홈으로 돌아가 다시 확인해봐.";
+        if (!keyword.trim() && !selectedCategory) {
+            if (titleEl) titleEl.textContent = “표시할 영상이 없습니다”;
+            if (textEl) textEl.textContent = “영상을 업로드하거나 홈으로 돌아가 다시 확인해봐.”;
             return;
         }
 
-        if (titleEl) titleEl.textContent = "검색 결과가 없습니다";
-        if (textEl) textEl.textContent = `“${trimmedKeyword}”에 대한 검색 결과가 없습니다. 다른 검색어로 다시 시도해봐.`;
+        if (titleEl) titleEl.textContent = “검색 결과가 없습니다”;
+        if (textEl) textEl.textContent = “다른 검색어나 카테고리로 다시 시도해봐.”;
     }
-    function renderHomeVideos(keyword = "") {
+
+    function renderHomeVideos(keyword = “”) {
         const filteredVideos = filterVideos(keyword);
 
-        updateResultMeta(keyword, filteredVideos.length);
         updateEmptyState(keyword);
 
         if (filteredVideos.length === 0) {
-            videoGrid.innerHTML = "";
+            videoGrid.innerHTML = “”;
             if (homeEmptyState) homeEmptyState.hidden = false;
             return;
         }
 
         if (homeEmptyState) homeEmptyState.hidden = true;
-        videoGrid.innerHTML = filteredVideos.map(createVideoCard).join("");
+        videoGrid.innerHTML = filteredVideos.map(createVideoCard).join(“”);
     }
+
+    buildCategoryBar();
 
     if (homeSearchInput) homeSearchInput.value = initialKeyword;
 
-    homeSearchForm?.addEventListener("submit", (event) => {
+    homeSearchForm?.addEventListener(“submit”, (event) => {
         event.preventDefault();
-        const keyword = homeSearchInput?.value || "";
+        const keyword = homeSearchInput?.value || “”;
         updateSearchUrl(keyword);
         renderHomeVideos(keyword);
     });
 
-    window.addEventListener("popstate", () => {
-        const currentKeyword = new URL(window.location.href).searchParams.get("q") || "";
+    window.addEventListener(“popstate”, () => {
+        const currentKeyword = new URL(window.location.href).searchParams.get(“q”) || “”;
         if (homeSearchInput) homeSearchInput.value = currentKeyword;
         renderHomeVideos(currentKeyword);
     });

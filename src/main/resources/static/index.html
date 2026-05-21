@@ -142,78 +142,46 @@
             display: none;
         }
 
-        .home-hero {
-            margin-bottom: 26px;
-        }
-
-        .home-result-panel {
-            position: relative;
-            overflow: hidden;
-            background: linear-gradient(180deg, #181818 0%, #141414 100%);
-            border: 1px solid #272727;
-            border-radius: 24px;
-            padding: 24px 24px 22px;
-        }
-
-        .home-result-panel::after {
-            content: "";
-            position: absolute;
-            top: -30px;
-            right: -30px;
-            width: 140px;
-            height: 140px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(255,255,255,0.08), rgba(255,255,255,0));
-            pointer-events: none;
-        }
-
-        .home-result-kicker {
-            margin: 0 0 8px;
-            color: #9aa0a6;
-            font-size: 13px;
-            letter-spacing: 0.2px;
-        }
-
-        .home-result-title {
-            margin: 0;
-            font-size: 30px;
-            line-height: 1.25;
-            letter-spacing: -0.4px;
-            color: #fff;
-        }
-
-        .home-result-count {
-            margin: 12px 0 0;
-            color: #b8b8b8;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-
-        .home-chip-row {
+        .category-bar {
             display: flex;
             gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 18px;
+            padding: 12px 24px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            border-bottom: 1px solid #1f1f1f;
+            position: sticky;
+            top: 56px;
+            background: #0f0f0f;
+            z-index: 10;
         }
 
-        .home-chip {
-            min-height: 36px;
+        .category-bar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .category-chip {
+            flex-shrink: 0;
+            height: 32px;
             padding: 0 14px;
-            border-radius: 999px;
-            border: 1px solid #303030;
-            background: #202020;
+            border-radius: 8px;
+            border: none;
+            background: #272727;
             color: #f1f1f1;
-            font-size: 13px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
+            font-size: 14px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s;
         }
 
-        .home-chip.accent {
-            background: #fff;
-            color: #111;
-            border-color: #fff;
-            font-weight: 700;
+        .category-chip:hover {
+            background: #3f3f3f;
+        }
+
+        .category-chip.is-active {
+            background: #f1f1f1;
+            color: #0f0f0f;
+            font-weight: 600;
         }
 
         .home-empty-state {
@@ -342,21 +310,12 @@
                 width: 100%;
             }
 
-            .home-result-panel {
-                padding: 20px 18px 18px;
-                border-radius: 20px;
-            }
-
-            .home-result-title {
-                font-size: 24px;
+            .category-bar {
+                padding: 10px 16px;
             }
         }
 
         @media (max-width: 640px) {
-            .home-result-title {
-                font-size: 21px;
-            }
-
             .home-empty-state {
                 padding: 38px 18px;
             }
@@ -482,19 +441,7 @@
     </aside>
 
     <main class="main home-content">
-        <section class="home-hero">
-            <div class="home-result-panel">
-                <p class="home-result-kicker" id="homeResultKicker">추천 영상</p>
-                <h1 class="home-result-title" id="homeResultTitle">지금 볼만한 영상</h1>
-                <p class="home-result-count" id="homeResultCount">전체 영상 0개</p>
-
-                <div class="home-chip-row">
-                    <span class="home-chip accent">맞춤 추천</span>
-                    <span class="home-chip">업로드 영상 포함</span>
-                    <span class="home-chip">검색 지원</span>
-                </div>
-            </div>
-        </section>
+        <div class="category-bar" id="categoryBar"></div>
 
         <section class="video-grid" id="videoGrid"></section>
 
