@@ -83,9 +83,10 @@ img {
 
 .logo-badge {
     width: 34px;
-    height: 24px;
-    border-radius: 8px;
-    background: #ff0000;
+    height: 34px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #a855f7 0%, #4f46e5 100%);
+    box-shadow: 0 2px 10px rgba(168, 85, 247, 0.45);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -98,15 +99,19 @@ img {
 }
 
 .logo-badge svg {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
 }
 
 .logo-text {
     font-size: 20px;
-    font-weight: 700;
-    letter-spacing: -0.4px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
     white-space: nowrap;
+    background: linear-gradient(135deg, #c084fc, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 .search-form {
@@ -1177,8 +1182,8 @@ img {
 
     .logo-badge {
         width: 30px;
-        height: 22px;
-        border-radius: 7px;
+        height: 30px;
+        border-radius: 50%;
     }
 
     .search-form {

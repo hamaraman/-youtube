@@ -3993,13 +3993,18 @@ function ensureHistoryPatchStyle() {
                         </svg>
                     </button>
 
-                    <a href="index.html" class="logo-wrap" aria-label="YouTube Clone 홈">
+                    <a href="index.html" class="logo-wrap" aria-label="MyTube 홈">
                         <span class="logo-badge">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M8 5v14l11-7z"></path>
+                            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
+                                <rect x="4" y="7" width="16" height="10" rx="2" stroke="white" stroke-width="1.4"/>
+                                <rect x="2" y="9.5" width="2" height="2" rx="0.5" fill="white"/>
+                                <rect x="2" y="12.5" width="2" height="2" rx="0.5" fill="white"/>
+                                <rect x="20" y="9.5" width="2" height="2" rx="0.5" fill="white"/>
+                                <rect x="20" y="12.5" width="2" height="2" rx="0.5" fill="white"/>
+                                <path d="M10.5 10l4 2-4 2v-4z" fill="white"/>
                             </svg>
                         </span>
-                        <span class="logo-text">YouTube</span>
+                        <span class="logo-text">MY</span>
                     </a>
                 </div>
 
@@ -4699,9 +4704,10 @@ function ensureHistoryPatchStyle() {
 
             body.library-home-style-unified .logo-badge {
                 width: 34px !important;
-                height: 24px !important;
-                border-radius: 7px !important;
-                background: #ff0000 !important;
+                height: 34px !important;
+                border-radius: 50% !important;
+                background: linear-gradient(135deg, #a855f7 0%, #4f46e5 100%) !important;
+                box-shadow: 0 2px 10px rgba(168, 85, 247, 0.45) !important;
                 display: inline-flex !important;
                 align-items: center !important;
                 justify-content: center !important;
@@ -4709,9 +4715,9 @@ function ensureHistoryPatchStyle() {
             }
 
             body.library-home-style-unified .logo-badge svg {
-                width: 18px !important;
-                height: 18px !important;
-                fill: currentColor !important;
+                width: 20px !important;
+                height: 20px !important;
+                fill: none !important;
             }
 
             body.library-home-style-unified .logo-text {
