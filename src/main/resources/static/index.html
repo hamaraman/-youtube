@@ -107,6 +107,8 @@
         .home-content {
             flex: 1;
             min-width: 0;
+            display: flex;
+            flex-direction: column;
         }
 
         .menu-btn {
@@ -440,27 +442,28 @@
         </nav>
     </aside>
 
-    <main class="main home-content">
+    <div class="home-content">
         <div class="category-bar" id="categoryBar"></div>
+        <main class="main">
+            <section class="video-grid" id="videoGrid"></section>
 
-        <section class="video-grid" id="videoGrid"></section>
-
-        <section class="home-empty-state" id="homeEmptyState" hidden>
-            <div class="home-empty-icon">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M10 4a6 6 0 1 0 3.87 10.58l4.27 4.27 1.41-1.41-4.27-4.27A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"></path>
-                </svg>
-            </div>
-            <h3 class="home-empty-title">검색 결과가 없습니다</h3>
-            <p class="home-empty-text">
-                다른 검색어로 다시 시도하거나 홈으로 돌아가서 영상을 둘러봐.
-            </p>
-            <div class="home-empty-actions">
-                <a href="index.html" class="home-empty-btn primary">홈으로 가기</a>
-                <a href="upload.html" class="home-empty-btn">영상 업로드</a>
-            </div>
-        </section>
-    </main>
+            <section class="home-empty-state" id="homeEmptyState" hidden>
+                <div class="home-empty-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M10 4a6 6 0 1 0 3.87 10.58l4.27 4.27 1.41-1.41-4.27-4.27A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"></path>
+                    </svg>
+                </div>
+                <h3 class="home-empty-title">검색 결과가 없습니다</h3>
+                <p class="home-empty-text">
+                    다른 검색어로 다시 시도하거나 홈으로 돌아가서 영상을 둘러봐.
+                </p>
+                <div class="home-empty-actions">
+                    <a href="index.html" class="home-empty-btn primary">홈으로 가기</a>
+                    <a href="upload.html" class="home-empty-btn">영상 업로드</a>
+                </div>
+            </section>
+        </main>
+    </div>
 </div>
 
 <script src="auth.js?v=4"></script>
