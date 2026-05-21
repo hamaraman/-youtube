@@ -1448,42 +1448,42 @@ function initUploadPage() {
 }
 
 async function initHomePage() {
-    const videoGrid = document.getElementById(“videoGrid”);
-    const categoryBar = document.getElementById(“categoryBar”);
-    const homeSearchInput = document.getElementById(“homeSearchInput”);
-    const homeSearchForm = document.getElementById(“homeSearchForm”);
-    const homeEmptyState = document.getElementById(“homeEmptyState”);
+    const videoGrid = document.getElementById("videoGrid");
+    const categoryBar = document.getElementById("categoryBar");
+    const homeSearchInput = document.getElementById("homeSearchInput");
+    const homeSearchForm = document.getElementById("homeSearchForm");
+    const homeEmptyState = document.getElementById("homeEmptyState");
 
     if (!videoGrid) return;
 
     const uploadedVideos = await fetchUploadedVideos();
     const allVideos = makeFeedVideos(uploadedVideos);
     const url = new URL(window.location.href);
-    const initialKeyword = url.searchParams.get(“q”) || “”;
+    const initialKeyword = url.searchParams.get("q") || "";
 
-    let selectedCategory = “”;
+    let selectedCategory = "";
 
     function buildCategoryBar() {
         if (!categoryBar) return;
         const categories = [...new Set(
-            allVideos.map((v) => (v.category || “”).trim()).filter(Boolean)
+            allVideos.map((v) => (v.category || "").trim()).filter(Boolean)
         )].sort();
 
-        const chips = [{ label: “전체”, value: “” }, ...categories.map((c) => ({ label: c, value: c }))];
+        const chips = [{ label: "전체", value: "" }, ...categories.map((c) => ({ label: c, value: c }))];
 
         categoryBar.innerHTML = chips.map((chip) => `
-            <button class=”category-chip${chip.value === selectedCategory ? “ is-active” : “”}”
-                    data-category=”${chip.value}”>
+            <button class="category-chip${chip.value === selectedCategory ? " is-active" : ""}"
+                    data-category="${chip.value}">
                 ${chip.label}
             </button>
-        `).join(“”);
+        `).join("");
 
-        categoryBar.querySelectorAll(“.category-chip”).forEach((btn) => {
-            btn.addEventListener(“click”, () => {
+        categoryBar.querySelectorAll(".category-chip").forEach((btn) => {
+            btn.addEventListener("click", () => {
                 selectedCategory = btn.dataset.category;
-                categoryBar.querySelectorAll(“.category-chip”).forEach((b) => b.classList.remove(“is-active”));
-                btn.classList.add(“is-active”);
-                renderHomeVideos(homeSearchInput?.value || “”);
+                categoryBar.querySelectorAll(".category-chip").forEach((b) => b.classList.remove("is-active"));
+                btn.classList.add("is-active");
+                renderHomeVideos(homeSearchInput?.value || "");
             });
         });
     }
@@ -1492,14 +1492,14 @@ async function initHomePage() {
         const normalizedKeyword = keyword.trim().toLowerCase();
 
         return allVideos.filter((video) => {
-            const videoCategory = (video.category || “”).trim();
+            const videoCategory = (video.category || "").trim();
             if (selectedCategory && videoCategory !== selectedCategory) return false;
 
             if (!normalizedKeyword) return true;
 
-            const title = String(video.title || “”).toLowerCase();
-            const channel = String(video.channel || “”).toLowerCase();
-            const description = String(video.description || “”).toLowerCase();
+            const title = String(video.title || "").toLowerCase();
+            const channel = String(video.channel || "").toLowerCase();
+            const description = String(video.description || "").toLowerCase();
             const category = videoCategory.toLowerCase();
 
             return (
@@ -1515,58 +1515,58 @@ async function initHomePage() {
         const nextUrl = new URL(window.location.href);
 
         if (keyword.trim()) {
-            nextUrl.searchParams.set(“q”, keyword.trim());
+            nextUrl.searchParams.set("q", keyword.trim());
         } else {
-            nextUrl.searchParams.delete(“q”);
+            nextUrl.searchParams.delete("q");
         }
 
-        window.history.pushState({}, “”, nextUrl);
+        window.history.pushState({}, "", nextUrl);
     }
 
     function updateEmptyState(keyword) {
         if (!homeEmptyState) return;
 
-        const titleEl = homeEmptyState.querySelector(“.home-empty-title”);
-        const textEl = homeEmptyState.querySelector(“.home-empty-text”);
+        const titleEl = homeEmptyState.querySelector(".home-empty-title");
+        const textEl = homeEmptyState.querySelector(".home-empty-text");
 
         if (!keyword.trim() && !selectedCategory) {
-            if (titleEl) titleEl.textContent = “표시할 영상이 없습니다”;
-            if (textEl) textEl.textContent = “영상을 업로드하거나 홈으로 돌아가 다시 확인해봐.”;
+            if (titleEl) titleEl.textContent = "표시할 영상이 없습니다";
+            if (textEl) textEl.textContent = "영상을 업로드하거나 홈으로 돌아가 다시 확인해봐.";
             return;
         }
 
-        if (titleEl) titleEl.textContent = “검색 결과가 없습니다”;
-        if (textEl) textEl.textContent = “다른 검색어나 카테고리로 다시 시도해봐.”;
+        if (titleEl) titleEl.textContent = "검색 결과가 없습니다";
+        if (textEl) textEl.textContent = "다른 검색어나 카테고리로 다시 시도해봐.";
     }
 
-    function renderHomeVideos(keyword = “”) {
+    function renderHomeVideos(keyword = "") {
         const filteredVideos = filterVideos(keyword);
 
         updateEmptyState(keyword);
 
         if (filteredVideos.length === 0) {
-            videoGrid.innerHTML = “”;
+            videoGrid.innerHTML = "";
             if (homeEmptyState) homeEmptyState.hidden = false;
             return;
         }
 
         if (homeEmptyState) homeEmptyState.hidden = true;
-        videoGrid.innerHTML = filteredVideos.map(createVideoCard).join(“”);
+        videoGrid.innerHTML = filteredVideos.map(createVideoCard).join("");
     }
 
     buildCategoryBar();
 
     if (homeSearchInput) homeSearchInput.value = initialKeyword;
 
-    homeSearchForm?.addEventListener(“submit”, (event) => {
+    homeSearchForm?.addEventListener("submit", (event) => {
         event.preventDefault();
-        const keyword = homeSearchInput?.value || “”;
+        const keyword = homeSearchInput?.value || "";
         updateSearchUrl(keyword);
         renderHomeVideos(keyword);
     });
 
-    window.addEventListener(“popstate”, () => {
-        const currentKeyword = new URL(window.location.href).searchParams.get(“q”) || “”;
+    window.addEventListener("popstate", () => {
+        const currentKeyword = new URL(window.location.href).searchParams.get("q") || "";
         if (homeSearchInput) homeSearchInput.value = currentKeyword;
         renderHomeVideos(currentKeyword);
     });
@@ -1630,7 +1630,7 @@ async function initSavedPage() {
         }
 
         if (savedKicker) savedKicker.textContent = "검색 결과";
-        if (savedTitle) savedTitle.textContent = `“${trimmedKeyword}” 저장한 영상 검색 결과`;
+        if (savedTitle) savedTitle.textContent = `"${trimmedKeyword}" 저장한 영상 검색 결과`;
         if (savedCountText) savedCountText.textContent = `${formatCount(filteredCount)}개의 영상을 찾았어`;
     }
 
@@ -1648,7 +1648,7 @@ async function initSavedPage() {
             return;
         }
 
-        savedEmptyState.textContent = `“${trimmedKeyword}”에 대한 저장한 영상 검색 결과가 없습니다.`;
+        savedEmptyState.textContent = `"${trimmedKeyword}"에 대한 저장한 영상 검색 결과가 없습니다.`;
     }
 
     function bindUnsaveButtons() {
@@ -1755,7 +1755,7 @@ async function initLikedPage() {
         }
 
         if (likedKicker) likedKicker.textContent = "검색 결과";
-        if (likedTitle) likedTitle.textContent = `“${trimmedKeyword}” 좋아요한 영상 검색 결과`;
+        if (likedTitle) likedTitle.textContent = `"${trimmedKeyword}" 좋아요한 영상 검색 결과`;
         if (likedCountText) likedCountText.textContent = `${formatCount(filteredCount)}개의 영상을 찾았어`;
     }
 
@@ -1773,7 +1773,7 @@ async function initLikedPage() {
             return;
         }
 
-        likedEmptyState.textContent = `“${trimmedKeyword}”에 대한 좋아요한 영상 검색 결과가 없습니다.`;
+        likedEmptyState.textContent = `"${trimmedKeyword}"에 대한 좋아요한 영상 검색 결과가 없습니다.`;
     }
 
     function bindUnlikeButtons() {
@@ -2422,13 +2422,13 @@ async function initChannelPage() {
 
             if (hasKeyword && currentFilter !== "전체") {
                 channelEmptyTitle.textContent = "조건에 맞는 영상이 없습니다";
-                channelEmptyText.textContent = `“${keyword}” 검색과 “${currentFilter}” 필터에 맞는 영상이 없어. 다른 조건으로 다시 찾아봐.`;
+                channelEmptyText.textContent = `"${keyword}" 검색과 "${currentFilter}" 필터에 맞는 영상이 없어. 다른 조건으로 다시 찾아봐.`;
             } else if (hasKeyword) {
                 channelEmptyTitle.textContent = "검색 결과가 없습니다";
-                channelEmptyText.textContent = `“${keyword}”와 일치하는 영상이 없어. 다른 검색어로 다시 시도해봐.`;
+                channelEmptyText.textContent = `"${keyword}"와 일치하는 영상이 없어. 다른 검색어로 다시 시도해봐.`;
             } else {
                 channelEmptyTitle.textContent = "필터 결과가 없습니다";
-                channelEmptyText.textContent = `현재 “${currentFilter}” 상태의 영상이 없어. 다른 필터를 선택해봐.`;
+                channelEmptyText.textContent = `현재 "${currentFilter}" 상태의 영상이 없어. 다른 필터를 선택해봐.`;
             }
 
             return;
@@ -3840,7 +3840,7 @@ function ensureHistoryPatchStyle() {
             const filtered = filterVideos(videos, currentKeyword);
 
             if (kicker) kicker.textContent = currentKeyword.trim() ? "검색 결과" : "보관함";
-            if (title) title.textContent = currentKeyword.trim() ? `“${currentKeyword.trim()}” 저장한 영상 검색 결과` : "저장한 영상";
+            if (title) title.textContent = currentKeyword.trim() ? `"${currentKeyword.trim()}" 저장한 영상 검색 결과` : "저장한 영상";
             if (countText) countText.textContent = `저장한 영상 ${safeFormatCount(filtered.length)}개`;
 
             if (!filtered.length) {
@@ -3896,7 +3896,7 @@ function ensureHistoryPatchStyle() {
             const filtered = filterVideos(videos, currentKeyword);
 
             if (kicker) kicker.textContent = currentKeyword.trim() ? "검색 결과" : "보관함";
-            if (title) title.textContent = currentKeyword.trim() ? `“${currentKeyword.trim()}” 좋아요한 영상 검색 결과` : "좋아요한 영상";
+            if (title) title.textContent = currentKeyword.trim() ? `"${currentKeyword.trim()}" 좋아요한 영상 검색 결과` : "좋아요한 영상";
             if (countText) countText.textContent = `좋아요한 영상 ${safeFormatCount(filtered.length)}개`;
 
             if (!filtered.length) {
