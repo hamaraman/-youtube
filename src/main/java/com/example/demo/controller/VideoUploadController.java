@@ -13,11 +13,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/api")
@@ -28,6 +30,9 @@ public class VideoUploadController {
 
     @Value("${file.thumbnail-dir}")
     private String thumbnailDir;
+
+    @Value("${ffmpeg.path:ffmpeg}")
+    private String ffmpegPath;
 
     private final VideoRepository videoRepository;
 
@@ -72,12 +77,13 @@ public class VideoUploadController {
                 return badRequest("영상 길이를 입력해줘.");
             }
 
-            if (videoFile == null || videoFile.isEmpty()) {
-                return badRequest("영상 파일을 선택해줘.");
+            String videoUrl = "";
+            if (videoFile != null && !videoFile.isEmpty()) {
+                String savedVideoFileName = saveAndConvertVideo(videoFile, videoDir);
+                videoUrl = "/uploads/videos/" + savedVideoFileName;
+            } else if (embedUrl == null || embedUrl.trim().isEmpty()) {
+                return badRequest("영상 파일을 선택하거나 YouTube URL을 입력해줘.");
             }
-
-            String savedVideoFileName = saveFile(videoFile, videoDir);
-            String videoUrl = "/uploads/videos/" + savedVideoFileName;
 
             String finalThumbnailUrl;
 
@@ -137,6 +143,61 @@ public class VideoUploadController {
         }
     }
 
+    private String saveAndConvertVideo(MultipartFile file, String dir) throws Exception {
+        String originalFilename = StringUtils.cleanPath(file.getOriginalFilename());
+        String ext = "";
+        int dot = originalFilename.lastIndexOf(".");
+        if (dot != -1) ext = originalFilename.substring(dot);
+
+        String uuid = UUID.randomUUID().toString();
+        Path origPath = Paths.get(dir).toAbsolutePath().resolve(uuid + "_orig" + ext);
+        Path servePath = Paths.get(dir).toAbsolutePath().resolve(uuid + ".mp4");
+
+        // Save original immediately so upload response can return
+        file.transferTo(origPath);
+        Files.copy(origPath, servePath);
+
+        // Convert to H.264 in background; replace servePath when done
+        String ffmpeg = ffmpegPath;
+        CompletableFuture.runAsync(() -> {
+            Path tmpPath = Paths.get(dir).toAbsolutePath().resolve(uuid + "_conv.mp4");
+            try {
+                ProcessBuilder pb = new ProcessBuilder(
+                        ffmpeg, "-y",
+                        "-i", origPath.toString(),
+                        "-c:v", "libx264",
+                        "-preset", "fast",
+                        "-crf", "23",
+                        "-c:a", "aac",
+                        "-b:a", "128k",
+                        "-movflags", "+faststart",
+                        tmpPath.toString()
+                );
+                pb.redirectErrorStream(true);
+                Process process = pb.start();
+
+                Thread drain = new Thread(() -> {
+                    try { process.getInputStream().transferTo(OutputStream.nullOutputStream()); }
+                    catch (Exception ignored) {}
+                });
+                drain.setDaemon(true);
+                drain.start();
+
+                boolean done = process.waitFor(60, TimeUnit.MINUTES);
+                if (done && process.exitValue() == 0) {
+                    Files.move(tmpPath, servePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    Files.deleteIfExists(origPath);
+                } else {
+                    Files.deleteIfExists(tmpPath);
+                }
+            } catch (Exception e) {
+                try { Files.deleteIfExists(tmpPath); } catch (Exception ignored) {}
+            }
+        });
+
+        return uuid + ".mp4";
+    }
+
     private String saveFile(MultipartFile file, String dir) throws Exception {
         String originalFilename = StringUtils.cleanPath(file.getOriginalFilename());
 
@@ -147,9 +208,9 @@ public class VideoUploadController {
         }
 
         String savedFileName = UUID.randomUUID() + extension;
-        Path savePath = Paths.get(dir, savedFileName);
+        Path savePath = Paths.get(dir).toAbsolutePath().resolve(savedFileName);
 
-        Files.copy(file.getInputStream(), savePath, StandardCopyOption.REPLACE_EXISTING);
+        file.transferTo(savePath);
 
         return savedFileName;
     }

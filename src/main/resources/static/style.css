@@ -310,20 +310,33 @@ img {
 
 .player-box {
     width: 100%;
-    aspect-ratio: 16 / 9;
     background: #000;
     border-radius: 18px;
-    overflow: hidden;
+    line-height: 0;
 }
 
-.player-box img,
-.player-video,
+.player-box img {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    display: block;
+    border-radius: 18px;
+    object-fit: cover;
+}
+
+.player-video {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    display: block;
+    border-radius: 18px;
+    background: #000;
+}
+
 .player-iframe {
     width: 100%;
-    height: 100%;
+    aspect-ratio: 16 / 9;
     display: block;
     border: none;
-    object-fit: cover;
+    border-radius: 18px;
 }
 
 .watch-title {

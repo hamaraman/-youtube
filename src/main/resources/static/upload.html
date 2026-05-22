@@ -476,7 +476,7 @@
                                 <div class="upload-card">
                                     <div class="upload-field">
                                         <label for="uploadVideoFile">영상 파일</label>
-                                        <p class="upload-help-text">MP4 같은 일반 영상 파일을 선택하면 돼.</p>
+                                        <p class="upload-help-text">H.264 MP4 형식을 권장해. iPhone에서 촬영한 H.265(HEVC) 영상은 Chrome에서 재생이 안 될 수 있어.</p>
                                         <div class="upload-file-box">
                                             <input type="file" id="uploadVideoFile" accept="video/*" />
                                             <p class="upload-file-name" id="selectedVideoName">선택된 파일 없음</p>
@@ -600,9 +600,9 @@
                                             type="text"
                                             id="uploadDuration"
                                             class="upload-input"
-                                            placeholder="예: 10:32"
-                                            readonly
+                                            placeholder="자동 감지 또는 직접 입력 (예: 10:32)"
                                         />
+                                        <p class="upload-help-text">파일 선택 시 자동으로 채워져. 감지 실패 시 직접 입력해줘.</p>
                                         <div class="upload-error-slot"></div>
                                     </div>
                                 </div>
@@ -730,12 +730,16 @@
 
                     <div id="uploadProgressWrap" style="display:none; margin-top:20px;">
                         <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-                            <span style="color:#aaa; font-size:13px;">업로드 중...</span>
+                            <span id="uploadProgressLabel" style="color:#aaa; font-size:13px;">업로드 중...</span>
                             <span id="uploadProgressText" style="color:#fff; font-size:13px; font-weight:700;">0%</span>
                         </div>
                         <div style="background:#2a2a2a; border-radius:999px; height:6px; overflow:hidden;">
                             <div id="uploadProgressBar" style="height:100%; background:#fff; border-radius:999px; width:0%; transition:width 0.3s ease;"></div>
                         </div>
+                        <p id="uploadConvertNote" style="display:none; margin:10px 0 0; color:#888; font-size:12px; line-height:1.6;">
+                            영상 파일을 서버로 전송했어. 백그라운드에서 H.264로 자동 변환 중이야.<br>
+                            시청 페이지로 이동한 뒤 영상이 바로 재생되지 않으면 잠시 후 새로고침해줘.
+                        </p>
                     </div>
 
                     <div class="upload-actions">

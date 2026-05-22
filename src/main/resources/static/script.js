@@ -1,3 +1,14 @@
+const DEFAULT_AVATAR = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MCIgaGVpZ2h0PSI4MCI+PGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9IiM2MTYxNjEiLz48L3N2Zz4=";
+const DEFAULT_THUMBNAIL = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgwIiBoZWlnaHQ9IjcyMCI+PHJlY3Qgd2lkdGg9IjEyODAiIGhlaWdodD0iNzIwIiBmaWxsPSIjMjEyMTIxIi8+PHBvbHlnb24gcG9pbnRzPSI1NjAsMzEwIDU2MCw0MTAgNjgwLDM2MCIgZmlsbD0iIzQyNDI0MiIvPjwvc3ZnPg==";
+
+document.addEventListener("error", function (e) {
+    const img = e.target;
+    if (img.tagName !== "IMG") return;
+    if (img.src === DEFAULT_AVATAR || img.src === DEFAULT_THUMBNAIL) return;
+    const isAvatar = img.classList.contains("avatar-image") || img.classList.contains("watch-channel-avatar");
+    img.src = isAvatar ? DEFAULT_AVATAR : DEFAULT_THUMBNAIL;
+}, true);
+
 const defaultVideos = [
     {
         id: 1,
@@ -9,7 +20,7 @@ const defaultVideos = [
         duration: "12:31",
         category: "코딩",
         thumbnail: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80",
-        avatar: "https://via.placeholder.com/80x80.png?text=T",
+        avatar: DEFAULT_AVATAR,
         description: "기본 샘플 영상입니다. 이 영상은 테스트용 기본 영상이며 워치 페이지 동작을 확인하기 위한 예시 데이터입니다.",
         embedUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
         visibility: "공개",
@@ -721,7 +732,7 @@ function createVideoCard(video) {
           <span class="duration">${escapeHtml(video.duration || "0:00")}</span>
         </div>
         <div class="meta">
-          <img class="avatar-image" src="${escapeHtml(video.avatar || "https://via.placeholder.com/80x80.png?text=T")}" alt="${escapeHtml(video.channel)}" />
+          <img class="avatar-image" src="${escapeHtml(video.avatar || DEFAULT_AVATAR)}" alt="${escapeHtml(video.channel)}" />
           <div class="text">
             <h3>${escapeHtml(video.title)}</h3>
             <p class="channel-name">${escapeHtml(video.channel)}</p>
@@ -744,7 +755,7 @@ function createSavedVideoCard(video) {
           <span class="duration">${escapeHtml(video.duration || "0:00")}</span>
         </div>
         <div class="meta">
-          <img class="avatar-image" src="${escapeHtml(video.avatar || "https://via.placeholder.com/80x80.png?text=T")}" alt="${escapeHtml(video.channel)}" />
+          <img class="avatar-image" src="${escapeHtml(video.avatar || DEFAULT_AVATAR)}" alt="${escapeHtml(video.channel)}" />
           <div class="text">
             <h3>${escapeHtml(video.title)}</h3>
             <p class="channel-name">${escapeHtml(video.channel)}</p>
@@ -770,7 +781,7 @@ function createLikedVideoCard(video) {
           <span class="duration">${escapeHtml(video.duration || "0:00")}</span>
         </div>
         <div class="meta">
-          <img class="avatar-image" src="${escapeHtml(video.avatar || "https://via.placeholder.com/80x80.png?text=T")}" alt="${escapeHtml(video.channel)}" />
+          <img class="avatar-image" src="${escapeHtml(video.avatar || DEFAULT_AVATAR)}" alt="${escapeHtml(video.channel)}" />
           <div class="text">
             <h3>${escapeHtml(video.title)}</h3>
             <p class="channel-name">${escapeHtml(video.channel)}</p>
@@ -842,33 +853,20 @@ function createManageCard(video) {
 
 function createPlayerMarkup(video) {
     if (video.videoUrl) {
-        return `
-      <div class="player-box">
-        <video class="player-video" controls src="${escapeHtml(video.videoUrl)}"></video>
-      </div>
-    `;
+        const poster = video.thumbnail && !video.thumbnail.startsWith("data:") ? ` poster="${escapeHtml(video.thumbnail)}"` : "";
+        return `<video class="player-video" controls preload="metadata"${poster} src="${escapeHtml(video.videoUrl)}"></video>`;
     }
 
     if (video.embedUrl) {
-        return `
-      <div class="player-box">
-        <iframe
-          class="player-iframe"
+        return `<iframe class="player-iframe"
           src="${escapeHtml(video.embedUrl)}"
           title="${escapeHtml(video.title)}"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowfullscreen
-          referrerpolicy="strict-origin-when-cross-origin">
-        </iframe>
-      </div>
-    `;
+          referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
     }
 
-    return `
-    <div class="player-box">
-      <img src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" />
-    </div>
-  `;
+    return `<img src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" />`;
 }
 
 function createCommentItem(comment) {
@@ -932,16 +930,21 @@ function readVideoDuration(file) {
         const tempVideo = document.createElement("video");
         const objectUrl = URL.createObjectURL(file);
 
+        const cleanup = () => URL.revokeObjectURL(objectUrl);
+        const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, 8000);
+
         tempVideo.preload = "metadata";
 
         tempVideo.onloadedmetadata = () => {
+            clearTimeout(timer);
             const duration = tempVideo.duration;
-            URL.revokeObjectURL(objectUrl);
+            cleanup();
             resolve(duration);
         };
 
         tempVideo.onerror = () => {
-            URL.revokeObjectURL(objectUrl);
+            clearTimeout(timer);
+            cleanup();
             reject(new Error("duration read failed"));
         };
 
@@ -1112,9 +1115,10 @@ function initUploadPage() {
     function validateVideoFile() {
         const fileBox = uploadVideoFile?.closest(".upload-file-box") || uploadVideoFile;
         const hasFile = Boolean(uploadVideoFile?.files?.[0]);
+        const hasEmbedUrl = Boolean(uploadEmbedUrl?.value?.trim());
 
-        if (!hasFile) {
-            setFieldError(fileBox, "영상 파일을 먼저 선택해줘.", "videoFile", fileBox);
+        if (!hasFile && !hasEmbedUrl) {
+            setFieldError(fileBox, "영상 파일을 선택하거나 YouTube URL을 입력해줘.", "videoFile", fileBox);
             return false;
         }
 
@@ -1274,7 +1278,9 @@ function initUploadPage() {
         formData.append("duration", duration);
         formData.append("visibility", visibility);
         formData.append("embedUrl", embedUrl);
-        formData.append("videoFile", videoFile);
+        if (videoFile) {
+            formData.append("videoFile", videoFile);
+        }
 
         if (thumbnailFile) {
             formData.append("thumbnailFile", thumbnailFile);
@@ -1286,12 +1292,20 @@ function initUploadPage() {
             const result = await new Promise((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
                 xhr.open("POST", "/api/upload");
+                const progressLabel = document.getElementById("uploadProgressLabel");
+                const convertNote = document.getElementById("uploadConvertNote");
                 xhr.upload.onprogress = (e) => {
                     if (e.lengthComputable) {
                         const pct = Math.round((e.loaded / e.total) * 100);
                         if (progressBar) progressBar.style.width = pct + "%";
                         if (progressText) progressText.textContent = pct + "%";
-                        if (submitBtn) submitBtn.textContent = pct < 100 ? `업로드 중... ${pct}%` : "처리 중...";
+                        if (pct >= 100) {
+                            if (progressLabel) progressLabel.textContent = "변환 중 (백그라운드)...";
+                            if (convertNote) convertNote.style.display = "block";
+                            if (submitBtn) submitBtn.textContent = "변환 중...";
+                        } else {
+                            if (submitBtn) submitBtn.textContent = `업로드 중... ${pct}%`;
+                        }
                     } else {
                         const mb = (e.loaded / (1024 * 1024)).toFixed(1);
                         if (progressText) progressText.textContent = `${mb}MB 전송됨`;
@@ -1316,7 +1330,10 @@ function initUploadPage() {
 
             if (progressBar) progressBar.style.width = "100%";
             if (progressText) progressText.textContent = "완료!";
-            setPendingToast("업로드가 완료되었습니다.");
+            const hadVideoFile = !!document.getElementById("uploadVideoFile")?.files?.[0];
+            setPendingToast(hadVideoFile
+                ? "업로드 완료! 영상이 백그라운드에서 H.264로 변환 중이야. 재생이 안 되면 잠시 후 새로고침해줘."
+                : "업로드가 완료되었습니다.");
             window.location.href = getVideoUrl(result.id);
         } catch (error) {
             if (progressWrap) progressWrap.style.display = "none";
@@ -1866,12 +1883,12 @@ async function initWatchPage() {
     const shouldCollapseDescription = descriptionText.length > 140 || descriptionText.includes("\n");
 
     watchMain.innerHTML = `
-    ${createPlayerMarkup(currentVideo)}
+    <div class="player-box">${createPlayerMarkup(currentVideo)}</div>
     <h1 class="watch-title">${escapeHtml(currentVideo.title)}</h1>
 
     <div class="watch-meta-row">
       <div class="watch-channel-box">
-        <img class="watch-channel-avatar" src="${escapeHtml(currentVideo.avatar || "https://via.placeholder.com/80x80.png?text=T")}" alt="${escapeHtml(currentVideo.channel)}" />
+        <img class="watch-channel-avatar" src="${escapeHtml(currentVideo.avatar || DEFAULT_AVATAR)}" alt="${escapeHtml(currentVideo.channel)}" />
         <div class="watch-channel-text">
           <strong>${escapeHtml(currentVideo.channel)}</strong>
           <span>${escapeHtml(currentVideo.subscribers || "구독자 0명")}</span>
@@ -1920,6 +1937,33 @@ async function initWatchPage() {
 
     if (watchRecommendList) {
         watchRecommendList.innerHTML = recommendVideos.map(createRecommendCard).join("");
+    }
+
+    const playerVideoEl = watchMain.querySelector("video.player-video");
+    if (playerVideoEl) {
+        playerVideoEl.addEventListener("error", () => {
+            const code = playerVideoEl.error?.code;
+            const msg = ["", "ABORTED", "NETWORK", "DECODE", "SRC_NOT_SUPPORTED"][code] || "UNKNOWN";
+            console.error("[Player] 영상 로드 실패:", msg, playerVideoEl.src);
+        });
+        playerVideoEl.addEventListener("loadedmetadata", () => {
+            const w = playerVideoEl.videoWidth;
+            const h = playerVideoEl.videoHeight;
+            console.log("[Player] 메타데이터 로드 완료:", w + "x" + h, playerVideoEl.src);
+            if (w === 0 && h === 0) {
+                const box = playerVideoEl.closest(".player-box");
+                if (box) {
+                    box.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;color:#aaa;gap:10px;padding:24px;aspect-ratio:16/9;"><span style="font-size:36px;">⚠️</span><span style="font-size:15px;text-align:center;">영상 트랙이 없습니다.<br>오디오 전용이거나 손상된 파일입니다.</span></div>`;
+                }
+            }
+        });
+        playerVideoEl.addEventListener("playing", () => {
+            console.log("[Player] 재생 시작:", playerVideoEl.src);
+        });
+        playerVideoEl.addEventListener("stalled", () => {
+            console.warn("[Player] 데이터 로드 정지 (stalled):", playerVideoEl.src);
+        });
+        console.log("[Player] src =", playerVideoEl.src);
     }
 
     const subscribeBtn = document.getElementById("subscribeBtn");
@@ -2299,7 +2343,7 @@ async function initChannelPage() {
             description: video.description || "",
             category: video.category || "미분류",
             visibility: video.visibility || "공개",
-            thumbnail: video.thumbnail || "https://via.placeholder.com/1280x720.png?text=Thumbnail",
+            thumbnail: video.thumbnail || DEFAULT_THUMBNAIL,
             channel: video.channel || "채널명",
             date: video.date || "방금 전",
             duration: video.duration || "0:00",
@@ -2534,8 +2578,8 @@ function normalizeHistoryVideoPatch(video) {
         date: video.date || "방금 전",
         duration: video.duration || "0:00",
         category: video.category || "미분류",
-        thumbnail: video.thumbnail || "https://via.placeholder.com/1280x720.png?text=Thumbnail",
-        avatar: video.avatar || "https://via.placeholder.com/80x80.png?text=T",
+        thumbnail: video.thumbnail || DEFAULT_THUMBNAIL,
+        avatar: video.avatar || DEFAULT_AVATAR,
         description: video.description || "",
         embedUrl: video.embedUrl || "",
         videoUrl: video.videoUrl || "",
@@ -2659,7 +2703,7 @@ async function addVideoToHistory(videoId) {
                 id: videoId,
                 title: "시청한 영상",
                 channel: "알 수 없는 채널",
-                thumbnail: "https://via.placeholder.com/1280x720.png?text=Thumbnail",
+                thumbnail: DEFAULT_THUMBNAIL,
                 duration: "0:00",
                 date: "방금 전"
             });
@@ -2873,11 +2917,11 @@ function ensureHistoryPatchStyle() {
             thumbnail:
                 video.thumbnail ||
                 video.thumbnailUrl ||
-                "https://via.placeholder.com/1280x720.png?text=Thumbnail",
+                DEFAULT_THUMBNAIL,
             avatar:
                 video.avatar ||
                 video.profileImage ||
-                "https://via.placeholder.com/80x80.png?text=T",
+                DEFAULT_AVATAR,
             description: video.description || "",
             embedUrl: video.embedUrl || "",
             videoUrl: video.videoUrl || "",
@@ -3418,11 +3462,11 @@ function ensureHistoryPatchStyle() {
             thumbnail:
                 video.thumbnail ||
                 video.thumbnailUrl ||
-                "https://via.placeholder.com/1280x720.png?text=Thumbnail",
+                DEFAULT_THUMBNAIL,
             avatar:
                 video.avatar ||
                 video.profileImage ||
-                "https://via.placeholder.com/80x80.png?text=T",
+                DEFAULT_AVATAR,
             description: video.description || "",
             embedUrl: video.embedUrl || "",
             videoUrl: video.videoUrl || "",
@@ -5555,11 +5599,11 @@ function ensureHistoryPatchStyle() {
                         thumbnail:
                             video.thumbnail ||
                             video.thumbnailUrl ||
-                            "https://via.placeholder.com/1280x720.png?text=Thumbnail",
+                            DEFAULT_THUMBNAIL,
                         avatar:
                             video.avatar ||
                             video.profileImage ||
-                            "https://via.placeholder.com/80x80.png?text=T",
+                            DEFAULT_AVATAR,
                         description: video.description || "",
                         embedUrl: video.embedUrl || "",
                         videoUrl: video.videoUrl || "",
@@ -5617,11 +5661,11 @@ function ensureHistoryPatchStyle() {
                 thumbnail:
                     video.thumbnail ||
                     video.thumbnailUrl ||
-                    "https://via.placeholder.com/1280x720.png?text=Thumbnail",
+                    DEFAULT_THUMBNAIL,
                 avatar:
                     video.avatar ||
                     video.profileImage ||
-                    "https://via.placeholder.com/80x80.png?text=T",
+                    DEFAULT_AVATAR,
                 description: video.description || "",
                 embedUrl: video.embedUrl || "",
                 videoUrl: video.videoUrl || "",

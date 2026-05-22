@@ -1,5 +1,8 @@
 package com.example.demo.config;
 
+import org.apache.coyote.http11.AbstractHttp11Protocol;
+import org.springframework.boot.tomcat.TomcatConnectorCustomizer;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -15,5 +18,15 @@ public class WebConfig implements WebMvcConfigurer {
 
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations("file:" + uploadPath);
+    }
+
+    @Bean
+    public TomcatConnectorCustomizer uploadTimeoutCustomizer() {
+        return connector -> {
+            if (connector.getProtocolHandler() instanceof AbstractHttp11Protocol<?> proto) {
+                proto.setDisableUploadTimeout(false);
+                proto.setConnectionUploadTimeout(3_600_000);
+            }
+        };
     }
 }
