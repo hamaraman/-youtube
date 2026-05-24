@@ -13,4 +13,6 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "LOWER(v.channel) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     List<Video> searchByKeyword(@Param("keyword") String keyword);
+
+    List<Video> findByOwnerIdIsNull();
 }
