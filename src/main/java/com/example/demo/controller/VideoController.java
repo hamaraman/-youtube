@@ -37,11 +37,16 @@ public class VideoController {
     }
 
     @GetMapping("/videos")
-    public List<VideoItem> getVideos(HttpSession session) {
+    public List<VideoItem> getVideos(
+            @RequestParam(required = false) String keyword,
+            HttpSession session) {
         Long loginUserId = getLoginUserId(session);
 
-        return videoRepository.findAll()
-                .stream()
+        List<Video> videos = (keyword != null && !keyword.isBlank())
+                ? videoRepository.searchByKeyword(keyword)
+                : videoRepository.findAll();
+
+        return videos.stream()
                 .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
                 .map(video -> VideoItem.from(
                         video,
