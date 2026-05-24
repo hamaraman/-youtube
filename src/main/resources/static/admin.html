@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>관리자 패널</title>
     <link rel="stylesheet" href="style.css" />
+    <script src="auth.js"></script>
     <style>
         body { background: #0f0f0f; color: #f1f1f1; }
 
@@ -159,19 +160,6 @@
 <script>
     let currentTab = 'videos';
 
-    async function init() {
-        const res = await fetch('/api/me');
-        const data = await res.json();
-        if (!data.loggedIn || data.user?.username !== 'admin') {
-            document.getElementById('authWall').textContent = '관리자 계정으로 로그인해야 합니다.';
-            return;
-        }
-        document.getElementById('authWall').style.display = 'none';
-        document.getElementById('adminContent').style.display = 'block';
-        loadVideos();
-        loadUsers();
-    }
-
     function switchTab(tab) {
         currentTab = tab;
         document.querySelectorAll('.tab-btn').forEach((btn, i) => {
@@ -275,7 +263,20 @@
         }
     }
 
-    init();
+    window.__AUTH_READY__.then(me => {
+        if (!me.loggedIn) {
+            window.location.href = 'login.html?next=admin.html';
+            return;
+        }
+        if (me.user?.username !== 'admin') {
+            document.getElementById('authWall').textContent = '관리자 계정으로 로그인해야 합니다.';
+            return;
+        }
+        document.getElementById('authWall').style.display = 'none';
+        document.getElementById('adminContent').style.display = 'block';
+        loadVideos();
+        loadUsers();
+    });
 </script>
 </body>
 </html>

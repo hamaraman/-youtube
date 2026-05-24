@@ -101,12 +101,17 @@ function renderTopbarAuth(user) {
         ? `<img src="${user.profileImage}" alt="${displayName}" />`
         : first;
 
+    const adminLink = user.username === 'admin'
+        ? `<a href="admin.html" class="auth-topbar-btn" style="border-color:#c00;color:#ff6b6b">관리자 패널</a>`
+        : '';
+
     container.innerHTML = `
         <a href="upload.html" class="icon-btn" aria-label="업로드">
             <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M11 6h2v5h5v2h-5v5h-2v-5H6v-2h5V6Z"></path>
             </svg>
         </a>
+        ${adminLink}
         <a href="channel.html" class="auth-topbar-btn">내 채널</a>
         <a href="profile.html" class="auth-topbar-btn">프로필</a>
         <button type="button" class="auth-topbar-btn logout" id="logoutBtn">로그아웃</button>
