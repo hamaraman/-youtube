@@ -20,4 +20,6 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     List<Video> findByChannel(String channel);
 
     Optional<Video> findByTitle(String title);
+
+    List<Video> findByTitleContaining(String title);
 }

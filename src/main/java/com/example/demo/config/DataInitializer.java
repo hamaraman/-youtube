@@ -57,6 +57,10 @@ public class DataInitializer implements ApplicationRunner {
         if (!dummies.isEmpty()) {
             dummies.forEach(v -> deleteVideoAndRelated(v.getId()));
         }
+
+        // 특정 제목 영상 삭제
+        videoRepository.findByTitleContaining("첫번째 영상 제목입니다")
+                .forEach(v -> deleteVideoAndRelated(v.getId()));
     }
 
     @Transactional

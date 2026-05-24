@@ -35,6 +35,24 @@ public class AdminController {
         this.dataInitializer = dataInitializer;
     }
 
+    @GetMapping("/videos/search")
+    public ResponseEntity<?> searchVideos(@RequestParam String title, HttpSession session) {
+        if (!adminChecker.isAdmin(session, loginUserResolver)) {
+            return ResponseEntity.status(403).body(Map.of("message", "관리자 권한이 필요합니다."));
+        }
+        List<Map<String, Object>> result = videoRepository.findByTitleContaining(title).stream()
+                .map(v -> {
+                    Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("id", v.getId());
+                    m.put("title", v.getTitle());
+                    m.put("channel", v.getChannel());
+                    m.put("ownerId", v.getOwnerId() == null ? "" : v.getOwnerId());
+                    return m;
+                })
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/videos")
     public ResponseEntity<?> listVideos(HttpSession session) {
         if (!adminChecker.isAdmin(session, loginUserResolver)) {
