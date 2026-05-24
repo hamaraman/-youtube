@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.config.JwtUtil;
+import com.example.demo.config.PasswordResetTokenStore;
 import com.example.demo.config.UserSessionRegistry;
 import com.example.demo.dto.SignupRequest;
 import com.example.demo.entity.User;
@@ -20,13 +21,16 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final UserSessionRegistry sessionRegistry;
     private final JwtUtil jwtUtil;
+    private final PasswordResetTokenStore resetTokenStore;
 
     public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                          UserSessionRegistry sessionRegistry, JwtUtil jwtUtil) {
+                          UserSessionRegistry sessionRegistry, JwtUtil jwtUtil,
+                          PasswordResetTokenStore resetTokenStore) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.sessionRegistry = sessionRegistry;
         this.jwtUtil = jwtUtil;
+        this.resetTokenStore = resetTokenStore;
     }
 
     @PostMapping("/signup")
@@ -148,6 +152,60 @@ public class AuthController {
         return ResponseEntity.ok(new MeResponse(true, (SessionUser) loginUser));
     }
 
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        String username = request.getUsername() == null ? "" : request.getUsername().trim();
+        String email = request.getEmail() == null ? "" : request.getEmail().trim();
+
+        if (username.isEmpty() || email.isEmpty()) {
+            return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디와 이메일을 입력해줘."));
+        }
+
+        Optional<User> optUser = userRepository.findByUsername(username);
+        if (optUser.isEmpty()) {
+            return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디 또는 이메일이 일치하지 않습니다."));
+        }
+
+        User user = optUser.get();
+        if (user.getEmail() == null || !user.getEmail().equalsIgnoreCase(email)) {
+            return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디 또는 이메일이 일치하지 않습니다."));
+        }
+
+        String token = resetTokenStore.create(user.getId());
+        return ResponseEntity.ok(new TokenResponse(true, "본인 확인이 완료됐어. 새 비밀번호를 설정해줘.", token));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
+        String token = request.getToken() == null ? "" : request.getToken().trim();
+        String newPassword = request.getNewPassword() == null ? "" : request.getNewPassword().trim();
+
+        if (token.isEmpty() || newPassword.isEmpty()) {
+            return ResponseEntity.badRequest().body(new SimpleResponse(false, "잘못된 요청입니다."));
+        }
+
+        if (newPassword.length() < 4) {
+            return ResponseEntity.badRequest().body(new SimpleResponse(false, "비밀번호는 최소 4자 이상이어야 합니다."));
+        }
+
+        Long userId = resetTokenStore.validate(token);
+        if (userId == null) {
+            return ResponseEntity.badRequest().body(new SimpleResponse(false, "인증이 만료됐어. 다시 시도해줘."));
+        }
+
+        Optional<User> optUser = userRepository.findById(userId);
+        if (optUser.isEmpty()) {
+            return ResponseEntity.badRequest().body(new SimpleResponse(false, "사용자를 찾을 수 없습니다."));
+        }
+
+        User user = optUser.get();
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        resetTokenStore.remove(token);
+
+        return ResponseEntity.ok(new SimpleResponse(true, "비밀번호가 변경됐어. 새 비밀번호로 로그인해줘."));
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpSession session) {
         Object loginUser = session.getAttribute("loginUser");
@@ -156,6 +214,38 @@ public class AuthController {
         }
         session.invalidate();
         return ResponseEntity.ok(new SimpleResponse(true, "로그아웃되었습니다."));
+    }
+
+    public static class ForgotPasswordRequest {
+        private String username;
+        private String email;
+        public String getUsername() { return username; }
+        public String getEmail() { return email; }
+        public void setUsername(String username) { this.username = username; }
+        public void setEmail(String email) { this.email = email; }
+    }
+
+    public static class ResetPasswordRequest {
+        private String token;
+        private String newPassword;
+        public String getToken() { return token; }
+        public String getNewPassword() { return newPassword; }
+        public void setToken(String token) { this.token = token; }
+        public void setNewPassword(String newPassword) { this.newPassword = newPassword; }
+    }
+
+    public static class TokenResponse {
+        private boolean success;
+        private String message;
+        private String token;
+        public TokenResponse(boolean success, String message, String token) {
+            this.success = success;
+            this.message = message;
+            this.token = token;
+        }
+        public boolean isSuccess() { return success; }
+        public String getMessage() { return message; }
+        public String getToken() { return token; }
     }
 
     public static class LoginRequest {
