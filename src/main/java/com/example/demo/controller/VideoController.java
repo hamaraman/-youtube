@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.LoginUserResolver;
 import com.example.demo.entity.Video;
 import com.example.demo.entity.VideoLike;
 import com.example.demo.entity.VideoSave;
@@ -21,15 +22,18 @@ public class VideoController {
     private final VideoRepository videoRepository;
     private final VideoLikeRepository videoLikeRepository;
     private final VideoSaveRepository videoSaveRepository;
+    private final LoginUserResolver loginUserResolver;
 
     public VideoController(
             VideoRepository videoRepository,
             VideoLikeRepository videoLikeRepository,
-            VideoSaveRepository videoSaveRepository
+            VideoSaveRepository videoSaveRepository,
+            LoginUserResolver loginUserResolver
     ) {
         this.videoRepository = videoRepository;
         this.videoLikeRepository = videoLikeRepository;
         this.videoSaveRepository = videoSaveRepository;
+        this.loginUserResolver = loginUserResolver;
     }
 
     @GetMapping("/videos")
@@ -236,11 +240,7 @@ public class VideoController {
     }
 
     private Long getLoginUserId(HttpSession session) {
-        Object loginUserObj = session.getAttribute("loginUser");
-        if (loginUserObj instanceof AuthController.SessionUser sessionUser) {
-            return sessionUser.getId();
-        }
-        return null;
+        return loginUserResolver.getUserId(session);
     }
 
     private void deletePhysicalFile(String urlPath) {

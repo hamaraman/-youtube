@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.LoginUserResolver;
 import com.example.demo.entity.Video;
 import com.example.demo.repository.VideoRepository;
 import jakarta.servlet.http.HttpSession;
@@ -35,9 +36,11 @@ public class VideoUploadController {
     private String ffmpegPath;
 
     private final VideoRepository videoRepository;
+    private final LoginUserResolver loginUserResolver;
 
-    public VideoUploadController(VideoRepository videoRepository) {
+    public VideoUploadController(VideoRepository videoRepository, LoginUserResolver loginUserResolver) {
         this.videoRepository = videoRepository;
+        this.loginUserResolver = loginUserResolver;
     }
 
     @PostMapping("/upload")
@@ -56,8 +59,8 @@ public class VideoUploadController {
             HttpSession session
     ) {
         try {
-            Object loginUserObj = session.getAttribute("loginUser");
-            if (!(loginUserObj instanceof AuthController.SessionUser sessionUser)) {
+            AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+            if (sessionUser == null) {
                 return ResponseEntity.status(401).body(basicFail("로그인이 필요합니다."));
             }
 

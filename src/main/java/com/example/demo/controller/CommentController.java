@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.LoginUserResolver;
 import com.example.demo.dto.CommentRequest;
 import com.example.demo.entity.Comment;
 import com.example.demo.entity.Video;
@@ -19,10 +20,13 @@ public class CommentController {
 
     private final CommentRepository commentRepository;
     private final VideoRepository videoRepository;
+    private final LoginUserResolver loginUserResolver;
 
-    public CommentController(CommentRepository commentRepository, VideoRepository videoRepository) {
+    public CommentController(CommentRepository commentRepository, VideoRepository videoRepository,
+                             LoginUserResolver loginUserResolver) {
         this.commentRepository = commentRepository;
         this.videoRepository = videoRepository;
+        this.loginUserResolver = loginUserResolver;
     }
 
     @GetMapping("/videos/{id}/comments")
@@ -33,14 +37,7 @@ public class CommentController {
             return ResponseEntity.notFound().build();
         }
 
-        Long loginUserId = null;
-        Object loginUserObj = session.getAttribute("loginUser");
-
-        if (loginUserObj instanceof AuthController.SessionUser sessionUser) {
-            loginUserId = sessionUser.getId();
-        }
-
-        final Long finalLoginUserId = loginUserId;
+        final Long finalLoginUserId = loginUserResolver.getUserId(session);
 
         List<CommentItem> comments = commentRepository.findByVideoIdOrderByIdDesc(id)
                 .stream()
@@ -62,8 +59,8 @@ public class CommentController {
             return ResponseEntity.notFound().build();
         }
 
-        Object loginUserObj = session.getAttribute("loginUser");
-        if (!(loginUserObj instanceof AuthController.SessionUser sessionUser)) {
+        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+        if (sessionUser == null) {
             return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
         }
 
@@ -97,8 +94,8 @@ public class CommentController {
             @RequestBody CommentRequest request,
             HttpSession session
     ) {
-        Object loginUserObj = session.getAttribute("loginUser");
-        if (!(loginUserObj instanceof AuthController.SessionUser sessionUser)) {
+        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+        if (sessionUser == null) {
             return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
         }
 
@@ -132,8 +129,8 @@ public class CommentController {
             @PathVariable Long commentId,
             HttpSession session
     ) {
-        Object loginUserObj = session.getAttribute("loginUser");
-        if (!(loginUserObj instanceof AuthController.SessionUser sessionUser)) {
+        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+        if (sessionUser == null) {
             return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
         }
 

@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.LoginUserResolver;
 import com.example.demo.entity.Video;
 import com.example.demo.entity.VideoHistory;
 import com.example.demo.repository.VideoHistoryRepository;
@@ -22,17 +23,20 @@ public class HistoryController {
     private final VideoRepository videoRepository;
     private final VideoLikeRepository videoLikeRepository;
     private final VideoSaveRepository videoSaveRepository;
+    private final LoginUserResolver loginUserResolver;
 
     public HistoryController(
             VideoHistoryRepository videoHistoryRepository,
             VideoRepository videoRepository,
             VideoLikeRepository videoLikeRepository,
-            VideoSaveRepository videoSaveRepository
+            VideoSaveRepository videoSaveRepository,
+            LoginUserResolver loginUserResolver
     ) {
         this.videoHistoryRepository = videoHistoryRepository;
         this.videoRepository = videoRepository;
         this.videoLikeRepository = videoLikeRepository;
         this.videoSaveRepository = videoSaveRepository;
+        this.loginUserResolver = loginUserResolver;
     }
 
     @PostMapping("/videos/{id}/history")
@@ -84,11 +88,7 @@ public class HistoryController {
     }
 
     private Long getLoginUserId(HttpSession session) {
-        Object loginUserObj = session.getAttribute("loginUser");
-        if (loginUserObj instanceof AuthController.SessionUser sessionUser) {
-            return sessionUser.getId();
-        }
-        return null;
+        return loginUserResolver.getUserId(session);
     }
 
     public static class SimpleResponse {

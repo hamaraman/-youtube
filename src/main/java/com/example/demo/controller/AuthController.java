@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.JwtUtil;
 import com.example.demo.config.UserSessionRegistry;
 import com.example.demo.dto.SignupRequest;
 import com.example.demo.entity.User;
@@ -18,11 +19,14 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserSessionRegistry sessionRegistry;
+    private final JwtUtil jwtUtil;
 
-    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, UserSessionRegistry sessionRegistry) {
+    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder,
+                          UserSessionRegistry sessionRegistry, JwtUtil jwtUtil) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.sessionRegistry = sessionRegistry;
+        this.jwtUtil = jwtUtil;
     }
 
     @PostMapping("/signup")
@@ -121,7 +125,12 @@ public class AuthController {
             session.setAttribute("loginUser", sessionUser);
             sessionRegistry.register(user.getId(), session);
 
-            return ResponseEntity.ok(new LoginResponse(true, "로그인되었습니다.", sessionUser));
+            String token = jwtUtil.generateToken(
+                    user.getId(), user.getUsername(), user.getNickname(),
+                    user.getEmail(), user.getChannelName(), user.getProfileImage()
+            );
+
+            return ResponseEntity.ok(new LoginResponse(true, "로그인되었습니다.", sessionUser, token));
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body(new SimpleResponse(false, "로그인 중 오류가 발생했습니다."));
@@ -237,11 +246,13 @@ public class AuthController {
         private boolean success;
         private String message;
         private SessionUser user;
+        private String token;
 
-        public LoginResponse(boolean success, String message, SessionUser user) {
+        public LoginResponse(boolean success, String message, SessionUser user, String token) {
             this.success = success;
             this.message = message;
             this.user = user;
+            this.token = token;
         }
 
         public boolean isSuccess() {
@@ -254,6 +265,10 @@ public class AuthController {
 
         public SessionUser getUser() {
             return user;
+        }
+
+        public String getToken() {
+            return token;
         }
     }
 

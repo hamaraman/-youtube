@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.LoginUserResolver;
 import com.example.demo.entity.User;
 import com.example.demo.entity.Video;
 import com.example.demo.repository.UserRepository;
@@ -17,16 +18,19 @@ public class ProfileController {
 
     private final UserRepository userRepository;
     private final VideoRepository videoRepository;
+    private final LoginUserResolver loginUserResolver;
 
-    public ProfileController(UserRepository userRepository, VideoRepository videoRepository) {
+    public ProfileController(UserRepository userRepository, VideoRepository videoRepository,
+                             LoginUserResolver loginUserResolver) {
         this.userRepository = userRepository;
         this.videoRepository = videoRepository;
+        this.loginUserResolver = loginUserResolver;
     }
 
     @GetMapping("/profile")
     public ResponseEntity<?> getProfile(HttpSession session) {
-        Object loginUserObj = session.getAttribute("loginUser");
-        if (!(loginUserObj instanceof AuthController.SessionUser sessionUser)) {
+        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+        if (sessionUser == null) {
             return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
         }
 
@@ -55,8 +59,8 @@ public class ProfileController {
             @RequestBody ProfileUpdateRequest request,
             HttpSession session
     ) {
-        Object loginUserObj = session.getAttribute("loginUser");
-        if (!(loginUserObj instanceof AuthController.SessionUser sessionUser)) {
+        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+        if (sessionUser == null) {
             return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
         }
 
