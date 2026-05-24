@@ -7,6 +7,7 @@ import com.example.demo.repository.VideoHistoryRepository;
 import com.example.demo.repository.VideoLikeRepository;
 import com.example.demo.repository.VideoRepository;
 import com.example.demo.repository.VideoSaveRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -58,6 +59,7 @@ public class DataInitializer implements ApplicationRunner {
         }
     }
 
+    @Transactional
     public void deleteVideoAndRelated(Long videoId) {
         videoLikeRepository.deleteByVideoId(videoId);
         videoSaveRepository.deleteByVideoId(videoId);

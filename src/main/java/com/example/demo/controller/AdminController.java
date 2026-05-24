@@ -58,13 +58,17 @@ public class AdminController {
     @DeleteMapping("/videos/{id}")
     public ResponseEntity<?> deleteVideo(@PathVariable Long id, HttpSession session) {
         if (!adminChecker.isAdmin(session, loginUserResolver)) {
-            return ResponseEntity.status(403).body(Map.of("message", "관리자 권한이 필요합니다."));
+            return ResponseEntity.status(403).body(Map.of("success", false, "message", "관리자 권한이 필요합니다."));
         }
         if (!videoRepository.existsById(id)) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(404).body(Map.of("success", false, "message", "영상을 찾을 수 없습니다."));
         }
-        dataInitializer.deleteVideoAndRelated(id);
-        return ResponseEntity.ok(Map.of("success", true, "message", "삭제됐습니다."));
+        try {
+            dataInitializer.deleteVideoAndRelated(id);
+            return ResponseEntity.ok(Map.of("success", true, "message", "삭제됐습니다."));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "삭제 실패: " + e.getMessage()));
+        }
     }
 
     @GetMapping("/users")
@@ -96,11 +100,15 @@ public class AdminController {
         if (!userRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
-        // 해당 유저의 영상 먼저 삭제
-        videoRepository.findAll().stream()
-                .filter(v -> id.equals(v.getOwnerId()))
-                .forEach(v -> dataInitializer.deleteVideoAndRelated(v.getId()));
-        userRepository.deleteById(id);
-        return ResponseEntity.ok(Map.of("success", true, "message", "삭제됐습니다."));
+        try {
+            // 해당 유저의 영상 먼저 삭제
+            videoRepository.findAll().stream()
+                    .filter(v -> id.equals(v.getOwnerId()))
+                    .forEach(v -> dataInitializer.deleteVideoAndRelated(v.getId()));
+            userRepository.deleteById(id);
+            return ResponseEntity.ok(Map.of("success", true, "message", "삭제됐습니다."));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "삭제 실패: " + e.getMessage()));
+        }
     }
 }
