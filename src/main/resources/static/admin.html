@@ -179,24 +179,28 @@
             return;
         }
 
-        const rows = videos.map(v => `
+        const rows = videos.map(v => {
+            const thumb = v.thumbnail
+                ? `<img src="${v.thumbnail}" style="width:80px;height:45px;object-fit:cover;border-radius:4px;vertical-align:middle">`
+                : `<div style="width:80px;height:45px;background:#222;border-radius:4px;display:inline-block"></div>`;
+            return `
             <tr id="vrow-${v.id}">
-                <td style="color:#888;width:48px">${v.id}</td>
-                <td title="${v.title}">${v.title}</td>
+                <td style="color:#888;width:40px">${v.id}</td>
+                <td style="width:90px">${thumb}</td>
+                <td title="${v.title}" style="max-width:200px">${v.title}</td>
                 <td>${v.channel}</td>
-                <td>${v.category}</td>
-                <td style="color:#888">${v.ownerId || '-'}</td>
+                <td style="color:#888">${v.category}</td>
                 <td style="color:#888">${v.visibility}</td>
                 <td><button class="btn-del" onclick="deleteVideo(${v.id})">삭제</button></td>
-            </tr>
-        `).join('');
+            </tr>`;
+        }).join('');
 
         document.getElementById('videoTableWrap').innerHTML = `
             <table>
                 <thead>
                     <tr>
-                        <th>ID</th><th>제목</th><th>채널</th><th>카테고리</th>
-                        <th>소유자 ID</th><th>공개</th><th></th>
+                        <th>ID</th><th>썸네일</th><th>제목</th><th>채널</th>
+                        <th>카테고리</th><th>공개</th><th></th>
                     </tr>
                 </thead>
                 <tbody>${rows}</tbody>

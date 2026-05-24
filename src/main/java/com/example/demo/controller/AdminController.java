@@ -42,15 +42,18 @@ public class AdminController {
         }
         List<Map<String, Object>> result = videoRepository.findAll().stream()
                 .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
-                .map(v -> Map.<String, Object>of(
-                        "id", v.getId(),
-                        "title", v.getTitle(),
-                        "channel", v.getChannel(),
-                        "category", v.getCategory() == null ? "" : v.getCategory(),
-                        "date", v.getDateText() == null ? "" : v.getDateText(),
-                        "ownerId", v.getOwnerId() == null ? "" : v.getOwnerId(),
-                        "visibility", v.getVisibility() == null ? "" : v.getVisibility()
-                ))
+                .map(v -> {
+                    Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("id", v.getId());
+                    m.put("title", v.getTitle());
+                    m.put("channel", v.getChannel());
+                    m.put("category", v.getCategory() == null ? "" : v.getCategory());
+                    m.put("date", v.getDateText() == null ? "" : v.getDateText());
+                    m.put("ownerId", v.getOwnerId() == null ? "" : v.getOwnerId());
+                    m.put("visibility", v.getVisibility() == null ? "" : v.getVisibility());
+                    m.put("thumbnail", v.getThumbnail() == null ? "" : v.getThumbnail());
+                    return m;
+                })
                 .collect(Collectors.toList());
         return ResponseEntity.ok(result);
     }
