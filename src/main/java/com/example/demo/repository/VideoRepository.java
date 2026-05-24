@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface VideoRepository extends JpaRepository<Video, Long> {
 
@@ -17,4 +18,6 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     List<Video> findByOwnerIdIsNull();
 
     List<Video> findByChannel(String channel);
+
+    Optional<Video> findByTitle(String title);
 }
