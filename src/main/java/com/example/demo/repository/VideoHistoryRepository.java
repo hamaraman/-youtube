@@ -9,4 +9,5 @@ import java.util.Optional;
 public interface VideoHistoryRepository extends JpaRepository<VideoHistory, Long> {
     Optional<VideoHistory> findByVideoIdAndUserId(Long videoId, Long userId);
     List<VideoHistory> findByUserIdOrderByWatchedAtDesc(Long userId);
+    void deleteByVideoId(Long videoId);
 }

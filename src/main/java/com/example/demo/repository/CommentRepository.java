@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface CommentRepository extends JpaRepository<Comment, Long> {
     List<Comment> findByVideoIdOrderByIdDesc(Long videoId);
+    void deleteByVideoId(Long videoId);
 }

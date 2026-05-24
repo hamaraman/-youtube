@@ -10,4 +10,5 @@ public interface VideoSaveRepository extends JpaRepository<VideoSave, Long> {
     boolean existsByVideoIdAndUserId(Long videoId, Long userId);
     Optional<VideoSave> findByVideoIdAndUserId(Long videoId, Long userId);
     List<VideoSave> findByUserIdOrderByIdDesc(Long userId);
+    void deleteByVideoId(Long videoId);
 }
