@@ -21,5 +21,11 @@ public class DataInitializer implements ApplicationRunner {
         if (!dummies.isEmpty()) {
             videoRepository.deleteAll(dummies);
         }
+
+        // 테스트 채널 영상 삭제
+        var testVideos = videoRepository.findByChannel("Test Channel");
+        if (!testVideos.isEmpty()) {
+            videoRepository.deleteAll(testVideos);
+        }
     }
 }

@@ -15,4 +15,6 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     List<Video> searchByKeyword(@Param("keyword") String keyword);
 
     List<Video> findByOwnerIdIsNull();
+
+    List<Video> findByChannel(String channel);
 }
