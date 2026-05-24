@@ -9,27 +9,7 @@ document.addEventListener("error", function (e) {
     img.src = isAvatar ? DEFAULT_AVATAR : DEFAULT_THUMBNAIL;
 }, true);
 
-const defaultVideos = [
-    {
-        id: 1,
-        title: "첫 번째 영상 제목입니다.",
-        channel: "채널명",
-        subscribers: "구독자 12.3만명",
-        views: "조회수 12만회",
-        date: "3일 전",
-        duration: "12:31",
-        category: "코딩",
-        thumbnail: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80",
-        avatar: DEFAULT_AVATAR,
-        description: "기본 샘플 영상입니다. 이 영상은 테스트용 기본 영상이며 워치 페이지 동작을 확인하기 위한 예시 데이터입니다.",
-        embedUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-        visibility: "공개",
-        likeCount: 0,
-        commentCount: 0,
-        likedByMe: false,
-        savedByMe: false
-    }
-];
+const defaultVideos = [];
 
 function escapeHtml(text) {
     return String(text ?? "")
