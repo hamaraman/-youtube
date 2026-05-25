@@ -10,6 +10,7 @@ import com.example.demo.repository.VideoSaveRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -23,13 +24,15 @@ public class DataInitializer implements ApplicationRunner {
     private final VideoSaveRepository videoSaveRepository;
     private final CommentRepository commentRepository;
     private final VideoHistoryRepository videoHistoryRepository;
+    private final JdbcTemplate jdbcTemplate;
 
     public DataInitializer(VideoRepository videoRepository, UserRepository userRepository,
                            PasswordEncoder passwordEncoder,
                            VideoLikeRepository videoLikeRepository,
                            VideoSaveRepository videoSaveRepository,
                            CommentRepository commentRepository,
-                           VideoHistoryRepository videoHistoryRepository) {
+                           VideoHistoryRepository videoHistoryRepository,
+                           JdbcTemplate jdbcTemplate) {
         this.videoRepository = videoRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -37,10 +40,15 @@ public class DataInitializer implements ApplicationRunner {
         this.videoSaveRepository = videoSaveRepository;
         this.commentRepository = commentRepository;
         this.videoHistoryRepository = videoHistoryRepository;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
     public void run(ApplicationArguments args) {
+        jdbcTemplate.execute(
+            "ALTER TABLE videos ADD COLUMN IF NOT EXISTS view_count BIGINT NOT NULL DEFAULT 0"
+        );
+
         // 관리자 계정 생성
         if (!userRepository.existsByUsername("admin")) {
             User admin = new User();

@@ -42,23 +42,33 @@ public class HistoryController {
     @PostMapping("/videos/{id}/history")
     public ResponseEntity<?> markHistory(@PathVariable Long id, HttpSession session) {
         Long loginUserId = getLoginUserId(session);
-        if (loginUserId == null) {
-            return ResponseEntity.ok(new SimpleResponse(true, "비로그인 사용자는 기록 저장 안 함"));
-        }
 
         Optional<Video> optionalVideo = videoRepository.findById(id);
         if (optionalVideo.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
+        Video video = optionalVideo.get();
+
+        if (loginUserId == null) {
+            video.setViewCount(video.getViewCount() + 1);
+            videoRepository.save(video);
+            return ResponseEntity.ok(new SimpleResponse(true, "조회수 증가"));
+        }
+
         Optional<VideoHistory> existing = videoHistoryRepository.findByVideoIdAndUserId(id, loginUserId);
+        boolean isNew = existing.isEmpty();
 
         VideoHistory history = existing.orElseGet(VideoHistory::new);
         history.setVideoId(id);
         history.setUserId(loginUserId);
         history.setWatchedAt(System.currentTimeMillis());
-
         videoHistoryRepository.save(history);
+
+        if (isNew) {
+            video.setViewCount(video.getViewCount() + 1);
+            videoRepository.save(video);
+        }
 
         return ResponseEntity.ok(new SimpleResponse(true, "시청 기록 저장됨"));
     }

@@ -608,6 +608,8 @@ function extractInitialViewCount(video) {
 }
 
 function loadViewCount(video) {
+    if (typeof video.viewCount === "number") return video.viewCount;
+
     const raw = localStorage.getItem(getViewCountKey(video.id));
     if (raw !== null) {
         const parsed = Number(raw);

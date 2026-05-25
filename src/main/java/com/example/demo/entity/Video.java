@@ -39,6 +39,9 @@ public class Video {
 
     private String dateText;
 
+    @Column(name = "view_count")
+    private long viewCount = 0;
+
     public Video() {
     }
 
@@ -144,5 +147,13 @@ public class Video {
 
     public void setDateText(String dateText) {
         this.dateText = dateText;
+    }
+
+    public long getViewCount() {
+        return viewCount;
+    }
+
+    public void setViewCount(long viewCount) {
+        this.viewCount = viewCount;
     }
 }

@@ -341,6 +341,7 @@ public class VideoController {
         private String videoUrl;
         private String visibility;
         private String embedUrl;
+        private long viewCount;
         private long likeCount;
         private boolean likedByMe;
         private boolean savedByMe;
@@ -359,6 +360,7 @@ public class VideoController {
             item.videoUrl = video.getVideoUrl();
             item.visibility = video.getVisibility();
             item.embedUrl = video.getEmbedUrl();
+            item.viewCount = video.getViewCount();
             item.likeCount = likeCount;
             item.likedByMe = likedByMe;
             item.savedByMe = savedByMe;
@@ -377,6 +379,7 @@ public class VideoController {
         public String getVideoUrl() { return videoUrl; }
         public String getVisibility() { return visibility; }
         public String getEmbedUrl() { return embedUrl; }
+        public long getViewCount() { return viewCount; }
         public long getLikeCount() { return likeCount; }
         public boolean isLikedByMe() { return likedByMe; }
         public boolean isSavedByMe() { return savedByMe; }
