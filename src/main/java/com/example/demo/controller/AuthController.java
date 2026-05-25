@@ -8,7 +8,10 @@ import com.example.demo.entity.User;
 import com.example.demo.repository.SubscriptionRepository;
 import com.example.demo.repository.UserRepository;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,17 +27,23 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final PasswordResetTokenStore resetTokenStore;
     private final SubscriptionRepository subscriptionRepository;
+    private final JavaMailSender mailSender;
+
+    @Value("${app.base-url}")
+    private String baseUrl;
 
     public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder,
                           UserSessionRegistry sessionRegistry, JwtUtil jwtUtil,
                           PasswordResetTokenStore resetTokenStore,
-                          SubscriptionRepository subscriptionRepository) {
+                          SubscriptionRepository subscriptionRepository,
+                          JavaMailSender mailSender) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.sessionRegistry = sessionRegistry;
         this.jwtUtil = jwtUtil;
         this.resetTokenStore = resetTokenStore;
         this.subscriptionRepository = subscriptionRepository;
+        this.mailSender = mailSender;
     }
 
     @PostMapping("/signup")
@@ -178,7 +187,27 @@ public class AuthController {
         }
 
         String token = resetTokenStore.create(user.getId());
-        return ResponseEntity.ok(new TokenResponse(true, "본인 확인이 완료됐어. 새 비밀번호를 설정해줘.", token));
+        String resetLink = baseUrl + "/forgot-password.html?token=" + token;
+
+        try {
+            SimpleMailMessage mail = new SimpleMailMessage();
+            mail.setTo(user.getEmail());
+            mail.setSubject("[MyTube] 비밀번호 재설정 링크");
+            mail.setText(
+                "안녕하세요, " + user.getNickname() + "님!\n\n" +
+                "비밀번호 재설정을 요청하셨습니다.\n" +
+                "아래 링크를 클릭해서 새 비밀번호를 설정해주세요.\n\n" +
+                resetLink + "\n\n" +
+                "이 링크는 10분 후 만료됩니다.\n" +
+                "본인이 요청하지 않은 경우 이 이메일을 무시해주세요."
+            );
+            mailSender.send(mail);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(new SimpleResponse(false, "이메일 전송에 실패했습니다. 잠시 후 다시 시도해줘."));
+        }
+
+        return ResponseEntity.ok(new SimpleResponse(true, "이메일을 확인해줘! 비밀번호 재설정 링크를 보냈어."));
     }
 
     @PostMapping("/reset-password")
