@@ -10,6 +10,15 @@ import java.util.Optional;
 
 public interface VideoRepository extends JpaRepository<Video, Long> {
 
+    @Query("SELECT v FROM Video v WHERE v.visibility IS NULL OR v.visibility != '비공개'")
+    List<Video> findAllPublic();
+
+    @Query("SELECT v FROM Video v WHERE " +
+           "(LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(v.channel) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (v.visibility IS NULL OR v.visibility != '비공개')")
+    List<Video> searchPublicByKeyword(@Param("keyword") String keyword);
+
     @Query("SELECT v FROM Video v WHERE " +
            "LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "LOWER(v.channel) LIKE LOWER(CONCAT('%', :keyword, '%'))")
@@ -22,4 +31,6 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     Optional<Video> findByTitle(String title);
 
     List<Video> findByTitleContaining(String title);
+
+    Optional<Video> findByVideoUrl(String videoUrl);
 }

@@ -43,8 +43,8 @@ public class VideoController {
         Long loginUserId = getLoginUserId(session);
 
         List<Video> videos = (keyword != null && !keyword.isBlank())
-                ? videoRepository.searchByKeyword(keyword)
-                : videoRepository.findAll();
+                ? videoRepository.searchPublicByKeyword(keyword)
+                : videoRepository.findAllPublic();
 
         return videos.stream()
                 .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
@@ -67,6 +67,12 @@ public class VideoController {
 
         Long loginUserId = getLoginUserId(session);
         Video video = optionalVideo.get();
+
+        if ("비공개".equals(video.getVisibility())) {
+            if (loginUserId == null || !loginUserId.equals(video.getOwnerId())) {
+                return ResponseEntity.status(403).body(new SimpleResponse(false, "비공개 영상입니다."));
+            }
+        }
 
         return ResponseEntity.ok(
                 VideoItem.from(
@@ -208,6 +214,7 @@ public class VideoController {
                 .map(videoRepository::findById)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
+                .filter(video -> !"비공개".equals(video.getVisibility()) || loginUserId.equals(video.getOwnerId()))
                 .map(video -> VideoItem.from(
                         video,
                         videoLikeRepository.countByVideoId(video.getId()),
@@ -233,6 +240,7 @@ public class VideoController {
                 .map(videoRepository::findById)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
+                .filter(video -> !"비공개".equals(video.getVisibility()) || loginUserId.equals(video.getOwnerId()))
                 .map(video -> VideoItem.from(
                         video,
                         videoLikeRepository.countByVideoId(video.getId()),

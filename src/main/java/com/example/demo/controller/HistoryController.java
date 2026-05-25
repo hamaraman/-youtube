@@ -76,6 +76,7 @@ public class HistoryController {
                 .map(videoRepository::findById)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
+                .filter(video -> !"비공개".equals(video.getVisibility()) || loginUserId.equals(video.getOwnerId()))
                 .map(video -> VideoController.VideoItem.from(
                         video,
                         videoLikeRepository.countByVideoId(video.getId()),
