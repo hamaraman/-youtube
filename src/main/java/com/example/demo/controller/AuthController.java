@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,6 +22,8 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api")
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -31,6 +35,9 @@ public class AuthController {
 
     @Value("${app.base-url}")
     private String baseUrl;
+
+    @Value("${spring.mail.username}")
+    private String mailSenderUsername;
 
     public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder,
                           UserSessionRegistry sessionRegistry, JwtUtil jwtUtil,
@@ -191,6 +198,7 @@ public class AuthController {
 
         try {
             SimpleMailMessage mail = new SimpleMailMessage();
+            mail.setFrom(mailSenderUsername);
             mail.setTo(user.getEmail());
             mail.setSubject("[MyTube] 비밀번호 재설정 링크");
             mail.setText(
@@ -202,7 +210,9 @@ public class AuthController {
                 "본인이 요청하지 않은 경우 이 이메일을 무시해주세요."
             );
             mailSender.send(mail);
+            log.info("비밀번호 재설정 이메일 발송: {}", user.getEmail());
         } catch (Exception e) {
+            log.error("이메일 발송 실패: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError()
                     .body(new SimpleResponse(false, "이메일 전송에 실패했습니다. 잠시 후 다시 시도해줘."));
         }
