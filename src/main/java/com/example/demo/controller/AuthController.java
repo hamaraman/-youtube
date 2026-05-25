@@ -5,6 +5,7 @@ import com.example.demo.config.PasswordResetTokenStore;
 import com.example.demo.config.UserSessionRegistry;
 import com.example.demo.dto.SignupRequest;
 import com.example.demo.entity.User;
+import com.example.demo.repository.SubscriptionRepository;
 import com.example.demo.repository.UserRepository;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
@@ -22,15 +23,18 @@ public class AuthController {
     private final UserSessionRegistry sessionRegistry;
     private final JwtUtil jwtUtil;
     private final PasswordResetTokenStore resetTokenStore;
+    private final SubscriptionRepository subscriptionRepository;
 
     public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder,
                           UserSessionRegistry sessionRegistry, JwtUtil jwtUtil,
-                          PasswordResetTokenStore resetTokenStore) {
+                          PasswordResetTokenStore resetTokenStore,
+                          SubscriptionRepository subscriptionRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.sessionRegistry = sessionRegistry;
         this.jwtUtil = jwtUtil;
         this.resetTokenStore = resetTokenStore;
+        this.subscriptionRepository = subscriptionRepository;
     }
 
     @PostMapping("/signup")
@@ -149,7 +153,9 @@ public class AuthController {
             return ResponseEntity.ok(new MeResponse(false, null));
         }
 
-        return ResponseEntity.ok(new MeResponse(true, (SessionUser) loginUser));
+        SessionUser su = (SessionUser) loginUser;
+        long subscriberCount = subscriptionRepository.countByChannelOwnerId(su.getId());
+        return ResponseEntity.ok(new MeResponse(true, su.withSubscriberCount(subscriberCount)));
     }
 
     @PostMapping("/forgot-password")
@@ -279,6 +285,7 @@ public class AuthController {
         private String email;
         private String channelName;
         private String profileImage;
+        private long subscriberCount;
 
         public SessionUser(Long id, String username, String nickname, String email, String channelName, String profileImage) {
             this.id = id;
@@ -289,29 +296,19 @@ public class AuthController {
             this.profileImage = profileImage;
         }
 
-        public Long getId() {
-            return id;
+        public SessionUser withSubscriberCount(long count) {
+            SessionUser copy = new SessionUser(id, username, nickname, email, channelName, profileImage);
+            copy.subscriberCount = count;
+            return copy;
         }
 
-        public String getUsername() {
-            return username;
-        }
-
-        public String getNickname() {
-            return nickname;
-        }
-
-        public String getEmail() {
-            return email;
-        }
-
-        public String getChannelName() {
-            return channelName;
-        }
-
-        public String getProfileImage() {
-            return profileImage;
-        }
+        public Long getId() { return id; }
+        public String getUsername() { return username; }
+        public String getNickname() { return nickname; }
+        public String getEmail() { return email; }
+        public String getChannelName() { return channelName; }
+        public String getProfileImage() { return profileImage; }
+        public long getSubscriberCount() { return subscriberCount; }
     }
 
     public static class SimpleResponse {

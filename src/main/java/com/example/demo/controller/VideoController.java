@@ -330,6 +330,7 @@ public class VideoController {
 
     public static class VideoItem {
         private Long id;
+        private Long ownerId;
         private String title;
         private String channel;
         private String thumbnail;
@@ -349,6 +350,7 @@ public class VideoController {
         public static VideoItem from(Video video, long likeCount, boolean likedByMe, boolean savedByMe) {
             VideoItem item = new VideoItem();
             item.id = video.getId();
+            item.ownerId = video.getOwnerId();
             item.title = video.getTitle();
             item.channel = video.getChannel();
             item.thumbnail = video.getThumbnail();
@@ -368,6 +370,7 @@ public class VideoController {
         }
 
         public Long getId() { return id; }
+        public Long getOwnerId() { return ownerId; }
         public String getTitle() { return title; }
         public String getChannel() { return channel; }
         public String getThumbnail() { return thumbnail; }

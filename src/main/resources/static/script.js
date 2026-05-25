@@ -44,6 +44,22 @@ async function fetchUploadedVideos() {
     }
 }
 
+async function fetchSubscriptionStatus(channelOwnerId) {
+    try {
+        const res = await fetch(`/api/users/${channelOwnerId}/subscription-status`);
+        if (!res.ok) return { subscribed: false, subscriberCount: 0 };
+        return await res.json();
+    } catch {
+        return { subscribed: false, subscriberCount: 0 };
+    }
+}
+
+async function toggleSubscription(channelOwnerId) {
+    const res = await fetch(`/api/users/${channelOwnerId}/subscribe`, { method: "POST" });
+    if (!res.ok) throw new Error("구독 처리 실패");
+    return await res.json();
+}
+
 async function fetchMyVideos() {
     try {
         const response = await fetch("/api/my-videos");
@@ -1856,7 +1872,19 @@ async function initWatchPage() {
     let isLiked = Boolean(currentVideo.likedByMe);
     let likeCount = Number(currentVideo.likeCount || 0);
     let isSubscribed = false;
+    let subscriberCount = 0;
     let isSaved = Boolean(currentVideo.savedByMe);
+
+    const isOwnVideo = authMe.loggedIn && authMe.user && String(authMe.user.id) === String(currentVideo.ownerId);
+
+    if (currentVideo.ownerId && !isOwnVideo) {
+        try {
+            const subStatus = await fetchSubscriptionStatus(currentVideo.ownerId);
+            isSubscribed = Boolean(subStatus.subscribed);
+            subscriberCount = Number(subStatus.subscriberCount || 0);
+        } catch {}
+    }
+
     let comments = await fetchCommentsByVideoId(currentVideo.id);
 
     const recommendVideos = getRecommendedVideos(currentVideo, allVideos, 12);
@@ -1873,11 +1901,9 @@ async function initWatchPage() {
         <img class="watch-channel-avatar" src="${escapeHtml(currentVideo.avatar || DEFAULT_AVATAR)}" alt="${escapeHtml(currentVideo.channel)}" />
         <div class="watch-channel-text">
           <strong>${escapeHtml(currentVideo.channel)}</strong>
-          <span>${escapeHtml(currentVideo.subscribers || "구독자 0명")}</span>
+          <span id="subscriberCount">구독자 ${formatCount(subscriberCount)}명</span>
         </div>
-        <button class="watch-action-btn ${isSubscribed ? "" : "primary"}" id="subscribeBtn" type="button">
-          ${isSubscribed ? "구독중" : "구독"}
-        </button>
+        ${!isOwnVideo ? `<button class="watch-action-btn ${isSubscribed ? "" : "primary"}" id="subscribeBtn" type="button">${isSubscribed ? "구독중" : "구독"}</button>` : ""}
       </div>
 
       <div class="watch-actions">
@@ -2055,10 +2081,18 @@ async function initWatchPage() {
         });
     }
 
-    subscribeBtn?.addEventListener("click", () => {
+    subscribeBtn?.addEventListener("click", async () => {
         if (!requireAuthRedirect()) return;
-        isSubscribed = !isSubscribed;
-        refreshSubscribeButton();
+        try {
+            const result = await toggleSubscription(currentVideo.ownerId);
+            isSubscribed = Boolean(result.subscribed);
+            subscriberCount = Number(result.subscriberCount || 0);
+            refreshSubscribeButton();
+            const countEl = document.getElementById("subscriberCount");
+            if (countEl) countEl.textContent = `구독자 ${formatCount(subscriberCount)}명`;
+        } catch {
+            showToast("구독 처리 중 오류가 발생했습니다.");
+        }
     });
 
     likeBtn?.addEventListener("click", async () => {
