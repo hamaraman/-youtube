@@ -42,16 +42,9 @@ public class VideoController {
             HttpSession session) {
         Long loginUserId = getLoginUserId(session);
 
-        List<Video> videos;
-        if (keyword != null && !keyword.isBlank()) {
-            videos = loginUserId != null
-                    ? videoRepository.searchPublicOrOwnedByKeyword(keyword, loginUserId)
-                    : videoRepository.searchPublicByKeyword(keyword);
-        } else {
-            videos = loginUserId != null
-                    ? videoRepository.findPublicOrOwnedBy(loginUserId)
-                    : videoRepository.findAllPublic();
-        }
+        List<Video> videos = (keyword != null && !keyword.isBlank())
+                ? videoRepository.searchPublicByKeyword(keyword)
+                : videoRepository.findAllPublic();
 
         return videos.stream()
                 .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
