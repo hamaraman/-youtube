@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.config.AdminChecker;
 import com.example.demo.config.LoginUserResolver;
+import com.example.demo.config.S3StorageService;
 import com.example.demo.entity.Video;
 import com.example.demo.entity.VideoLike;
 import com.example.demo.entity.VideoSave;
@@ -25,19 +26,22 @@ public class VideoController {
     private final VideoSaveRepository videoSaveRepository;
     private final LoginUserResolver loginUserResolver;
     private final AdminChecker adminChecker;
+    private final S3StorageService storageService;
 
     public VideoController(
             VideoRepository videoRepository,
             VideoLikeRepository videoLikeRepository,
             VideoSaveRepository videoSaveRepository,
             LoginUserResolver loginUserResolver,
-            AdminChecker adminChecker
+            AdminChecker adminChecker,
+            S3StorageService storageService
     ) {
         this.videoRepository = videoRepository;
         this.videoLikeRepository = videoLikeRepository;
         this.videoSaveRepository = videoSaveRepository;
         this.loginUserResolver = loginUserResolver;
         this.adminChecker = adminChecker;
+        this.storageService = storageService;
     }
 
     @GetMapping("/videos")
@@ -275,19 +279,16 @@ public class VideoController {
         return loginUserResolver.getUserId(session);
     }
 
-    private void deletePhysicalFile(String urlPath) {
+    private void deletePhysicalFile(String url) {
         try {
-            if (urlPath == null || urlPath.isBlank()) return;
-            if (!urlPath.startsWith("/uploads/")) return;
-
-            String relativePath = urlPath.substring(1);
-            File file = new File(relativePath);
-
-            if (file.exists()) {
-                file.delete();
+            if (url == null || url.isBlank()) return;
+            if (url.startsWith("http")) {
+                storageService.delete(url);
+            } else if (url.startsWith("/uploads/")) {
+                File file = new File(url.substring(1));
+                if (file.exists()) file.delete();
             }
-        } catch (Exception ignored) {
-        }
+        } catch (Exception ignored) {}
     }
 
     public static class SimpleResponse {

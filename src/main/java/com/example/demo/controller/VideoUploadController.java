@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.config.AdminChecker;
 import com.example.demo.config.LoginUserResolver;
+import com.example.demo.config.S3StorageService;
 import com.example.demo.entity.Video;
 import com.example.demo.repository.VideoRepository;
 import jakarta.servlet.http.HttpSession;
@@ -40,11 +41,14 @@ public class VideoUploadController {
     private final VideoRepository videoRepository;
     private final LoginUserResolver loginUserResolver;
     private final AdminChecker adminChecker;
+    private final S3StorageService storageService;
 
-    public VideoUploadController(VideoRepository videoRepository, LoginUserResolver loginUserResolver, AdminChecker adminChecker) {
+    public VideoUploadController(VideoRepository videoRepository, LoginUserResolver loginUserResolver,
+                                 AdminChecker adminChecker, S3StorageService storageService) {
         this.videoRepository = videoRepository;
         this.loginUserResolver = loginUserResolver;
         this.adminChecker = adminChecker;
+        this.storageService = storageService;
     }
 
     @PostMapping("/upload")
@@ -68,33 +72,35 @@ public class VideoUploadController {
                 return ResponseEntity.status(401).body(basicFail("로그인이 필요합니다."));
             }
 
-            if (title == null || title.trim().isEmpty()) {
-                return badRequest("제목을 입력해줘.");
-            }
-            if (description == null || description.trim().isEmpty()) {
-                return badRequest("설명을 입력해줘.");
-            }
-            if (channel == null || channel.trim().isEmpty()) {
-                return badRequest("채널명을 입력해줘.");
-            }
-            if (duration == null || duration.trim().isEmpty()) {
-                return badRequest("영상 길이를 입력해줘.");
-            }
+            if (title == null || title.trim().isEmpty()) return badRequest("제목을 입력해줘.");
+            if (description == null || description.trim().isEmpty()) return badRequest("설명을 입력해줘.");
+            if (channel == null || channel.trim().isEmpty()) return badRequest("채널명을 입력해줘.");
+            if (duration == null || duration.trim().isEmpty()) return badRequest("영상 길이를 입력해줘.");
 
-            // Step 1: save video file synchronously (before DB save)
+            // Step 1: save video file (local for FFmpeg, then S3)
             String videoUrl = "";
             String videoUuid = null;
             if (videoFile != null && !videoFile.isEmpty()) {
                 videoUuid = saveVideoFileSync(videoFile, videoDir);
-                videoUrl = "/uploads/videos/" + videoUuid + ".mp4";
+                if (storageService.isConfigured()) {
+                    Path mp4Path = Paths.get(videoDir).toAbsolutePath().resolve(videoUuid + ".mp4");
+                    videoUrl = storageService.upload(mp4Path, "videos/" + videoUuid + ".mp4", "video/mp4");
+                } else {
+                    videoUrl = "/uploads/videos/" + videoUuid + ".mp4";
+                }
             } else if (embedUrl == null || embedUrl.trim().isEmpty()) {
                 return badRequest("영상 파일을 선택하거나 YouTube URL을 입력해줘.");
             }
 
+            // Step 2: save thumbnail
             String finalThumbnailUrl;
             if (thumbnailFile != null && !thumbnailFile.isEmpty()) {
-                String savedThumbnailFileName = saveFile(thumbnailFile, thumbnailDir);
-                finalThumbnailUrl = "/uploads/thumbnails/" + savedThumbnailFileName;
+                if (storageService.isConfigured()) {
+                    finalThumbnailUrl = uploadThumbnailToS3(thumbnailFile);
+                } else {
+                    String savedThumbnailFileName = saveFile(thumbnailFile, thumbnailDir);
+                    finalThumbnailUrl = "/uploads/thumbnails/" + savedThumbnailFileName;
+                }
             } else if (thumbnailUrl != null && !thumbnailUrl.trim().isEmpty()) {
                 finalThumbnailUrl = thumbnailUrl.trim();
             } else {
@@ -115,10 +121,10 @@ public class VideoUploadController {
             video.setVideoUrl(videoUrl);
             video.setDateText("방금 전");
 
-            // Step 2: save entity to get ID
+            // Step 3: save entity to get ID
             Video savedVideo = videoRepository.save(video);
 
-            // Step 3: trigger background H.264 conversion + resolution variants
+            // Step 4: trigger background H.264 conversion + resolution variants
             if (videoUuid != null) {
                 final String uuid = videoUuid;
                 final Long savedId = savedVideo.getId();
@@ -128,14 +134,10 @@ public class VideoUploadController {
             }
 
             UploadResponse response = new UploadResponse(
-                    true,
-                    "업로드 완료",
-                    savedVideo.getVideoUrl(),
-                    savedVideo.getThumbnail(),
-                    savedVideo.getTitle(),
-                    savedVideo.getDescription(),
-                    savedVideo.getChannel(),
-                    savedVideo.getDuration(),
+                    true, "업로드 완료",
+                    savedVideo.getVideoUrl(), savedVideo.getThumbnail(),
+                    savedVideo.getTitle(), savedVideo.getDescription(),
+                    savedVideo.getChannel(), savedVideo.getDuration(),
                     savedVideo.getVisibility()
             );
             response.setId(savedVideo.getId());
@@ -162,7 +164,7 @@ public class VideoUploadController {
         }
 
         List<Video> targets = videoRepository.findAll().stream()
-                .filter(v -> v.getVideoUrl() != null && v.getVideoUrl().startsWith("/uploads/"))
+                .filter(v -> v.getVideoUrl() != null && !v.getVideoUrl().isBlank())
                 .filter(v -> isNullOrEmpty(v.getVideoUrl1080()) || isNullOrEmpty(v.getVideoUrl720())
                           || isNullOrEmpty(v.getVideoUrl480()) || isNullOrEmpty(v.getVideoUrl360()))
                 .collect(Collectors.toList());
@@ -171,11 +173,15 @@ public class VideoUploadController {
         final Path dirPath = Paths.get(videoDir).toAbsolutePath();
 
         for (Video video : targets) {
-            String fileName = video.getVideoUrl().replace("/uploads/videos/", "");
+            String fileName = video.getVideoUrl().contains("/videos/")
+                    ? video.getVideoUrl().substring(video.getVideoUrl().lastIndexOf("/videos/") + 8)
+                    : null;
+            if (fileName == null) continue;
             String uuid = fileName.endsWith(".mp4") ? fileName.substring(0, fileName.length() - 4) : fileName;
             final Long videoId = video.getId();
+            final Path sourcePath = dirPath.resolve(uuid + ".mp4");
             CompletableFuture.runAsync(() ->
-                generateResolutionVariants(ffmpeg, dirPath.resolve(uuid + ".mp4"), dirPath, uuid, videoId)
+                generateResolutionVariants(ffmpeg, sourcePath, dirPath, uuid, videoId)
             );
         }
 
@@ -183,24 +189,17 @@ public class VideoUploadController {
                 "message", targets.size() + "개 영상의 해상도 변환을 백그라운드에서 시작했습니다."));
     }
 
-    private boolean isNullOrEmpty(String s) {
-        return s == null || s.isBlank();
-    }
-
-    private String saveVideoFileSync(MultipartFile file, String dir) throws Exception {
-        String originalFilename = StringUtils.cleanPath(file.getOriginalFilename());
-        String ext = "";
-        int dot = originalFilename.lastIndexOf(".");
-        if (dot != -1) ext = originalFilename.substring(dot);
-
+    private String uploadThumbnailToS3(MultipartFile file) throws Exception {
+        String ext = extensionOf(file.getOriginalFilename());
         String uuid = UUID.randomUUID().toString();
-        Path origPath = Paths.get(dir).toAbsolutePath().resolve(uuid + "_orig" + ext);
-        Path servePath = Paths.get(dir).toAbsolutePath().resolve(uuid + ".mp4");
-
-        file.transferTo(origPath);
-        Files.copy(origPath, servePath);
-
-        return uuid;
+        String key = "thumbnails/" + uuid + ext;
+        Path temp = Files.createTempFile("thumb_" + uuid, ext);
+        try {
+            file.transferTo(temp);
+            return storageService.upload(temp, key, contentTypeFor(ext));
+        } finally {
+            Files.deleteIfExists(temp);
+        }
     }
 
     private void convertAndGenerateVariants(String ffmpeg, String uuid, Path dirPath, Long videoId) {
@@ -208,23 +207,18 @@ public class VideoUploadController {
         Path servePath = dirPath.resolve(uuid + ".mp4");
         Path tmpPath = dirPath.resolve(uuid + "_conv.mp4");
 
-        // H.264 main conversion
         if (origPath != null) {
             try {
                 ProcessBuilder pb = new ProcessBuilder(
                         ffmpeg, "-y",
                         "-i", origPath.toString(),
-                        "-c:v", "libx264",
-                        "-preset", "fast",
-                        "-crf", "23",
-                        "-c:a", "aac",
-                        "-b:a", "128k",
+                        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                        "-c:a", "aac", "-b:a", "128k",
                         "-movflags", "+faststart",
                         tmpPath.toString()
                 );
                 pb.redirectErrorStream(true);
                 Process process = pb.start();
-
                 Thread drain = new Thread(() -> {
                     try { process.getInputStream().transferTo(OutputStream.nullOutputStream()); }
                     catch (Exception ignored) {}
@@ -244,8 +238,16 @@ public class VideoUploadController {
             }
         }
 
-        // Resolution variants
+        // Generate resolution variants (uses local servePath as source)
         generateResolutionVariants(ffmpeg, servePath, dirPath, uuid, videoId);
+
+        // Upload converted main file to S3 (overwrite initial upload), then clean up local
+        if (storageService.isConfigured() && servePath.toFile().exists()) {
+            try {
+                storageService.upload(servePath, "videos/" + uuid + ".mp4", "video/mp4");
+                Files.deleteIfExists(servePath);
+            } catch (Exception ignored) {}
+        }
     }
 
     private Path findOrigFile(Path dirPath, String uuid) {
@@ -271,11 +273,8 @@ public class VideoUploadController {
                         ffmpeg, "-y",
                         "-i", sourcePath.toString(),
                         "-vf", "scale=-2:'min(" + h + ",ih)'",
-                        "-c:v", "libx264",
-                        "-preset", "fast",
-                        "-crf", "23",
-                        "-c:a", "aac",
-                        "-b:a", "96k",
+                        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                        "-c:a", "aac", "-b:a", "96k",
                         "-movflags", "+faststart",
                         variantPath.toString()
                 );
@@ -284,7 +283,12 @@ public class VideoUploadController {
                 process.getInputStream().transferTo(OutputStream.nullOutputStream());
                 boolean done = process.waitFor(30, TimeUnit.MINUTES);
                 if (done && process.exitValue() == 0) {
-                    resultUrls[i] = "/uploads/videos/" + uuid + "_" + h + "p.mp4";
+                    if (storageService.isConfigured()) {
+                        resultUrls[i] = storageService.upload(variantPath, "videos/" + uuid + "_" + h + "p.mp4", "video/mp4");
+                        Files.deleteIfExists(variantPath);
+                    } else {
+                        resultUrls[i] = "/uploads/videos/" + uuid + "_" + h + "p.mp4";
+                    }
                 }
             } catch (Exception ignored) {}
         }
@@ -298,17 +302,51 @@ public class VideoUploadController {
         });
     }
 
+    private String saveVideoFileSync(MultipartFile file, String dir) throws Exception {
+        String originalFilename = StringUtils.cleanPath(file.getOriginalFilename());
+        String ext = "";
+        int dot = originalFilename.lastIndexOf(".");
+        if (dot != -1) ext = originalFilename.substring(dot);
+
+        String uuid = UUID.randomUUID().toString();
+        Path origPath = Paths.get(dir).toAbsolutePath().resolve(uuid + "_orig" + ext);
+        Path servePath = Paths.get(dir).toAbsolutePath().resolve(uuid + ".mp4");
+
+        file.transferTo(origPath);
+        Files.copy(origPath, servePath);
+
+        return uuid;
+    }
+
     private String saveFile(MultipartFile file, String dir) throws Exception {
         String originalFilename = StringUtils.cleanPath(file.getOriginalFilename());
         String extension = "";
         int lastDotIndex = originalFilename.lastIndexOf(".");
-        if (lastDotIndex != -1) {
-            extension = originalFilename.substring(lastDotIndex);
-        }
+        if (lastDotIndex != -1) extension = originalFilename.substring(lastDotIndex);
         String savedFileName = UUID.randomUUID() + extension;
         Path savePath = Paths.get(dir).toAbsolutePath().resolve(savedFileName);
         file.transferTo(savePath);
         return savedFileName;
+    }
+
+    private String extensionOf(String filename) {
+        if (filename == null) return "";
+        int dot = filename.lastIndexOf('.');
+        return dot >= 0 ? filename.substring(dot).toLowerCase() : "";
+    }
+
+    private String contentTypeFor(String ext) {
+        return switch (ext.toLowerCase()) {
+            case ".jpg", ".jpeg" -> "image/jpeg";
+            case ".png" -> "image/png";
+            case ".gif" -> "image/gif";
+            case ".webp" -> "image/webp";
+            default -> "application/octet-stream";
+        };
+    }
+
+    private boolean isNullOrEmpty(String s) {
+        return s == null || s.isBlank();
     }
 
     private ResponseEntity<UploadResponse> badRequest(String message) {
