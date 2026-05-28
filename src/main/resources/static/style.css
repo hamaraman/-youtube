@@ -339,6 +339,55 @@ img {
     border-radius: 18px;
 }
 
+.res-menu-wrap {
+    position: relative;
+}
+
+.res-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 6px);
+    background: #212121;
+    border: 1px solid #383838;
+    border-radius: 12px;
+    min-width: 130px;
+    padding: 6px 0;
+    z-index: 200;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+
+.res-dropdown.is-open {
+    display: block;
+}
+
+.res-dropdown-header {
+    font-size: 12px;
+    color: #9aa0a6;
+    padding: 6px 16px 4px;
+}
+
+.res-dropdown-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    color: #f1f1f1;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.res-dropdown-item:hover {
+    background: #333;
+}
+
+.res-dropdown-item.active {
+    color: #fff;
+    font-weight: 700;
+}
+
 .watch-title {
     margin: 18px 0 14px;
     font-size: 22px;

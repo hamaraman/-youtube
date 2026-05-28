@@ -37,6 +37,14 @@ public class Video {
 
     private String videoUrl;
 
+    private String videoUrl1080;
+
+    private String videoUrl720;
+
+    private String videoUrl480;
+
+    private String videoUrl360;
+
     private String dateText;
 
     @Column(name = "view_count")
@@ -93,6 +101,22 @@ public class Video {
         return videoUrl;
     }
 
+    public String getVideoUrl1080() {
+        return videoUrl1080;
+    }
+
+    public String getVideoUrl720() {
+        return videoUrl720;
+    }
+
+    public String getVideoUrl480() {
+        return videoUrl480;
+    }
+
+    public String getVideoUrl360() {
+        return videoUrl360;
+    }
+
     public String getDateText() {
         return dateText;
     }
@@ -143,6 +167,22 @@ public class Video {
 
     public void setVideoUrl(String videoUrl) {
         this.videoUrl = videoUrl;
+    }
+
+    public void setVideoUrl1080(String videoUrl1080) {
+        this.videoUrl1080 = videoUrl1080;
+    }
+
+    public void setVideoUrl720(String videoUrl720) {
+        this.videoUrl720 = videoUrl720;
+    }
+
+    public void setVideoUrl480(String videoUrl480) {
+        this.videoUrl480 = videoUrl480;
+    }
+
+    public void setVideoUrl360(String videoUrl360) {
+        this.videoUrl360 = videoUrl360;
     }
 
     public void setDateText(String dateText) {

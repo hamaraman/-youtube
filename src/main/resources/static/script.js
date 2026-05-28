@@ -1892,6 +1892,28 @@ async function initWatchPage() {
     const descriptionText = String(currentVideo.description || "");
     const shouldCollapseDescription = descriptionText.length > 140 || descriptionText.includes("\n");
 
+    const resolutionOptions = [];
+    if (currentVideo.videoUrl) {
+        resolutionOptions.push({ label: "원본", src: currentVideo.videoUrl });
+        if (currentVideo.videoUrl1080) resolutionOptions.push({ label: "1080p", src: currentVideo.videoUrl1080 });
+        if (currentVideo.videoUrl720) resolutionOptions.push({ label: "720p", src: currentVideo.videoUrl720 });
+        if (currentVideo.videoUrl480) resolutionOptions.push({ label: "480p", src: currentVideo.videoUrl480 });
+        if (currentVideo.videoUrl360) resolutionOptions.push({ label: "360p", src: currentVideo.videoUrl360 });
+    }
+    const resolutionMenuHtml = resolutionOptions.length > 1
+        ? `<div class="res-menu-wrap" id="resMenuWrap">
+            <button class="watch-action-btn res-menu-btn" id="resMenuBtn" type="button" title="화질 선택">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+            </button>
+            <div class="res-dropdown" id="resDropdown">
+              <div class="res-dropdown-header">화질 선택</div>
+              ${resolutionOptions.map((opt, i) =>
+                `<button class="res-dropdown-item${i === 0 ? " active" : ""}" data-src="${escapeHtml(opt.src)}" type="button">${escapeHtml(opt.label)}</button>`
+              ).join("")}
+            </div>
+          </div>`
+        : "";
+
     watchMain.innerHTML = `
     <div class="player-box">${createPlayerMarkup(currentVideo)}</div>
     <h1 class="watch-title">${escapeHtml(currentVideo.title)}</h1>
@@ -1914,6 +1936,7 @@ async function initWatchPage() {
         <button class="watch-action-btn ${isSaved ? "active" : ""}" id="saveBtn" type="button">
           ${isSaved ? "저장됨" : "저장"}
         </button>
+        ${resolutionMenuHtml}
       </div>
     </div>
 
@@ -1972,6 +1995,54 @@ async function initWatchPage() {
             console.warn("[Player] 데이터 로드 정지 (stalled):", playerVideoEl.src);
         });
         console.log("[Player] src =", playerVideoEl.src);
+
+        const resMenuBtn = document.getElementById("resMenuBtn");
+        const resDropdown = document.getElementById("resDropdown");
+        const resMenuWrap = document.getElementById("resMenuWrap");
+
+        if (resMenuBtn && resDropdown) {
+            resMenuBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const isOpen = resDropdown.classList.toggle("is-open");
+                resMenuBtn.classList.toggle("active", isOpen);
+            });
+
+            resDropdown.addEventListener("click", (e) => {
+                const btn = e.target.closest(".res-dropdown-item");
+                if (!btn) return;
+                const newSrc = btn.dataset.src;
+                if (!newSrc || btn.classList.contains("active")) {
+                    resDropdown.classList.remove("is-open");
+                    resMenuBtn.classList.remove("active");
+                    return;
+                }
+
+                const currentTime = playerVideoEl.currentTime;
+                const wasPaused = playerVideoEl.paused;
+
+                resDropdown.querySelectorAll(".res-dropdown-item").forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                resMenuBtn.title = `화질: ${btn.textContent}`;
+
+                resDropdown.classList.remove("is-open");
+                resMenuBtn.classList.remove("active");
+
+                playerVideoEl.src = newSrc;
+                playerVideoEl.load();
+                playerVideoEl.addEventListener("loadedmetadata", function onReady() {
+                    playerVideoEl.removeEventListener("loadedmetadata", onReady);
+                    playerVideoEl.currentTime = currentTime;
+                    if (!wasPaused) playerVideoEl.play().catch(() => {});
+                }, { once: true });
+            });
+
+            document.addEventListener("click", (e) => {
+                if (resMenuWrap && !resMenuWrap.contains(e.target)) {
+                    resDropdown.classList.remove("is-open");
+                    resMenuBtn.classList.remove("active");
+                }
+            }, { capture: false });
+        }
     }
 
     const subscribeBtn = document.getElementById("subscribeBtn");
@@ -2599,6 +2670,10 @@ function normalizeHistoryVideoPatch(video) {
         description: video.description || "",
         embedUrl: video.embedUrl || "",
         videoUrl: video.videoUrl || "",
+        videoUrl1080: video.videoUrl1080 || "",
+        videoUrl720: video.videoUrl720 || "",
+        videoUrl480: video.videoUrl480 || "",
+        videoUrl360: video.videoUrl360 || "",
         visibility: video.visibility || "공개",
         likeCount: Number(video.likeCount || 0),
         commentCount: Number(video.commentCount || 0),
@@ -2941,6 +3016,9 @@ function ensureHistoryPatchStyle() {
             description: video.description || "",
             embedUrl: video.embedUrl || "",
             videoUrl: video.videoUrl || "",
+            videoUrl720: video.videoUrl720 || "",
+            videoUrl480: video.videoUrl480 || "",
+            videoUrl360: video.videoUrl360 || "",
             visibility: video.visibility || "공개",
             likeCount: Number(video.likeCount || 0),
             commentCount: Number(video.commentCount || 0),
@@ -3486,6 +3564,9 @@ function ensureHistoryPatchStyle() {
             description: video.description || "",
             embedUrl: video.embedUrl || "",
             videoUrl: video.videoUrl || "",
+            videoUrl720: video.videoUrl720 || "",
+            videoUrl480: video.videoUrl480 || "",
+            videoUrl360: video.videoUrl360 || "",
             visibility: video.visibility || "공개",
             likeCount: Number(video.likeCount || 0),
             commentCount: Number(video.commentCount || 0),
@@ -5623,6 +5704,9 @@ function ensureHistoryPatchStyle() {
                         description: video.description || "",
                         embedUrl: video.embedUrl || "",
                         videoUrl: video.videoUrl || "",
+                        videoUrl720: video.videoUrl720 || "",
+                        videoUrl480: video.videoUrl480 || "",
+                        videoUrl360: video.videoUrl360 || "",
                         visibility: video.visibility || "공개",
                         likeCount: Number(video.likeCount || 0),
                         commentCount: Number(video.commentCount || 0),
@@ -5685,6 +5769,9 @@ function ensureHistoryPatchStyle() {
                 description: video.description || "",
                 embedUrl: video.embedUrl || "",
                 videoUrl: video.videoUrl || "",
+                videoUrl720: video.videoUrl720 || "",
+                videoUrl480: video.videoUrl480 || "",
+                videoUrl360: video.videoUrl360 || "",
                 visibility: video.visibility || "공개",
                 likeCount: Number(video.likeCount || 0),
                 commentCount: Number(video.commentCount || 0),

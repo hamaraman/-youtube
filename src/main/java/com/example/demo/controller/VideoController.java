@@ -1,5 +1,6 @@
 package com.example.demo.controller;
 
+import com.example.demo.config.AdminChecker;
 import com.example.demo.config.LoginUserResolver;
 import com.example.demo.entity.Video;
 import com.example.demo.entity.VideoLike;
@@ -23,17 +24,20 @@ public class VideoController {
     private final VideoLikeRepository videoLikeRepository;
     private final VideoSaveRepository videoSaveRepository;
     private final LoginUserResolver loginUserResolver;
+    private final AdminChecker adminChecker;
 
     public VideoController(
             VideoRepository videoRepository,
             VideoLikeRepository videoLikeRepository,
             VideoSaveRepository videoSaveRepository,
-            LoginUserResolver loginUserResolver
+            LoginUserResolver loginUserResolver,
+            AdminChecker adminChecker
     ) {
         this.videoRepository = videoRepository;
         this.videoLikeRepository = videoLikeRepository;
         this.videoSaveRepository = videoSaveRepository;
         this.loginUserResolver = loginUserResolver;
+        this.adminChecker = adminChecker;
     }
 
     @GetMapping("/videos")
@@ -41,10 +45,18 @@ public class VideoController {
             @RequestParam(required = false) String keyword,
             HttpSession session) {
         Long loginUserId = getLoginUserId(session);
+        boolean isAdmin = adminChecker.isAdmin(session, loginUserResolver);
 
-        List<Video> videos = (keyword != null && !keyword.isBlank())
-                ? videoRepository.searchPublicByKeyword(keyword)
-                : videoRepository.findAllPublic();
+        List<Video> videos;
+        if (isAdmin) {
+            videos = (keyword != null && !keyword.isBlank())
+                    ? videoRepository.searchByKeyword(keyword)
+                    : videoRepository.findAll();
+        } else {
+            videos = (keyword != null && !keyword.isBlank())
+                    ? videoRepository.searchPublicByKeyword(keyword)
+                    : videoRepository.findAllPublic();
+        }
 
         return videos.stream()
                 .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
@@ -69,7 +81,8 @@ public class VideoController {
         Video video = optionalVideo.get();
 
         if ("비공개".equals(video.getVisibility())) {
-            if (loginUserId == null || !loginUserId.equals(video.getOwnerId())) {
+            boolean isAdmin = adminChecker.isAdmin(session, loginUserResolver);
+            if (!isAdmin && (loginUserId == null || !loginUserId.equals(video.getOwnerId()))) {
                 return ResponseEntity.status(403).body(new SimpleResponse(false, "비공개 영상입니다."));
             }
         }
@@ -193,6 +206,10 @@ public class VideoController {
         }
 
         deletePhysicalFile(video.getVideoUrl());
+        deletePhysicalFile(video.getVideoUrl1080());
+        deletePhysicalFile(video.getVideoUrl720());
+        deletePhysicalFile(video.getVideoUrl480());
+        deletePhysicalFile(video.getVideoUrl360());
         deletePhysicalFile(video.getThumbnail());
 
         videoRepository.delete(video);
@@ -209,12 +226,13 @@ public class VideoController {
 
         List<VideoLike> likes = videoLikeRepository.findByUserIdOrderByIdDesc(loginUserId);
 
+        boolean isAdminLiked = adminChecker.isAdmin(session, loginUserResolver);
         List<VideoItem> result = likes.stream()
                 .map(VideoLike::getVideoId)
                 .map(videoRepository::findById)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .filter(video -> !"비공개".equals(video.getVisibility()) || loginUserId.equals(video.getOwnerId()))
+                .filter(video -> isAdminLiked || !"비공개".equals(video.getVisibility()) || loginUserId.equals(video.getOwnerId()))
                 .map(video -> VideoItem.from(
                         video,
                         videoLikeRepository.countByVideoId(video.getId()),
@@ -235,12 +253,13 @@ public class VideoController {
 
         List<VideoSave> saves = videoSaveRepository.findByUserIdOrderByIdDesc(loginUserId);
 
+        boolean isAdminSaved = adminChecker.isAdmin(session, loginUserResolver);
         List<VideoItem> result = saves.stream()
                 .map(VideoSave::getVideoId)
                 .map(videoRepository::findById)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .filter(video -> !"비공개".equals(video.getVisibility()) || loginUserId.equals(video.getOwnerId()))
+                .filter(video -> isAdminSaved || !"비공개".equals(video.getVisibility()) || loginUserId.equals(video.getOwnerId()))
                 .map(video -> VideoItem.from(
                         video,
                         videoLikeRepository.countByVideoId(video.getId()),
@@ -333,6 +352,10 @@ public class VideoController {
         private String description;
         private String date;
         private String videoUrl;
+        private String videoUrl1080;
+        private String videoUrl720;
+        private String videoUrl480;
+        private String videoUrl360;
         private String visibility;
         private String embedUrl;
         private long viewCount;
@@ -353,6 +376,10 @@ public class VideoController {
             item.description = video.getDescription();
             item.date = video.getDateText();
             item.videoUrl = video.getVideoUrl();
+            item.videoUrl1080 = video.getVideoUrl1080();
+            item.videoUrl720 = video.getVideoUrl720();
+            item.videoUrl480 = video.getVideoUrl480();
+            item.videoUrl360 = video.getVideoUrl360();
             item.visibility = video.getVisibility();
             item.embedUrl = video.getEmbedUrl();
             item.viewCount = video.getViewCount();
@@ -373,6 +400,10 @@ public class VideoController {
         public String getDescription() { return description; }
         public String getDate() { return date; }
         public String getVideoUrl() { return videoUrl; }
+        public String getVideoUrl1080() { return videoUrl1080; }
+        public String getVideoUrl720() { return videoUrl720; }
+        public String getVideoUrl480() { return videoUrl480; }
+        public String getVideoUrl360() { return videoUrl360; }
         public String getVisibility() { return visibility; }
         public String getEmbedUrl() { return embedUrl; }
         public long getViewCount() { return viewCount; }
