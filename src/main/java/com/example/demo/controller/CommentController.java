@@ -39,9 +39,16 @@ public class CommentController {
 
         final Long finalLoginUserId = loginUserResolver.getUserId(session);
 
-        List<CommentItem> comments = commentRepository.findByVideoIdOrderByIdDesc(id)
+        List<CommentItem> comments = commentRepository.findByVideoIdAndParentIdIsNullOrderByIdDesc(id)
                 .stream()
-                .map(comment -> CommentItem.from(comment, finalLoginUserId))
+                .map(comment -> {
+                    CommentItem item = CommentItem.from(comment, finalLoginUserId);
+                    item.replies = commentRepository.findByParentIdOrderByIdAsc(comment.getId())
+                            .stream()
+                            .map(r -> CommentItem.from(r, finalLoginUserId))
+                            .collect(Collectors.toList());
+                    return item;
+                })
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(comments);
@@ -86,6 +93,40 @@ public class CommentController {
                 true,
                 CommentItem.from(saved, sessionUser.getId())
         ));
+    }
+
+    @PostMapping("/comments/{commentId}/replies")
+    public ResponseEntity<?> createReply(
+            @PathVariable Long commentId,
+            @RequestBody CommentRequest request,
+            HttpSession session
+    ) {
+        Optional<Comment> parent = commentRepository.findById(commentId);
+        if (parent.isEmpty() || parent.get().getParentId() != null) {
+            return ResponseEntity.badRequest().body(new SimpleResponse(false, "유효하지 않은 댓글입니다."));
+        }
+
+        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+        if (sessionUser == null) {
+            return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
+        }
+
+        String content = request.getContent() == null ? "" : request.getContent().trim();
+        if (content.isEmpty()) {
+            return ResponseEntity.badRequest().body(new SimpleResponse(false, "답글 내용을 입력해줘."));
+        }
+
+        Comment reply = new Comment();
+        reply.setVideoId(parent.get().getVideoId());
+        reply.setUserId(sessionUser.getId());
+        reply.setAuthor(sessionUser.getNickname() != null && !sessionUser.getNickname().isBlank()
+                ? sessionUser.getNickname() : sessionUser.getUsername());
+        reply.setText(content);
+        reply.setTime("방금 전");
+        reply.setParentId(commentId);
+
+        Comment saved = commentRepository.save(reply);
+        return ResponseEntity.ok(new CommentCreateResponse(true, CommentItem.from(saved, sessionUser.getId())));
     }
 
     @PutMapping("/comments/{commentId}")
@@ -145,6 +186,9 @@ public class CommentController {
             return ResponseEntity.status(403).body(new SimpleResponse(false, "본인 댓글만 삭제할 수 있습니다."));
         }
 
+        if (comment.getParentId() == null) {
+            commentRepository.deleteByParentId(commentId);
+        }
         commentRepository.delete(comment);
 
         return ResponseEntity.ok(new SimpleResponse(true, "댓글이 삭제되었습니다."));
@@ -154,16 +198,19 @@ public class CommentController {
         private Long id;
         private Long videoId;
         private Long userId;
+        private Long parentId;
         private String author;
         private String text;
         private String time;
         private boolean isMine;
+        public List<CommentItem> replies = new java.util.ArrayList<>();
 
         public static CommentItem from(Comment comment, Long loginUserId) {
             CommentItem item = new CommentItem();
             item.id = comment.getId();
             item.videoId = comment.getVideoId();
             item.userId = comment.getUserId();
+            item.parentId = comment.getParentId();
             item.author = comment.getAuthor();
             item.text = comment.getText();
             item.time = comment.getTime();
@@ -181,6 +228,14 @@ public class CommentController {
 
         public Long getUserId() {
             return userId;
+        }
+
+        public Long getParentId() {
+            return parentId;
+        }
+
+        public List<CommentItem> getReplies() {
+            return replies;
         }
 
         public String getAuthor() {

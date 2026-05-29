@@ -90,6 +90,36 @@
 
         .btn-del:hover { background: #e00; }
 
+        .btn-action {
+            padding: 6px 14px;
+            background: #272727;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-action:hover { background: #333; }
+        .btn-action.danger { background: #c00; }
+        .btn-action.danger:hover { background: #e00; }
+
+        .broken-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .broken-badge {
+            font-size: 12px;
+            color: #e55;
+            background: #2a1515;
+            border: 1px solid #5a2020;
+            border-radius: 6px;
+            padding: 3px 10px;
+        }
+
         .count-badge {
             font-size: 13px;
             color: #aaa;
@@ -148,6 +178,23 @@
     <div class="tab-panel active" id="tab-videos">
         <div class="count-badge" id="videoCount"></div>
         <div id="videoTableWrap"></div>
+
+        <!-- 재생 불가 영상 -->
+        <div style="margin-top:32px; border-top:1px solid #272727; padding-top:24px;">
+            <div style="font-size:15px; font-weight:700; color:#fff; margin-bottom:14px;">재생 불가 영상 관리</div>
+            <div class="broken-toolbar">
+                <button class="btn-action" onclick="scanBroken()">재생 불가 영상 검색</button>
+                <span id="brokenStatus" style="color:#888; font-size:13px;"></span>
+            </div>
+            <div id="brokenWrap" style="display:none;">
+                <div class="broken-toolbar">
+                    <button class="btn-action" onclick="toggleAllBroken()">전체 선택 / 해제</button>
+                    <button class="btn-action danger" onclick="deleteBrokenSelected()">선택 삭제</button>
+                    <span id="brokenSelectedCount" class="broken-badge" style="display:none;"></span>
+                </div>
+                <div id="brokenTableWrap"></div>
+            </div>
+        </div>
     </div>
 
     <!-- 회원 관리 -->
@@ -248,6 +295,97 @@
             document.getElementById('vrow-' + id)?.remove();
             const count = document.querySelectorAll('[id^="vrow-"]').length;
             document.getElementById('videoCount').textContent = `총 ${count}개`;
+        } else {
+            alert(data.message || '삭제 실패');
+        }
+    }
+
+    let brokenVideos = [];
+
+    async function scanBroken() {
+        document.getElementById('brokenStatus').textContent = '검색 중...';
+        document.getElementById('brokenWrap').style.display = 'none';
+        try {
+            const res = await fetch('/api/admin/videos/broken');
+            brokenVideos = await res.json();
+        } catch {
+            document.getElementById('brokenStatus').textContent = '검색 실패';
+            return;
+        }
+
+        if (brokenVideos.length === 0) {
+            document.getElementById('brokenStatus').textContent = '재생 불가 영상 없음';
+            return;
+        }
+
+        document.getElementById('brokenStatus').textContent = `${brokenVideos.length}개 발견`;
+        document.getElementById('brokenWrap').style.display = 'block';
+        renderBrokenTable();
+    }
+
+    function renderBrokenTable() {
+        const rows = brokenVideos.map(v => `
+            <tr id="brow-${v.id}">
+                <td style="width:32px"><input type="checkbox" class="broken-check" data-id="${v.id}" onchange="updateBrokenCount()"></td>
+                <td style="color:#888;width:40px">${v.id}</td>
+                <td title="${v.title}">${v.title}</td>
+                <td>${v.channel}</td>
+                <td style="color:#e55; font-size:12px;">${v.reason}</td>
+                <td><button class="btn-del" onclick="deleteVideo(${v.id}); removeBrokenRow(${v.id})">삭제</button></td>
+            </tr>`).join('');
+
+        document.getElementById('brokenTableWrap').innerHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:32px"></th>
+                        <th>ID</th><th>제목</th><th>채널</th><th>원인</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+        updateBrokenCount();
+    }
+
+    function updateBrokenCount() {
+        const checked = document.querySelectorAll('.broken-check:checked').length;
+        const badge = document.getElementById('brokenSelectedCount');
+        if (checked > 0) {
+            badge.style.display = 'inline';
+            badge.textContent = `${checked}개 선택됨`;
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    function toggleAllBroken() {
+        const checks = document.querySelectorAll('.broken-check');
+        const allChecked = [...checks].every(c => c.checked);
+        checks.forEach(c => c.checked = !allChecked);
+        updateBrokenCount();
+    }
+
+    function removeBrokenRow(id) {
+        document.getElementById('brow-' + id)?.remove();
+        brokenVideos = brokenVideos.filter(v => v.id !== id);
+        document.getElementById('brokenStatus').textContent = `${brokenVideos.length}개 발견`;
+        updateBrokenCount();
+    }
+
+    async function deleteBrokenSelected() {
+        const ids = [...document.querySelectorAll('.broken-check:checked')].map(c => parseInt(c.dataset.id));
+        if (ids.length === 0) { alert('삭제할 영상을 선택해줘.'); return; }
+        if (!confirm(`선택한 ${ids.length}개 영상을 삭제할까요?`)) return;
+
+        const res = await fetch('/api/admin/videos/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+        const data = await res.json();
+        if (data.success) {
+            ids.forEach(id => removeBrokenRow(id));
+            loadVideos();
         } else {
             alert(data.message || '삭제 실패');
         }

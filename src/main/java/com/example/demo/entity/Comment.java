@@ -14,6 +14,9 @@ public class Comment {
 
     private Long userId;
 
+    @Column(name = "parent_id")
+    private Long parentId;
+
     @Column(nullable = false)
     private String author;
 
@@ -72,5 +75,13 @@ public class Comment {
 
     public void setTime(String time) {
         this.time = time;
+    }
+
+    public Long getParentId() {
+        return parentId;
+    }
+
+    public void setParentId(Long parentId) {
+        this.parentId = parentId;
     }
 }

@@ -728,15 +728,22 @@
                         </div>
                     </section>
 
-                    <div id="uploadProgressWrap" style="display:none; margin-top:20px;">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
-                            <span id="uploadProgressLabel" style="color:#aaa; font-size:13px;">업로드 중...</span>
-                            <span id="uploadProgressText" style="color:#fff; font-size:13px; font-weight:700;">0%</span>
+                    <div id="uploadProgressWrap" style="display:none; margin-top:24px; background:#1a1a1a; border-radius:12px; padding:20px 24px;">
+                        <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; gap:12px;">
+                            <div style="min-width:0; flex:1;">
+                                <div id="uploadProgressFileName" style="color:#fff; font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px;"></div>
+                                <div id="uploadProgressFileSize" style="color:#888; font-size:12px;"></div>
+                            </div>
+                            <span id="uploadProgressText" style="color:#fff; font-size:22px; font-weight:700; flex-shrink:0;">0%</span>
                         </div>
-                        <div style="background:#2a2a2a; border-radius:999px; height:6px; overflow:hidden;">
-                            <div id="uploadProgressBar" style="height:100%; background:#fff; border-radius:999px; width:0%; transition:width 0.3s ease;"></div>
+                        <div style="background:#2a2a2a; border-radius:999px; height:8px; overflow:hidden; margin-bottom:10px;">
+                            <div id="uploadProgressBar" style="height:100%; background:linear-gradient(90deg,#ffffff,#cccccc); border-radius:999px; width:0%; transition:width 0.25s ease;"></div>
                         </div>
-                        <p id="uploadConvertNote" style="display:none; margin:10px 0 0; color:#888; font-size:12px; line-height:1.6;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span id="uploadProgressLabel" style="color:#aaa; font-size:12px;">업로드 중...</span>
+                            <span id="uploadProgressSpeed" style="color:#aaa; font-size:12px;"></span>
+                        </div>
+                        <p id="uploadConvertNote" style="display:none; margin:14px 0 0; color:#888; font-size:12px; line-height:1.6; border-top:1px solid #2a2a2a; padding-top:14px;">
                             영상 파일을 서버로 전송했어. 백그라운드에서 H.264로 자동 변환 중이야.<br>
                             시청 페이지로 이동한 뒤 영상이 바로 재생되지 않으면 잠시 후 새로고침해줘.
                         </p>

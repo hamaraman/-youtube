@@ -8,9 +8,13 @@ import com.example.demo.entity.Video;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.repository.VideoRepository;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -24,6 +28,9 @@ public class AdminController {
     private final AdminChecker adminChecker;
     private final LoginUserResolver loginUserResolver;
     private final DataInitializer dataInitializer;
+
+    @Value("${file.video-dir}")
+    private String videoDir;
 
     public AdminController(VideoRepository videoRepository, UserRepository userRepository,
                            AdminChecker adminChecker, LoginUserResolver loginUserResolver,
@@ -90,6 +97,72 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("success", false, "message", "삭제 실패: " + e.getMessage()));
         }
+    }
+
+    @GetMapping("/videos/broken")
+    public ResponseEntity<?> listBrokenVideos(HttpSession session) {
+        if (!adminChecker.isAdmin(session, loginUserResolver)) {
+            return ResponseEntity.status(403).body(Map.of("message", "관리자 권한이 필요합니다."));
+        }
+        Path videoBasePath = Paths.get(videoDir).toAbsolutePath();
+        List<Map<String, Object>> result = videoRepository.findAll().stream()
+                .filter(v -> isBroken(v, videoBasePath))
+                .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
+                .map(v -> {
+                    Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("id", v.getId());
+                    m.put("title", v.getTitle());
+                    m.put("channel", v.getChannel());
+                    m.put("videoUrl", v.getVideoUrl() == null ? "" : v.getVideoUrl());
+                    m.put("reason", getBrokenReason(v, videoBasePath));
+                    return m;
+                })
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/videos/bulk-delete")
+    public ResponseEntity<?> bulkDeleteVideos(@RequestBody Map<String, List<Long>> body, HttpSession session) {
+        if (!adminChecker.isAdmin(session, loginUserResolver)) {
+            return ResponseEntity.status(403).body(Map.of("success", false, "message", "관리자 권한이 필요합니다."));
+        }
+        List<Long> ids = body.getOrDefault("ids", List.of());
+        if (ids.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "삭제할 영상을 선택해줘."));
+        }
+        int count = 0;
+        for (Long id : ids) {
+            if (videoRepository.existsById(id)) {
+                dataInitializer.deleteVideoAndRelated(id);
+                count++;
+            }
+        }
+        return ResponseEntity.ok(Map.of("success", true, "message", count + "개 삭제됐습니다.", "count", count));
+    }
+
+    private boolean isBroken(Video v, Path videoBasePath) {
+        String videoUrl = v.getVideoUrl();
+        String embedUrl = v.getEmbedUrl();
+        if ((videoUrl == null || videoUrl.isBlank()) && (embedUrl == null || embedUrl.isBlank())) {
+            return true;
+        }
+        if (videoUrl != null && videoUrl.startsWith("/uploads/videos/")) {
+            String filename = videoUrl.substring("/uploads/videos/".length());
+            return !Files.exists(videoBasePath.resolve(filename));
+        }
+        return false;
+    }
+
+    private String getBrokenReason(Video v, Path videoBasePath) {
+        String videoUrl = v.getVideoUrl();
+        String embedUrl = v.getEmbedUrl();
+        if ((videoUrl == null || videoUrl.isBlank()) && (embedUrl == null || embedUrl.isBlank())) {
+            return "영상 소스 없음";
+        }
+        if (videoUrl != null && videoUrl.startsWith("/uploads/videos/")) {
+            return "파일 없음 (로컬)";
+        }
+        return "알 수 없음";
     }
 
     @GetMapping("/users")

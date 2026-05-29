@@ -200,6 +200,17 @@ async function deleteCommentById(commentId) {
     return result;
 }
 
+async function createReplyByCommentId(commentId, content) {
+    const response = await fetch(`/api/comments/${commentId}/replies`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.success) throw new Error(result.message || "답글 작성 실패");
+    return result.comment;
+}
+
 async function toggleLikeByVideoId(id) {
     const response = await fetch(`/api/videos/${id}/like`, {
         method: "POST"
@@ -874,6 +885,7 @@ function createPlayerMarkup(video, resolutionOptions) {
           <div class="cp-controls">
             <div class="cp-progress-wrap">
               <input type="range" class="cp-progress" id="cpProgress" min="0" max="100" step="0.1" value="0">
+              <div class="cp-time-tooltip" id="cpTimeTooltip"></div>
             </div>
             <div class="cp-bar">
               <div class="cp-bar-left">
@@ -889,6 +901,15 @@ function createPlayerMarkup(video, resolutionOptions) {
                 <span class="cp-time" id="cpTime">0:00 / 0:00</span>
               </div>
               <div class="cp-bar-right">
+                <div class="cp-speed-wrap" id="cpSpeedWrap">
+                  <button class="cp-btn cp-speed-btn" id="cpSpeedBtn" type="button" title="재생 속도">1x</button>
+                  <div class="cp-speed-menu" id="cpSpeedMenu">
+                    <div class="cp-quality-header">재생 속도</div>
+                    ${["0.5", "0.75", "1", "1.25", "1.5", "2"].map(s =>
+                      `<button class="cp-quality-item${s === "1" ? " active" : ""}" data-speed="${s}" type="button">${s === "1" ? "보통" : s + "x"}</button>`
+                    ).join("")}
+                  </div>
+                </div>
                 ${qualityHtml}
                 <button class="cp-btn" id="cpFs" type="button">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
@@ -945,11 +966,46 @@ function initCustomPlayer() {
         video.addEventListener("playing", () => { thumbCover.style.display = "none"; }, { once: true });
     }
 
-    // 플레이어 클릭 → 재생/일시정지
+    // 플레이어 클릭 → 재생/일시정지, 더블클릭 → 전체화면
+    let clickTimer;
     player.addEventListener("click", (e) => {
         if (e.target.closest(".cp-controls")) return;
-        video.paused ? video.play() : video.pause();
+        clearTimeout(clickTimer);
+        clickTimer = setTimeout(() => {
+            video.paused ? video.play() : video.pause();
+        }, 220);
     });
+    player.addEventListener("dblclick", (e) => {
+        if (e.target.closest(".cp-controls")) return;
+        clearTimeout(clickTimer);
+        document.fullscreenElement ? document.exitFullscreen() : player.requestFullscreen();
+    });
+
+    // 모바일 터치 지원
+    let lastTapTime = 0;
+    let tapTimer;
+    player.addEventListener("touchstart", (e) => {
+        bumpControls();
+
+        if (e.target.closest(".cp-controls")) return;
+
+        const now = Date.now();
+        const timeSinceLast = now - lastTapTime;
+        lastTapTime = now;
+
+        if (timeSinceLast < 300) {
+            // 더블탭 → 전체화면
+            clearTimeout(tapTimer);
+            document.fullscreenElement ? document.exitFullscreen() : player.requestFullscreen();
+        } else {
+            // 싱글탭 → 컨트롤 보이면 재생/일시정지, 안 보이면 컨트롤만 표시
+            tapTimer = setTimeout(() => {
+                if (player.classList.contains("show-controls")) {
+                    video.paused ? video.play() : video.pause();
+                }
+            }, 220);
+        }
+    }, { passive: true });
 
     playBtn?.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -1006,6 +1062,50 @@ function initCustomPlayer() {
     video.addEventListener("pause", () => player.classList.add("show-controls"));
     video.addEventListener("play", bumpControls);
 
+    // 프로그레스바 호버 툴팁
+    const tooltip = document.getElementById("cpTimeTooltip");
+    if (progress && tooltip) {
+        progress.addEventListener("mousemove", (e) => {
+            if (!video.duration) return;
+            const rect = progress.getBoundingClientRect();
+            const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            tooltip.textContent = fmt(ratio * video.duration);
+            const tipHalf = tooltip.offsetWidth / 2;
+            const left = Math.max(tipHalf, Math.min(rect.width - tipHalf, e.clientX - rect.left));
+            tooltip.style.left = left + "px";
+            tooltip.classList.add("is-visible");
+        });
+        progress.addEventListener("mouseleave", () => {
+            tooltip.classList.remove("is-visible");
+        });
+    }
+
+    // 재생 속도 메뉴
+    const speedBtn  = document.getElementById("cpSpeedBtn");
+    const speedMenu = document.getElementById("cpSpeedMenu");
+    const speedWrap = document.getElementById("cpSpeedWrap");
+    if (speedBtn && speedMenu) {
+        speedBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            speedMenu.classList.toggle("is-open");
+            if (qualityMenu) qualityMenu.classList.remove("is-open");
+        });
+        document.addEventListener("click", (e) => {
+            if (speedWrap && !speedWrap.contains(e.target)) speedMenu.classList.remove("is-open");
+        });
+        speedMenu.querySelectorAll(".cp-quality-item").forEach(item => {
+            item.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const speed = parseFloat(item.dataset.speed);
+                video.playbackRate = speed;
+                speedBtn.textContent = speed === 1 ? "1x" : speed + "x";
+                speedMenu.querySelectorAll(".cp-quality-item").forEach(b => b.classList.remove("active"));
+                item.classList.add("active");
+                speedMenu.classList.remove("is-open");
+            });
+        });
+    }
+
     // 화질 메뉴
     if (qualityBtn && qualityMenu) {
         qualityBtn.addEventListener("click", (e) => {
@@ -1044,6 +1144,56 @@ function initCustomPlayer() {
         });
     }
 
+    // 키보드 단축키
+    document.addEventListener("keydown", (e) => {
+        if (!document.getElementById("customPlayer")) return;
+        const tag = document.activeElement?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.isContentEditable) return;
+
+        switch (e.key) {
+            case " ":
+            case "k":
+                e.preventDefault();
+                video.paused ? video.play() : video.pause();
+                break;
+            case "ArrowLeft":
+            case "j":
+                e.preventDefault();
+                video.currentTime = Math.max(0, video.currentTime - 5);
+                break;
+            case "ArrowRight":
+            case "l":
+                e.preventDefault();
+                video.currentTime = Math.min(video.duration || 0, video.currentTime + 5);
+                break;
+            case "ArrowUp":
+                e.preventDefault();
+                video.volume = Math.min(1, video.volume + 0.1);
+                video.muted = false;
+                if (volBtn) volBtn.innerHTML = I_VOL;
+                if (volSlider) volSlider.value = video.volume;
+                break;
+            case "ArrowDown":
+                e.preventDefault();
+                video.volume = Math.max(0, video.volume - 0.1);
+                if (video.volume === 0) { video.muted = true; if (volBtn) volBtn.innerHTML = I_MUTE; }
+                if (volSlider) volSlider.value = video.volume;
+                break;
+            case "f":
+            case "F":
+                e.preventDefault();
+                document.fullscreenElement ? document.exitFullscreen() : player.requestFullscreen();
+                break;
+            case "m":
+            case "M":
+                e.preventDefault();
+                video.muted = !video.muted;
+                if (volBtn) volBtn.innerHTML = video.muted ? I_MUTE : I_VOL;
+                if (volSlider) volSlider.value = video.muted ? 0 : video.volume;
+                break;
+        }
+    });
+
     // 기존 디버그/에러 로깅 유지
     video.addEventListener("error", () => {
         const code = video.error?.code;
@@ -1063,8 +1213,37 @@ function initCustomPlayer() {
     console.log("[Player] src =", video.src);
 }
 
+function createReplyItemHtml(r) {
+    const rLetter = String(r.author || "?").trim().charAt(0) || "?";
+    return `
+    <div class="comment-item reply-item" data-comment-id="${r.id}">
+      <div class="comment-avatar reply-avatar">${escapeHtml(rLetter)}</div>
+      <div class="comment-content">
+        <div class="comment-author-row">
+          <span class="comment-author">${escapeHtml(r.author || "사용자")}</span>
+          <span class="comment-time">${escapeHtml(r.time || "방금 전")}</span>
+        </div>
+        <p class="comment-text" data-comment-text>${escapeHtml(r.text || "")}</p>
+        ${(r.isMine || r.mine) ? `
+          <div class="comment-owner-actions" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+            <button type="button" class="comment-btn-edit" data-comment-edit="${r.id}" style="border:none;background:transparent;color:#aaa;cursor:pointer;padding:0;font-size:13px;">수정</button>
+            <button type="button" class="comment-btn-delete" data-comment-delete="${r.id}" style="border:none;background:transparent;color:#ff8d8d;cursor:pointer;padding:0;font-size:13px;">삭제</button>
+          </div>
+          <div class="comment-edit-box" data-comment-edit-box="${r.id}" hidden style="margin-top:10px;">
+            <input type="text" class="comment-input" data-comment-edit-input="${r.id}" value="${escapeHtml(r.text || "")}" maxlength="300" />
+            <div class="comment-form-actions" style="margin-top:8px;">
+              <button type="button" class="comment-btn cancel" data-comment-edit-cancel="${r.id}">취소</button>
+              <button type="button" class="comment-btn submit" data-comment-edit-save="${r.id}">저장</button>
+            </div>
+          </div>` : ""}
+      </div>
+    </div>`;
+}
+
 function createCommentItem(comment) {
     const firstLetter = String(comment.author || "?").trim().charAt(0) || "?";
+    const replies = comment.replies || [];
+    const isMine = comment.isMine || comment.mine;
 
     return `
     <div class="comment-item" data-comment-id="${comment.id}">
@@ -1074,42 +1253,40 @@ function createCommentItem(comment) {
           <span class="comment-author">${escapeHtml(comment.author || "사용자")}</span>
           <span class="comment-time">${escapeHtml(comment.time || "방금 전")}</span>
         </div>
-
         <p class="comment-text" data-comment-text>${escapeHtml(comment.text || "")}</p>
-
-        ${
-        (comment.isMine || comment.mine)
-            ? `
-                <div class="comment-owner-actions" style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-                    <button type="button" class="comment-btn-edit" data-comment-edit="${comment.id}" style="border:none; background:transparent; color:#aaa; cursor:pointer; padding:0; font-size:13px;">수정</button>
-                    <button type="button" class="comment-btn-delete" data-comment-delete="${comment.id}" style="border:none; background:transparent; color:#ff8d8d; cursor:pointer; padding:0; font-size:13px;">삭제</button>
-                </div>
-
-                <div class="comment-edit-box" data-comment-edit-box="${comment.id}" hidden style="margin-top:10px;">
-                    <input
-                        type="text"
-                        class="comment-input"
-                        data-comment-edit-input="${comment.id}"
-                        value="${escapeHtml(comment.text || "")}"
-                        maxlength="300"
-                    />
-                    <div class="comment-form-actions" style="margin-top:10px;">
-                        <button type="button" class="comment-btn cancel" data-comment-edit-cancel="${comment.id}">취소</button>
-                        <button type="button" class="comment-btn submit" data-comment-edit-save="${comment.id}">저장</button>
-                    </div>
-                </div>
-                `
-            : ""
-    }
+        <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;align-items:center;">
+          <button type="button" class="comment-reply-btn" data-reply-to="${comment.id}" style="border:none;background:transparent;color:#aaa;cursor:pointer;padding:0;font-size:13px;">답글</button>
+          ${isMine ? `
+            <button type="button" class="comment-btn-edit" data-comment-edit="${comment.id}" style="border:none;background:transparent;color:#aaa;cursor:pointer;padding:0;font-size:13px;">수정</button>
+            <button type="button" class="comment-btn-delete" data-comment-delete="${comment.id}" style="border:none;background:transparent;color:#ff8d8d;cursor:pointer;padding:0;font-size:13px;">삭제</button>` : ""}
+        </div>
+        ${isMine ? `
+          <div class="comment-edit-box" data-comment-edit-box="${comment.id}" hidden style="margin-top:10px;">
+            <input type="text" class="comment-input" data-comment-edit-input="${comment.id}" value="${escapeHtml(comment.text || "")}" maxlength="300" />
+            <div class="comment-form-actions" style="margin-top:10px;">
+              <button type="button" class="comment-btn cancel" data-comment-edit-cancel="${comment.id}">취소</button>
+              <button type="button" class="comment-btn submit" data-comment-edit-save="${comment.id}">저장</button>
+            </div>
+          </div>` : ""}
+        <div class="reply-form-wrap" data-reply-form="${comment.id}" hidden style="margin-top:10px;">
+          <input type="text" class="comment-input" data-reply-input="${comment.id}" placeholder="답글 추가..." maxlength="300" />
+          <div class="comment-form-actions" style="margin-top:8px;">
+            <button type="button" class="comment-btn cancel" data-reply-cancel="${comment.id}">취소</button>
+            <button type="button" class="comment-btn submit" data-reply-submit="${comment.id}" disabled>답글</button>
+          </div>
+        </div>
+        <div class="replies-list" data-replies-container="${comment.id}">
+          ${replies.map(createReplyItemHtml).join("")}
+        </div>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
 function renderCommentList(commentListEl, commentsCountEl, comments) {
     if (!commentListEl || !commentsCountEl) return;
 
-    commentsCountEl.textContent = `${formatCount(comments.length)}개의 댓글`;
+    const total = comments.reduce((sum, c) => sum + 1 + (c.replies?.length || 0), 0);
+    commentsCountEl.textContent = `${formatCount(total)}개의 댓글`;
 
     if (comments.length === 0) {
         commentListEl.innerHTML = `<p class="comment-empty">아직 댓글이 없습니다.</p>`;
@@ -1463,6 +1640,15 @@ function initUploadPage() {
         const progressText = document.getElementById("uploadProgressText");
         if (progressWrap) progressWrap.style.display = "block";
 
+        const progressFileName = document.getElementById("uploadProgressFileName");
+        const progressFileSize = document.getElementById("uploadProgressFileSize");
+        if (progressFileName) progressFileName.textContent = videoFile ? videoFile.name : (thumbnailFile ? thumbnailFile.name : "");
+        if (progressFileSize && videoFile) {
+            const mb = (videoFile.size / (1024 * 1024)).toFixed(1);
+            const gb = (videoFile.size / (1024 * 1024 * 1024)).toFixed(2);
+            progressFileSize.textContent = videoFile.size >= 1024 * 1024 * 1024 ? `${gb} GB` : `${mb} MB`;
+        }
+
         const formData = new FormData();
         formData.append("title", title);
         formData.append("description", description);
@@ -1488,6 +1674,20 @@ function initUploadPage() {
                 xhr.open("POST", "/api/upload");
                 const progressLabel = document.getElementById("uploadProgressLabel");
                 const convertNote = document.getElementById("uploadConvertNote");
+                const progressSpeed = document.getElementById("uploadProgressSpeed");
+                const uploadStartTime = Date.now();
+
+                function fmtBytes(b) {
+                    if (b >= 1024 * 1024 * 1024) return (b / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+                    if (b >= 1024 * 1024) return (b / (1024 * 1024)).toFixed(1) + " MB";
+                    return (b / 1024).toFixed(0) + " KB";
+                }
+                function fmtEta(sec) {
+                    if (sec < 60) return `${sec}초`;
+                    const m = Math.floor(sec / 60), s = sec % 60;
+                    return s > 0 ? `${m}분 ${s}초` : `${m}분`;
+                }
+
                 xhr.upload.onprogress = (e) => {
                     if (e.lengthComputable) {
                         const pct = Math.round((e.loaded / e.total) * 100);
@@ -1495,9 +1695,17 @@ function initUploadPage() {
                         if (progressText) progressText.textContent = pct + "%";
                         if (pct >= 100) {
                             if (progressLabel) progressLabel.textContent = "변환 중 (백그라운드)...";
+                            if (progressSpeed) progressSpeed.textContent = "";
                             if (convertNote) convertNote.style.display = "block";
                             if (submitBtn) submitBtn.textContent = "변환 중...";
                         } else {
+                            const elapsed = (Date.now() - uploadStartTime) / 1000;
+                            if (elapsed > 0.5) {
+                                const speed = e.loaded / elapsed;
+                                const remaining = e.total - e.loaded;
+                                const etaSec = Math.round(remaining / speed);
+                                if (progressSpeed) progressSpeed.textContent = `${fmtBytes(speed)}/s · 남은 시간 ${fmtEta(etaSec)}`;
+                            }
                             if (submitBtn) submitBtn.textContent = `업로드 중... ${pct}%`;
                         }
                     } else {
@@ -2188,11 +2396,85 @@ async function initWatchPage() {
         bindCommentActionButtons();
     }
 
+    function findCommentOrReply(id) {
+        for (const c of comments) {
+            if (Number(c.id) === id) return c;
+            for (const r of (c.replies || [])) {
+                if (Number(r.id) === id) return r;
+            }
+        }
+        return null;
+    }
+
     function bindCommentActionButtons() {
         const editButtons = commentList?.querySelectorAll("[data-comment-edit]") || [];
         const deleteButtons = commentList?.querySelectorAll("[data-comment-delete]") || [];
         const cancelButtons = commentList?.querySelectorAll("[data-comment-edit-cancel]") || [];
         const saveButtons = commentList?.querySelectorAll("[data-comment-edit-save]") || [];
+        const replyBtns = commentList?.querySelectorAll("[data-reply-to]") || [];
+        const replyCancels = commentList?.querySelectorAll("[data-reply-cancel]") || [];
+        const replySubmits = commentList?.querySelectorAll("[data-reply-submit]") || [];
+        const replyInputs = commentList?.querySelectorAll("[data-reply-input]") || [];
+
+        // 답글 버튼 토글
+        replyBtns.forEach(btn => {
+            btn.addEventListener("click", () => {
+                const parentId = btn.dataset.replyTo;
+                const form = commentList.querySelector(`[data-reply-form="${parentId}"]`);
+                if (!form) return;
+                if (!authMe.loggedIn) { requireAuthRedirect(); return; }
+                form.hidden = !form.hidden;
+                if (!form.hidden) form.querySelector(`[data-reply-input]`)?.focus();
+            });
+        });
+
+        // 답글 입력 → 버튼 활성화
+        replyInputs.forEach(input => {
+            const parentId = input.dataset.replyInput;
+            const submitBtn = commentList.querySelector(`[data-reply-submit="${parentId}"]`);
+            input.addEventListener("input", () => {
+                if (submitBtn) submitBtn.disabled = input.value.trim() === "";
+            });
+        });
+
+        // 답글 취소
+        replyCancels.forEach(btn => {
+            btn.addEventListener("click", () => {
+                const parentId = btn.dataset.replyCancel;
+                const form = commentList.querySelector(`[data-reply-form="${parentId}"]`);
+                const input = commentList.querySelector(`[data-reply-input="${parentId}"]`);
+                if (form) form.hidden = true;
+                if (input) input.value = "";
+                const submitBtn = commentList.querySelector(`[data-reply-submit="${parentId}"]`);
+                if (submitBtn) submitBtn.disabled = true;
+            });
+        });
+
+        // 답글 제출
+        replySubmits.forEach(btn => {
+            btn.addEventListener("click", async () => {
+                const parentId = Number(btn.dataset.replySubmit);
+                const input = commentList.querySelector(`[data-reply-input="${parentId}"]`);
+                const text = input?.value.trim() || "";
+                if (!text) return;
+                btn.disabled = true;
+                try {
+                    const newReply = await createReplyByCommentId(parentId, text);
+                    const parent = comments.find(c => Number(c.id) === parentId);
+                    if (parent) {
+                        parent.replies = parent.replies || [];
+                        parent.replies.push(newReply);
+                    }
+                    const form = commentList.querySelector(`[data-reply-form="${parentId}"]`);
+                    if (form) form.hidden = true;
+                    if (input) input.value = "";
+                    refreshComments();
+                } catch (e) {
+                    alert(e.message || "답글 작성 중 오류가 발생했습니다.");
+                    btn.disabled = false;
+                }
+            });
+        });
 
         editButtons.forEach((button) => {
             button.addEventListener("click", () => {
@@ -2207,8 +2489,7 @@ async function initWatchPage() {
                 const commentId = Number(button.dataset.commentEditCancel);
                 const editBox = commentList.querySelector(`[data-comment-edit-box="${commentId}"]`);
                 const input = commentList.querySelector(`[data-comment-edit-input="${commentId}"]`);
-                const original = comments.find((item) => Number(item.id) === commentId);
-
+                const original = findCommentOrReply(commentId);
                 if (input && original) {
                     input.value = original.text || "";
                 }
@@ -2231,9 +2512,11 @@ async function initWatchPage() {
 
                 try {
                     const updatedComment = await updateCommentById(commentId, nextText);
-                    comments = comments.map((item) =>
-                        Number(item.id) === commentId ? updatedComment : item
-                    );
+                    comments = comments.map(item => {
+                        if (Number(item.id) === commentId) return { ...updatedComment, replies: item.replies || [] };
+                        item.replies = (item.replies || []).map(r => Number(r.id) === commentId ? updatedComment : r);
+                        return item;
+                    });
                     refreshComments();
                 } catch (error) {
                     alert(error.message || "댓글 수정 중 오류가 발생했어.");
@@ -2250,7 +2533,11 @@ async function initWatchPage() {
 
                 try {
                     await deleteCommentById(commentId);
-                    comments = comments.filter((item) => Number(item.id) !== commentId);
+                    comments = comments.filter(item => Number(item.id) !== commentId);
+                    comments = comments.map(item => {
+                        item.replies = (item.replies || []).filter(r => Number(r.id) !== commentId);
+                        return item;
+                    });
                     refreshComments();
                     showToast("댓글이 삭제되었습니다.");
                 } catch (error) {
