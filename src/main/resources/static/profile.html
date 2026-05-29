@@ -249,6 +249,21 @@
                         <div class="profile-help">비워두면 기본 이니셜 원형 프로필로 보여줄게.</div>
                         <div class="profile-error" id="profileImageError"></div>
                     </div>
+
+                    <div class="profile-field full">
+                        <label for="bannerImage">채널 배너 이미지 URL</label>
+                        <input type="url" id="bannerImage" class="profile-input" placeholder="https://example.com/banner.jpg" />
+                        <div class="profile-help">채널 페이지 상단에 표시되는 넓은 배너 이미지야. 권장 비율 16:3 (예: 1920×360).</div>
+                        <div id="bannerPreviewWrap" style="display:none; margin-top:10px; border-radius:10px; overflow:hidden; height:90px; background:#1a1a1a;">
+                            <img id="bannerPreview" src="" alt="배너 미리보기" style="width:100%;height:100%;object-fit:cover;">
+                        </div>
+                    </div>
+
+                    <div class="profile-field full">
+                        <label for="channelBio">채널 소개글</label>
+                        <textarea id="channelBio" class="profile-input" rows="3" maxlength="300" placeholder="채널을 소개하는 짧은 글을 써줘. (최대 300자)" style="resize:vertical; min-height:80px;"></textarea>
+                        <div class="profile-help"><span id="bioCharCount">0</span> / 300</div>
+                    </div>
                 </div>
 
                 <div class="profile-error" id="profileCommonError"></div>

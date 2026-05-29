@@ -146,6 +146,42 @@
             padding: 28px 32px 40px;
         }
 
+        .channel-banner {
+            width: 100%;
+            height: 140px;
+            border-radius: 14px;
+            overflow: hidden;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            position: relative;
+        }
+
+        .channel-banner img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .channel-banner-edit {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.65);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 5px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .channel-banner-edit:hover { background: rgba(0,0,0,0.85); }
+
         .channel-hero {
             display: flex;
             align-items: center;
@@ -153,6 +189,15 @@
             gap: 20px;
             margin-bottom: 28px;
             flex-wrap: wrap;
+        }
+
+        .channel-bio {
+            font-size: 13px;
+            color: #aaa;
+            margin-top: 5px;
+            max-width: 500px;
+            line-height: 1.5;
+            white-space: pre-wrap;
         }
 
         .channel-hero-left {
@@ -736,18 +781,26 @@
 
     <main class="channel-content">
         <section class="channel-page">
+            <div class="channel-banner" id="channelBannerWrap">
+                <img id="channelBannerImg" src="" alt="" style="display:none;">
+                <a href="profile.html" class="channel-banner-edit">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                    배너 편집
+                </a>
+            </div>
+
             <div class="channel-hero">
                 <div class="channel-hero-left">
-                    <div class="channel-avatar-lg">T</div>
+                    <div class="channel-avatar-lg" id="channelAvatarLg">T</div>
                     <div class="channel-hero-text">
-                        <h1>테리로 채널</h1>
-                        <p>업로드한 영상을 관리하고 상태를 확인해보자.</p>
+                        <h1 id="channelHeroName">내 채널</h1>
+                        <p id="channelHeroBio" class="channel-bio" style="display:none;"></p>
                     </div>
                 </div>
 
                 <div class="channel-hero-actions">
                     <a href="upload.html" class="channel-hero-btn primary">영상 업로드</a>
-                    <a href="index.html" class="channel-hero-btn">홈으로 이동</a>
+                    <a href="profile.html" class="channel-hero-btn">프로필 편집</a>
                 </div>
             </div>
 
@@ -872,6 +925,39 @@
                 closeMobileSidebar();
             }
         });
+    })();
+</script>
+<script>
+    (async function loadChannelProfile() {
+        try {
+            const res = await fetch('/api/profile');
+            if (!res.ok) return;
+            const data = await res.json();
+            const u = data.user;
+            if (!u) return;
+
+            const nameEl = document.getElementById('channelHeroName');
+            if (nameEl) nameEl.textContent = u.channelName || u.nickname || u.username || '내 채널';
+
+            const avatarEl = document.getElementById('channelAvatarLg');
+            if (avatarEl) {
+                if (u.profileImage) {
+                    avatarEl.innerHTML = `<img src="${u.profileImage}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentElement.textContent='${(u.channelName||u.nickname||'?')[0]}'">`;
+                } else {
+                    avatarEl.textContent = (u.channelName || u.nickname || u.username || '?')[0].toUpperCase();
+                }
+            }
+
+            if (u.bannerImage) {
+                const bannerImg = document.getElementById('channelBannerImg');
+                if (bannerImg) { bannerImg.src = u.bannerImage; bannerImg.style.display = 'block'; }
+            }
+
+            if (u.bio) {
+                const bioEl = document.getElementById('channelHeroBio');
+                if (bioEl) { bioEl.textContent = u.bio; bioEl.style.display = 'block'; }
+            }
+        } catch {}
     })();
 </script>
 </body>

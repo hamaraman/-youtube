@@ -461,6 +461,35 @@ async function initProfilePage(me) {
     channelName.value = user.channelName || "";
     profileImage.value = user.profileImage || "";
 
+    const bannerImageInput = document.getElementById("bannerImage");
+    const channelBioInput = document.getElementById("channelBio");
+    const bioCharCount = document.getElementById("bioCharCount");
+    const bannerPreviewWrap = document.getElementById("bannerPreviewWrap");
+    const bannerPreview = document.getElementById("bannerPreview");
+
+    if (bannerImageInput) bannerImageInput.value = user.bannerImage || "";
+    if (channelBioInput) channelBioInput.value = user.bio || "";
+    if (bioCharCount) bioCharCount.textContent = (user.bio || "").length;
+
+    if (bannerImageInput && user.bannerImage) {
+        if (bannerPreviewWrap) bannerPreviewWrap.style.display = "block";
+        if (bannerPreview) bannerPreview.src = user.bannerImage;
+    }
+
+    bannerImageInput?.addEventListener("input", () => {
+        const url = bannerImageInput.value.trim();
+        if (url && bannerPreviewWrap && bannerPreview) {
+            bannerPreviewWrap.style.display = "block";
+            bannerPreview.src = url;
+        } else if (bannerPreviewWrap) {
+            bannerPreviewWrap.style.display = "none";
+        }
+    });
+
+    channelBioInput?.addEventListener("input", () => {
+        if (bioCharCount) bioCharCount.textContent = channelBioInput.value.length;
+    });
+
     updateProfilePreview(user.profileImage || "", user.channelName || user.nickname || user.username);
 
     profileImage.addEventListener("input", () => {
@@ -548,7 +577,9 @@ async function initProfilePage(me) {
             nickname: nickname.value.trim(),
             email: email.value.trim(),
             channelName: channelName.value.trim(),
-            profileImage: profileImage.value.trim()
+            profileImage: profileImage.value.trim(),
+            bannerImage: (document.getElementById("bannerImage")?.value || "").trim(),
+            bio: (document.getElementById("channelBio")?.value || "").trim()
         };
 
         const saveResponse = await fetch("/api/profile", {

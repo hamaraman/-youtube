@@ -49,7 +49,9 @@ public class ProfileController {
                         user.getNickname(),
                         user.getEmail(),
                         safeChannelName(user),
-                        safeProfileImage(user)
+                        safeProfileImage(user),
+                        user.getBannerImage() == null ? "" : user.getBannerImage(),
+                        user.getBio() == null ? "" : user.getBio()
                 )
         ));
     }
@@ -75,6 +77,8 @@ public class ProfileController {
         String email = value(request.getEmail());
         String channelName = value(request.getChannelName());
         String profileImage = value(request.getProfileImage());
+        String bannerImage = value(request.getBannerImage());
+        String bio = value(request.getBio());
 
         if (nickname.isBlank()) {
             return ResponseEntity.badRequest().body(new SimpleResponse(false, "닉네임을 입력해줘."));
@@ -98,6 +102,8 @@ public class ProfileController {
         user.setEmail(email.isBlank() ? null : email);
         user.setChannelName(channelName);
         user.setProfileImage(profileImage.isBlank() ? null : profileImage);
+        user.setBannerImage(bannerImage.isBlank() ? null : bannerImage);
+        user.setBio(bio.isBlank() ? null : bio);
 
         userRepository.save(user);
 
@@ -129,7 +135,9 @@ public class ProfileController {
                         user.getNickname(),
                         user.getEmail(),
                         safeChannelName(user),
-                        safeProfileImage(user)
+                        safeProfileImage(user),
+                        user.getBannerImage() == null ? "" : user.getBannerImage(),
+                        user.getBio() == null ? "" : user.getBio()
                 )
         ));
     }
@@ -157,16 +165,22 @@ public class ProfileController {
         private String email;
         private String channelName;
         private String profileImage;
+        private String bannerImage;
+        private String bio;
 
         public String getNickname() { return nickname; }
         public String getEmail() { return email; }
         public String getChannelName() { return channelName; }
         public String getProfileImage() { return profileImage; }
+        public String getBannerImage() { return bannerImage; }
+        public String getBio() { return bio; }
 
         public void setNickname(String nickname) { this.nickname = nickname; }
         public void setEmail(String email) { this.email = email; }
         public void setChannelName(String channelName) { this.channelName = channelName; }
         public void setProfileImage(String profileImage) { this.profileImage = profileImage; }
+        public void setBannerImage(String bannerImage) { this.bannerImage = bannerImage; }
+        public void setBio(String bio) { this.bio = bio; }
     }
 
     public static class ProfileUser {
@@ -176,14 +190,18 @@ public class ProfileController {
         private String email;
         private String channelName;
         private String profileImage;
+        private String bannerImage;
+        private String bio;
 
-        public ProfileUser(Long id, String username, String nickname, String email, String channelName, String profileImage) {
+        public ProfileUser(Long id, String username, String nickname, String email, String channelName, String profileImage, String bannerImage, String bio) {
             this.id = id;
             this.username = username;
             this.nickname = nickname;
             this.email = email;
             this.channelName = channelName;
             this.profileImage = profileImage;
+            this.bannerImage = bannerImage;
+            this.bio = bio;
         }
 
         public Long getId() { return id; }
@@ -192,6 +210,8 @@ public class ProfileController {
         public String getEmail() { return email; }
         public String getChannelName() { return channelName; }
         public String getProfileImage() { return profileImage; }
+        public String getBannerImage() { return bannerImage; }
+        public String getBio() { return bio; }
     }
 
     public static class ProfileResponse {

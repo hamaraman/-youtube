@@ -28,6 +28,12 @@ public class User {
     @Column(name = "profile_image")
     private String profileImage;
 
+    @Column(name = "banner_image", columnDefinition = "TEXT")
+    private String bannerImage;
+
+    @Column(name = "bio", columnDefinition = "TEXT")
+    private String bio;
+
     public User() {
     }
 
@@ -86,4 +92,10 @@ public class User {
     public void setProfileImage(String profileImage) {
         this.profileImage = profileImage;
     }
+
+    public String getBannerImage() { return bannerImage; }
+    public void setBannerImage(String bannerImage) { this.bannerImage = bannerImage; }
+
+    public String getBio() { return bio; }
+    public void setBio(String bio) { this.bio = bio; }
 }
