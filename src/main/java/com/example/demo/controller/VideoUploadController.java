@@ -179,10 +179,28 @@ public class VideoUploadController {
             if (fileName == null) continue;
             String uuid = fileName.endsWith(".mp4") ? fileName.substring(0, fileName.length() - 4) : fileName;
             final Long videoId = video.getId();
-            final Path sourcePath = dirPath.resolve(uuid + ".mp4");
-            CompletableFuture.runAsync(() ->
-                generateResolutionVariants(ffmpeg, sourcePath, dirPath, uuid, videoId)
-            );
+
+            if (video.getVideoUrl().startsWith("http")) {
+                final String sourceUrl = video.getVideoUrl();
+                final Path tempPath = dirPath.resolve(uuid + "_batch_tmp.mp4");
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        try (var in = new java.net.URL(sourceUrl).openStream()) {
+                            Files.copy(in, tempPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                        }
+                        generateResolutionVariants(ffmpeg, tempPath, dirPath, uuid, videoId);
+                    } catch (Exception e) {
+                        System.err.println("[Batch] Download failed: " + sourceUrl + " - " + e.getMessage());
+                    } finally {
+                        try { Files.deleteIfExists(tempPath); } catch (Exception ignored) {}
+                    }
+                });
+            } else {
+                final Path sourcePath = dirPath.resolve(uuid + ".mp4");
+                CompletableFuture.runAsync(() ->
+                    generateResolutionVariants(ffmpeg, sourcePath, dirPath, uuid, videoId)
+                );
+            }
         }
 
         return ResponseEntity.ok(Map.of("success", true, "queued", targets.size(),

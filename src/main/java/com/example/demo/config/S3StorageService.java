@@ -8,6 +8,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.net.URI;
@@ -65,6 +66,16 @@ public class S3StorageService {
                 localFile
         );
         return publicUrl + "/" + key;
+    }
+
+    public void download(String key, Path dest) throws Exception {
+        s3Client.getObject(
+                GetObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(key)
+                        .build(),
+                dest
+        );
     }
 
     public void delete(String url) {

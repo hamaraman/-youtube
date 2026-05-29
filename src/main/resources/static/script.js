@@ -849,10 +849,54 @@ function createManageCard(video) {
   `;
 }
 
-function createPlayerMarkup(video) {
+function createPlayerMarkup(video, resolutionOptions) {
     if (video.videoUrl) {
-        const poster = video.thumbnail && !video.thumbnail.startsWith("data:") ? ` poster="${escapeHtml(video.thumbnail)}"` : "";
-        return `<video class="player-video" controls preload="metadata"${poster} src="${escapeHtml(video.videoUrl)}"></video>`;
+        const hasThumbnail = video.thumbnail && !video.thumbnail.startsWith("data:");
+        const thumbHtml = hasThumbnail
+            ? `<img class="cp-thumb-cover" id="cpThumbCover" src="${escapeHtml(video.thumbnail)}" alt="">`
+            : "";
+        const hasQuality = resolutionOptions && resolutionOptions.length > 1;
+        const qualityHtml = hasQuality ? `
+          <div class="cp-quality-wrap" id="cpQualityWrap">
+            <button class="cp-btn" id="cpQualityBtn" type="button" title="화질 선택">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+            </button>
+            <div class="cp-quality-menu" id="cpQualityMenu">
+              <div class="cp-quality-header">화질</div>
+              ${resolutionOptions.map((opt, i) =>
+                `<button class="cp-quality-item${i === 0 ? " active" : ""}" data-src="${escapeHtml(opt.src)}" type="button">${escapeHtml(opt.label)}</button>`
+              ).join("")}
+            </div>
+          </div>` : "";
+        return `<div class="custom-player" id="customPlayer">
+          <video class="player-video" preload="metadata" src="${escapeHtml(video.videoUrl)}"></video>
+          ${thumbHtml}
+          <div class="cp-controls">
+            <div class="cp-progress-wrap">
+              <input type="range" class="cp-progress" id="cpProgress" min="0" max="100" step="0.1" value="0">
+            </div>
+            <div class="cp-bar">
+              <div class="cp-bar-left">
+                <button class="cp-btn" id="cpPlay" type="button">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <div class="cp-vol-wrap">
+                  <button class="cp-btn" id="cpVol" type="button">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+                  </button>
+                  <input type="range" class="cp-volume" id="cpVolume" min="0" max="1" step="0.05" value="1">
+                </div>
+                <span class="cp-time" id="cpTime">0:00 / 0:00</span>
+              </div>
+              <div class="cp-bar-right">
+                ${qualityHtml}
+                <button class="cp-btn" id="cpFs" type="button">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>`;
     }
 
     if (video.embedUrl) {
@@ -865,6 +909,158 @@ function createPlayerMarkup(video) {
     }
 
     return `<img src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" />`;
+}
+
+function initCustomPlayer() {
+    const player = document.getElementById("customPlayer");
+    if (!player) return;
+    const video = player.querySelector("video.player-video");
+    if (!video) return;
+
+    const playBtn   = document.getElementById("cpPlay");
+    const progress  = document.getElementById("cpProgress");
+    const timeEl    = document.getElementById("cpTime");
+    const volBtn    = document.getElementById("cpVol");
+    const volSlider = document.getElementById("cpVolume");
+    const fsBtn     = document.getElementById("cpFs");
+    const qualityBtn  = document.getElementById("cpQualityBtn");
+    const qualityMenu = document.getElementById("cpQualityMenu");
+    const qualityWrap = document.getElementById("cpQualityWrap");
+
+    const I_PLAY   = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+    const I_PAUSE  = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+    const I_VOL    = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>`;
+    const I_MUTE   = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>`;
+    const I_FS     = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>`;
+    const I_EXIT_FS= `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>`;
+
+    function fmt(s) {
+        s = Math.floor(s || 0);
+        return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    }
+
+    // 첫 재생 시 썸네일 커버 숨기기
+    const thumbCover = document.getElementById("cpThumbCover");
+    if (thumbCover) {
+        video.addEventListener("playing", () => { thumbCover.style.display = "none"; }, { once: true });
+    }
+
+    // 플레이어 클릭 → 재생/일시정지
+    player.addEventListener("click", (e) => {
+        if (e.target.closest(".cp-controls")) return;
+        video.paused ? video.play() : video.pause();
+    });
+
+    playBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        video.paused ? video.play() : video.pause();
+    });
+    video.addEventListener("play",  () => { if (playBtn) playBtn.innerHTML = I_PAUSE; });
+    video.addEventListener("pause", () => { if (playBtn) playBtn.innerHTML = I_PLAY; });
+
+    // 프로그레스바
+    video.addEventListener("timeupdate", () => {
+        if (!video.duration) return;
+        if (progress) progress.value = (video.currentTime / video.duration) * 100;
+        if (timeEl) timeEl.textContent = `${fmt(video.currentTime)} / ${fmt(video.duration)}`;
+    });
+    video.addEventListener("loadedmetadata", () => {
+        if (timeEl) timeEl.textContent = `0:00 / ${fmt(video.duration)}`;
+    });
+    progress?.addEventListener("input", () => {
+        if (video.duration) video.currentTime = (Number(progress.value) / 100) * video.duration;
+    });
+
+    // 볼륨
+    volBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        video.muted = !video.muted;
+        if (volBtn) volBtn.innerHTML = video.muted ? I_MUTE : I_VOL;
+        if (volSlider) volSlider.value = video.muted ? 0 : video.volume;
+    });
+    volSlider?.addEventListener("input", (e) => {
+        e.stopPropagation();
+        video.volume = Number(volSlider.value);
+        video.muted = video.volume === 0;
+        if (volBtn) volBtn.innerHTML = video.muted ? I_MUTE : I_VOL;
+    });
+
+    // 전체화면
+    fsBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        document.fullscreenElement ? document.exitFullscreen() : player.requestFullscreen();
+    });
+    document.addEventListener("fullscreenchange", () => {
+        if (fsBtn) fsBtn.innerHTML = document.fullscreenElement ? I_EXIT_FS : I_FS;
+    });
+
+    // 컨트롤 자동 숨김
+    let hideTimer;
+    function bumpControls() {
+        player.classList.add("show-controls");
+        clearTimeout(hideTimer);
+        if (!video.paused) hideTimer = setTimeout(() => player.classList.remove("show-controls"), 3000);
+    }
+    player.addEventListener("mousemove", bumpControls);
+    player.addEventListener("mouseenter", bumpControls);
+    video.addEventListener("pause", () => player.classList.add("show-controls"));
+    video.addEventListener("play", bumpControls);
+
+    // 화질 메뉴
+    if (qualityBtn && qualityMenu) {
+        qualityBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            qualityMenu.classList.toggle("is-open");
+        });
+        document.addEventListener("click", (e) => {
+            if (qualityWrap && !qualityWrap.contains(e.target)) qualityMenu.classList.remove("is-open");
+        });
+        qualityMenu.querySelectorAll(".cp-quality-item").forEach(item => {
+            item.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const src = item.dataset.src;
+                if (!src || item.classList.contains("active")) { qualityMenu.classList.remove("is-open"); return; }
+                const t = video.currentTime;
+                const wasPaused = video.paused;
+                const canvas = document.createElement("canvas");
+                canvas.width = video.videoWidth || 1280;
+                canvas.height = video.videoHeight || 720;
+                canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+                canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none;";
+                player.appendChild(canvas);
+                const removeCanvas = () => canvas.remove();
+                video.src = src;
+                video.load();
+                video.addEventListener("loadedmetadata", () => {
+                    video.currentTime = t;
+                    if (!wasPaused) video.play().catch(() => {});
+                }, { once: true });
+                video.addEventListener("seeked", removeCanvas, { once: true });
+                setTimeout(removeCanvas, 2000);
+                qualityMenu.querySelectorAll(".cp-quality-item").forEach(b => b.classList.remove("active"));
+                item.classList.add("active");
+                qualityMenu.classList.remove("is-open");
+            });
+        });
+    }
+
+    // 기존 디버그/에러 로깅 유지
+    video.addEventListener("error", () => {
+        const code = video.error?.code;
+        const msg = ["", "ABORTED", "NETWORK", "DECODE", "SRC_NOT_SUPPORTED"][code] || "UNKNOWN";
+        console.error("[Player] 영상 로드 실패:", msg, video.src);
+    });
+    video.addEventListener("loadedmetadata", () => {
+        const w = video.videoWidth, h = video.videoHeight;
+        console.log("[Player] 메타데이터 로드 완료:", w + "x" + h, video.src);
+        if (w === 0 && h === 0) {
+            const box = player.closest(".player-box");
+            if (box) box.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;color:#aaa;gap:10px;padding:24px;aspect-ratio:16/9;"><span style="font-size:36px;">⚠️</span><span style="font-size:15px;text-align:center;">영상 트랙이 없습니다.<br>오디오 전용이거나 손상된 파일입니다.</span></div>`;
+        }
+    });
+    video.addEventListener("playing", () => console.log("[Player] 재생 시작:", video.src));
+    video.addEventListener("stalled", () => console.warn("[Player] 데이터 로드 정지 (stalled):", video.src));
+    console.log("[Player] src =", video.src);
 }
 
 function createCommentItem(comment) {
@@ -1900,22 +2096,8 @@ async function initWatchPage() {
         if (currentVideo.videoUrl480) resolutionOptions.push({ label: "480p", src: currentVideo.videoUrl480 });
         if (currentVideo.videoUrl360) resolutionOptions.push({ label: "360p", src: currentVideo.videoUrl360 });
     }
-    const resolutionMenuHtml = resolutionOptions.length > 1
-        ? `<div class="res-menu-wrap" id="resMenuWrap">
-            <button class="watch-action-btn res-menu-btn" id="resMenuBtn" type="button" title="화질 선택">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
-            </button>
-            <div class="res-dropdown" id="resDropdown">
-              <div class="res-dropdown-header">화질 선택</div>
-              ${resolutionOptions.map((opt, i) =>
-                `<button class="res-dropdown-item${i === 0 ? " active" : ""}" data-src="${escapeHtml(opt.src)}" type="button">${escapeHtml(opt.label)}</button>`
-              ).join("")}
-            </div>
-          </div>`
-        : "";
-
     watchMain.innerHTML = `
-    <div class="player-box">${createPlayerMarkup(currentVideo)}</div>
+    <div class="player-box">${createPlayerMarkup(currentVideo, resolutionOptions)}</div>
     <h1 class="watch-title">${escapeHtml(currentVideo.title)}</h1>
 
     <div class="watch-meta-row">
@@ -1936,7 +2118,6 @@ async function initWatchPage() {
         <button class="watch-action-btn ${isSaved ? "active" : ""}" id="saveBtn" type="button">
           ${isSaved ? "저장됨" : "저장"}
         </button>
-        ${resolutionMenuHtml}
       </div>
     </div>
 
@@ -1970,80 +2151,7 @@ async function initWatchPage() {
         watchRecommendList.innerHTML = recommendVideos.map(createRecommendCard).join("");
     }
 
-    const playerVideoEl = watchMain.querySelector("video.player-video");
-    if (playerVideoEl) {
-        playerVideoEl.addEventListener("error", () => {
-            const code = playerVideoEl.error?.code;
-            const msg = ["", "ABORTED", "NETWORK", "DECODE", "SRC_NOT_SUPPORTED"][code] || "UNKNOWN";
-            console.error("[Player] 영상 로드 실패:", msg, playerVideoEl.src);
-        });
-        playerVideoEl.addEventListener("loadedmetadata", () => {
-            const w = playerVideoEl.videoWidth;
-            const h = playerVideoEl.videoHeight;
-            console.log("[Player] 메타데이터 로드 완료:", w + "x" + h, playerVideoEl.src);
-            if (w === 0 && h === 0) {
-                const box = playerVideoEl.closest(".player-box");
-                if (box) {
-                    box.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;color:#aaa;gap:10px;padding:24px;aspect-ratio:16/9;"><span style="font-size:36px;">⚠️</span><span style="font-size:15px;text-align:center;">영상 트랙이 없습니다.<br>오디오 전용이거나 손상된 파일입니다.</span></div>`;
-                }
-            }
-        });
-        playerVideoEl.addEventListener("playing", () => {
-            console.log("[Player] 재생 시작:", playerVideoEl.src);
-        });
-        playerVideoEl.addEventListener("stalled", () => {
-            console.warn("[Player] 데이터 로드 정지 (stalled):", playerVideoEl.src);
-        });
-        console.log("[Player] src =", playerVideoEl.src);
-
-        const resMenuBtn = document.getElementById("resMenuBtn");
-        const resDropdown = document.getElementById("resDropdown");
-        const resMenuWrap = document.getElementById("resMenuWrap");
-
-        if (resMenuBtn && resDropdown) {
-            resMenuBtn.addEventListener("click", (e) => {
-                e.stopPropagation();
-                const isOpen = resDropdown.classList.toggle("is-open");
-                resMenuBtn.classList.toggle("active", isOpen);
-            });
-
-            resDropdown.addEventListener("click", (e) => {
-                const btn = e.target.closest(".res-dropdown-item");
-                if (!btn) return;
-                const newSrc = btn.dataset.src;
-                if (!newSrc || btn.classList.contains("active")) {
-                    resDropdown.classList.remove("is-open");
-                    resMenuBtn.classList.remove("active");
-                    return;
-                }
-
-                const currentTime = playerVideoEl.currentTime;
-                const wasPaused = playerVideoEl.paused;
-
-                resDropdown.querySelectorAll(".res-dropdown-item").forEach(b => b.classList.remove("active"));
-                btn.classList.add("active");
-                resMenuBtn.title = `화질: ${btn.textContent}`;
-
-                resDropdown.classList.remove("is-open");
-                resMenuBtn.classList.remove("active");
-
-                playerVideoEl.src = newSrc;
-                playerVideoEl.load();
-                playerVideoEl.addEventListener("loadedmetadata", function onReady() {
-                    playerVideoEl.removeEventListener("loadedmetadata", onReady);
-                    playerVideoEl.currentTime = currentTime;
-                    if (!wasPaused) playerVideoEl.play().catch(() => {});
-                }, { once: true });
-            });
-
-            document.addEventListener("click", (e) => {
-                if (resMenuWrap && !resMenuWrap.contains(e.target)) {
-                    resDropdown.classList.remove("is-open");
-                    resMenuBtn.classList.remove("active");
-                }
-            }, { capture: false });
-        }
-    }
+    initCustomPlayer();
 
     const subscribeBtn = document.getElementById("subscribeBtn");
     const likeBtn = document.getElementById("likeBtn");

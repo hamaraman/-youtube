@@ -327,7 +327,6 @@ img {
     width: 100%;
     aspect-ratio: 16 / 9;
     display: block;
-    border-radius: 18px;
     background: #000;
 }
 
@@ -339,51 +338,191 @@ img {
     border-radius: 18px;
 }
 
-.res-menu-wrap {
+/* Custom Player */
+.custom-player {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 18px;
+    overflow: hidden;
+    cursor: pointer;
+    line-height: 0;
+}
+
+.custom-player:fullscreen {
+    border-radius: 0;
+    aspect-ratio: unset;
+    height: 100%;
+}
+
+.custom-player:fullscreen .player-video {
+    height: 100%;
+    aspect-ratio: unset;
+    object-fit: contain;
+}
+
+.cp-thumb-cover {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.cp-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 32px 12px 10px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.75));
+    border-radius: 0 0 18px 18px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    line-height: normal;
+    z-index: 2;
+}
+
+.custom-player:hover .cp-controls,
+.custom-player.show-controls .cp-controls {
+    opacity: 1;
+}
+
+.cp-progress-wrap {
+    margin-bottom: 6px;
+}
+
+.cp-progress {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.cp-progress::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+}
+
+.cp-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.cp-bar-left, .cp-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.cp-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    padding: 5px 6px;
+    border-radius: 4px;
+    line-height: 0;
+    display: flex;
+    align-items: center;
+}
+
+.cp-btn:hover {
+    background: rgba(255,255,255,0.15);
+}
+
+.cp-time {
+    color: #fff;
+    font-size: 13px;
+    white-space: nowrap;
+    padding: 0 6px;
+    font-variant-numeric: tabular-nums;
+}
+
+.cp-vol-wrap {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.cp-volume {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 60px;
+    height: 4px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.cp-volume::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+}
+
+.cp-quality-wrap {
     position: relative;
 }
 
-.res-dropdown {
+.cp-quality-menu {
     display: none;
     position: absolute;
+    bottom: calc(100% + 8px);
     right: 0;
-    bottom: calc(100% + 6px);
-    background: #212121;
-    border: 1px solid #383838;
-    border-radius: 12px;
-    min-width: 130px;
+    background: rgba(28,28,28,0.96);
+    border-radius: 10px;
     padding: 6px 0;
-    z-index: 200;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    min-width: 110px;
+    z-index: 10;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+    line-height: normal;
 }
 
-.res-dropdown.is-open {
+.cp-quality-menu.is-open {
     display: block;
 }
 
-.res-dropdown-header {
+.cp-quality-header {
     font-size: 12px;
     color: #9aa0a6;
-    padding: 6px 16px 4px;
+    padding: 4px 14px 6px;
 }
 
-.res-dropdown-item {
+.cp-quality-item {
     display: block;
     width: 100%;
     text-align: left;
-    padding: 8px 16px;
-    background: transparent;
+    background: none;
     border: none;
-    color: #f1f1f1;
+    color: #e8e8e8;
+    padding: 8px 14px;
     font-size: 14px;
     cursor: pointer;
 }
 
-.res-dropdown-item:hover {
-    background: #333;
+.cp-quality-item:hover {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
 }
 
-.res-dropdown-item.active {
+.cp-quality-item.active {
     color: #fff;
     font-weight: 700;
 }
