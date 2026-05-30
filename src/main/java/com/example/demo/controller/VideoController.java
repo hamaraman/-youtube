@@ -101,6 +101,28 @@ public class VideoController {
         );
     }
 
+    @GetMapping("/studio/videos")
+    public ResponseEntity<?> getStudioVideos(HttpSession session) {
+        Long loginUserId = getLoginUserId(session);
+        if (loginUserId == null) {
+            return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
+        }
+
+        List<VideoItem> result = videoRepository.findAll()
+                .stream()
+                .filter(video -> loginUserId.equals(video.getOwnerId()))
+                .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
+                .map(video -> VideoItem.from(
+                        video,
+                        videoLikeRepository.countByVideoId(video.getId()),
+                        videoLikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId),
+                        videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
+                ))
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/my-videos")
     public ResponseEntity<?> getMyVideos(HttpSession session) {
         Long loginUserId = getLoginUserId(session);

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YouTube - 내 스튜디오</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap"
+        rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="studio">
+<header class="topbar">
+    <div class="topbar-left">
+        <a href="index.html" class="logo-wrap" aria-label="MyTube 홈">
+            <span class="logo-badge">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
+                    <rect x="4" y="7" width="16" height="10" rx="2" stroke="white" stroke-width="1.4"/>
+                    <rect x="2" y="9.5" width="2" height="2" rx="0.5" fill="white"/>
+                    <rect x="2" y="12.5" width="2" height="2" rx="0.5" fill="white"/>
+                    <rect x="20" y="9.5" width="2" height="2" rx="0.5" fill="white"/>
+                    <rect x="20" y="12.5" width="2" height="2" rx="0.5" fill="white"/>
+                    <path d="M10.5 10l4 2-4 2v-4z" fill="white"/>
+                </svg>
+            </span>
+            <span class="logo-text">MY</span>
+        </a>
+    </div>
+
+    <div class="topbar-center">
+        <form class="search-form" onsubmit="return false;">
+            <input type="text" placeholder="검색" aria-label="검색" />
+            <button type="submit" class="search-btn" aria-label="검색 버튼">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M10 4a6 6 0 1 0 3.87 10.58l4.27 4.27 1.41-1.41-4.27-4.27A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"></path>
+                </svg>
+            </button>
+        </form>
+    </div>
+
+    <div class="topbar-right">
+        <a href="upload.html" class="icon-btn" aria-label="업로드">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M11 6h2v5h5v2h-5v5h-2v-5H6v-2h5V6Z"></path>
+            </svg>
+        </a>
+        <a href="channel.html" class="profile" aria-label="내 채널" id="studioHeaderAvatar">?</a>
+    </div>
+</header>
+
+<div class="studio-wrap">
+    <div class="studio-header">
+        <h1>내 스튜디오</h1>
+        <a href="upload.html" class="studio-upload-btn">영상 업로드</a>
+    </div>
+    <div id="studioVideoList" class="studio-list">
+        <!-- JS로 렌더링 -->
+    </div>
+</div>
+
+<script src="auth.js?v=5"></script>
+<script src="script.js?v=5"></script>
+</body>
+</html>
