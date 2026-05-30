@@ -866,19 +866,38 @@ function createPlayerMarkup(video, resolutionOptions) {
         const thumbHtml = hasThumbnail
             ? `<img class="cp-thumb-cover" id="cpThumbCover" src="${escapeHtml(video.thumbnail)}" alt="">`
             : "";
-        const hasQuality = resolutionOptions && resolutionOptions.length > 1;
-        const qualityHtml = hasQuality ? `
-          <div class="cp-quality-wrap" id="cpQualityWrap">
-            <button class="cp-btn" id="cpQualityBtn" type="button" title="화질 선택">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        const hasQuality = resolutionOptions && resolutionOptions.length > 0;
+        const qualityOptionsHtml = hasQuality
+            ? resolutionOptions.map((opt, i) =>
+                `<div class="cp-set-option${i === 0 ? " active" : ""}" data-src="${escapeHtml(opt.src)}" data-label="${escapeHtml(opt.label)}">${escapeHtml(opt.label)}</div>`
+              ).join("")
+            : "";
+        const settingsMenuHtml = `
+          <div class="cp-settings-wrap" id="cpSettingsWrap">
+            <button class="cp-btn" id="cpSettingsBtn" type="button" title="설정">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54a7.21 7.21 0 0 0-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.36 1.04.67 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54a7.21 7.21 0 0 0 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61l-2.03-1.58zM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2z"/></svg>
             </button>
-            <div class="cp-quality-menu" id="cpQualityMenu">
-              <div class="cp-quality-header">화질</div>
-              ${resolutionOptions.map((opt, i) =>
-                `<button class="cp-quality-item${i === 0 ? " active" : ""}" data-src="${escapeHtml(opt.src)}" type="button">${escapeHtml(opt.label)}</button>`
-              ).join("")}
+            <div class="cp-settings-menu" id="cpSettingsMenu">
+              <div class="cp-set-panel" id="cpSetMain">
+                <div class="cp-set-item" id="cpSetSpeedItem">
+                  <span>재생 속도</span><span class="cp-set-val" id="cpSetSpeedVal">보통</span>
+                </div>
+                ${hasQuality ? `<div class="cp-set-item" id="cpSetQualItem">
+                  <span>화질</span><span class="cp-set-val" id="cpSetQualVal">${escapeHtml(resolutionOptions[0]?.label || "원본")}</span>
+                </div>` : ""}
+              </div>
+              <div class="cp-set-panel" id="cpSetSpeedPanel" style="display:none">
+                <div class="cp-set-back" id="cpSetSpeedBack">재생 속도</div>
+                ${["0.5","0.75","1","1.25","1.5","2"].map(s =>
+                  `<div class="cp-set-option${s==="1"?" active":""}" data-speed="${s}">${s==="1"?"보통":s+"x"}</div>`
+                ).join("")}
+              </div>
+              ${hasQuality ? `<div class="cp-set-panel" id="cpSetQualPanel" style="display:none">
+                <div class="cp-set-back" id="cpSetQualBack">화질</div>
+                ${qualityOptionsHtml}
+              </div>` : ""}
             </div>
-          </div>` : "";
+          </div>`;
         return `<div class="custom-player" id="customPlayer">
           <video class="player-video" preload="metadata" src="${escapeHtml(video.videoUrl)}"></video>
           ${thumbHtml}
@@ -901,16 +920,10 @@ function createPlayerMarkup(video, resolutionOptions) {
                 <span class="cp-time" id="cpTime">0:00 / 0:00</span>
               </div>
               <div class="cp-bar-right">
-                <div class="cp-speed-wrap" id="cpSpeedWrap">
-                  <button class="cp-btn cp-speed-btn" id="cpSpeedBtn" type="button" title="재생 속도">1x</button>
-                  <div class="cp-speed-menu" id="cpSpeedMenu">
-                    <div class="cp-quality-header">재생 속도</div>
-                    ${["0.5", "0.75", "1", "1.25", "1.5", "2"].map(s =>
-                      `<button class="cp-quality-item${s === "1" ? " active" : ""}" data-speed="${s}" type="button">${s === "1" ? "보통" : s + "x"}</button>`
-                    ).join("")}
-                  </div>
-                </div>
-                ${qualityHtml}
+                ${settingsMenuHtml}
+                <button class="cp-btn" id="cpMini" type="button" title="미니 플레이어">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zm-10-7h8v5h-8z"/></svg>
+                </button>
                 <button class="cp-btn" id="cpFs" type="button">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
                 </button>
@@ -932,6 +945,163 @@ function createPlayerMarkup(video, resolutionOptions) {
     return `<img src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" />`;
 }
 
+// ── 미니 플레이어 ──────────────────────────────────────────
+const MP_KEY = '__miniPlayer__';
+function getMpState() { try { return JSON.parse(localStorage.getItem(MP_KEY)); } catch { return null; } }
+function setMpState(s) { localStorage.setItem(MP_KEY, JSON.stringify(s)); }
+function clearMpState() { localStorage.removeItem(MP_KEY); }
+
+function navigateTo(url, ms) {
+    const t = ms ?? 180;
+    document.body.style.transition = `opacity ${t}ms ease`;
+    document.body.style.opacity = "0";
+    setTimeout(() => { window.location.href = url; }, t);
+}
+
+function initMiniPlayer() {
+    const state = getMpState();
+    if (!state || !state.active || !state.videoUrl) return;
+    const params = new URLSearchParams(window.location.search);
+    const vid = params.get('v') || params.get('id') || params.get('videoId');
+    if (vid && String(vid) === String(state.videoId)) return;
+    if (document.getElementById('miniPlayer')) return;
+
+    const I_PLAY  = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+    const I_PAUSE = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+
+    const mp = document.createElement('div');
+    mp.id = 'miniPlayer';
+    mp.className = 'mini-player';
+    mp.innerHTML = `
+        <div class="mp-video-wrap" id="mpVideoWrap">
+            <video class="mp-video" src="${escapeHtml(state.videoUrl)}" playsinline></video>
+        </div>
+        <div class="mp-bottom">
+            <div class="mp-info">
+                <div class="mp-title">${escapeHtml(state.title || '')}</div>
+                <div class="mp-channel">${escapeHtml(state.channel || '')}</div>
+            </div>
+            <button class="mp-btn" id="mpPlayBtn" title="재생/일시정지">${state.playing ? I_PAUSE : I_PLAY}</button>
+            <button class="mp-btn" id="mpExpandBtn" title="영상으로 이동">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+            </button>
+            <button class="mp-btn" id="mpCloseBtn" title="닫기">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+        </div>`;
+    document.body.appendChild(mp);
+
+    const video = mp.querySelector('.mp-video');
+    const playBtn = document.getElementById('mpPlayBtn');
+
+    video.addEventListener('loadedmetadata', () => {
+        video.currentTime = state.currentTime || 0;
+        if (state.playing) video.play().catch(() => {});
+    });
+    video.addEventListener('play',  () => { playBtn.innerHTML = I_PAUSE; });
+    video.addEventListener('pause', () => { playBtn.innerHTML = I_PLAY; });
+    video.addEventListener('timeupdate', () => {
+        const s = getMpState();
+        if (s) setMpState({ ...s, currentTime: video.currentTime, playing: !video.paused });
+    });
+    video.addEventListener('ended', () => { clearMpState(); mp.remove(); });
+
+    playBtn.addEventListener('click', () => video.paused ? video.play() : video.pause());
+
+    function goToWatch() {
+        const t = video.currentTime;
+        const s = getMpState();
+        if (s) setMpState({ ...s, currentTime: t, playing: !video.paused, active: true });
+        navigateTo(`watch.html?v=${state.videoId}&t=${Math.floor(t)}&autoplay=1`, 80);
+    }
+    document.getElementById('mpExpandBtn').addEventListener('click', goToWatch);
+    document.getElementById('mpVideoWrap').addEventListener('click', goToWatch);
+
+    document.getElementById('mpCloseBtn').addEventListener('click', () => {
+        clearMpState();
+        mp.classList.add('is-closing');
+        mp.addEventListener('animationend', () => mp.remove(), { once: true });
+    });
+
+    // 드래그
+    let dragging = false, ox = 0, oy = 0;
+    mp.querySelector('.mp-bottom').addEventListener('mousedown', (e) => {
+        if (e.target.closest('.mp-btn')) return;
+        dragging = true;
+        const r = mp.getBoundingClientRect();
+        ox = e.clientX - r.left; oy = e.clientY - r.top;
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        mp.style.right = 'auto'; mp.style.bottom = 'auto';
+        mp.style.left = Math.max(0, Math.min(window.innerWidth - mp.offsetWidth, e.clientX - ox)) + 'px';
+        mp.style.top  = Math.max(0, Math.min(window.innerHeight - mp.offsetHeight, e.clientY - oy)) + 'px';
+    });
+    document.addEventListener('mouseup', () => { dragging = false; });
+}
+
+function initMiniPlayerWatcher(videoData) {
+    const player = document.getElementById("customPlayer");
+    if (!player) return;
+    const video = player.querySelector("video.player-video");
+    if (!video) return;
+    const miniBtn = document.getElementById("cpMini");
+
+    const saveState = (playing) => setMpState({
+        active: true,
+        videoId: videoData.id,
+        videoUrl: video.src || videoData.videoUrl,
+        title: videoData.title,
+        thumbnail: videoData.thumbnail,
+        channel: videoData.channel,
+        currentTime: video.currentTime,
+        playing: playing
+    });
+
+    let saveInterval;
+    video.addEventListener('play', () => {
+        saveState(true);
+        clearInterval(saveInterval);
+        saveInterval = setInterval(() => saveState(!video.paused), 3000);
+    });
+    video.addEventListener('pause', () => saveState(false));
+    video.addEventListener('ended', () => { clearInterval(saveInterval); clearMpState(); });
+
+    // 미니 플레이어 버튼: 상태 저장 후 이전 페이지로
+    miniBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        saveState(!video.paused);
+        const prev = document.referrer;
+        const dest = (prev && !prev.includes('watch.html')) ? prev : 'index.html';
+
+        // FLIP 역방향: 플레이어가 우측 하단 미니 위치로 줄어들며 페이지 전환
+        const watchPlayer = document.getElementById("customPlayer");
+        if (watchPlayer) {
+            const rect = watchPlayer.getBoundingClientRect();
+            const mW = 320, mH = Math.round(320 * 9 / 16);
+            const sx = mW / rect.width;
+            const sy = mH / rect.height;
+            const dx = (window.innerWidth  - 24 - mW / 2) - (rect.left + rect.width  / 2);
+            const dy = (window.innerHeight - 24 - mH / 2) - (rect.top  + rect.height / 2);
+
+            watchPlayer.style.cssText += `
+                transform-origin: center center;
+                transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.35s;
+                transform: translate(${dx}px, ${dy}px) scale(${sx}, ${sy});
+                border-radius: 12px;
+                overflow: hidden;
+                z-index: 1000;
+                pointer-events: none;
+            `;
+            setTimeout(() => navigateTo(dest, 80), 280);
+        } else {
+            navigateTo(dest);
+        }
+    });
+}
+// ──────────────────────────────────────────────────────────
+
 function initCustomPlayer() {
     const player = document.getElementById("customPlayer");
     if (!player) return;
@@ -944,9 +1114,6 @@ function initCustomPlayer() {
     const volBtn    = document.getElementById("cpVol");
     const volSlider = document.getElementById("cpVolume");
     const fsBtn     = document.getElementById("cpFs");
-    const qualityBtn  = document.getElementById("cpQualityBtn");
-    const qualityMenu = document.getElementById("cpQualityMenu");
-    const qualityWrap = document.getElementById("cpQualityWrap");
 
     const I_PLAY   = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
     const I_PAUSE  = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
@@ -960,10 +1127,14 @@ function initCustomPlayer() {
         return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
     }
 
-    // 첫 재생 시 썸네일 커버 숨기기
+    // 첫 재생 시 썸네일 커버 페이드아웃
     const thumbCover = document.getElementById("cpThumbCover");
     if (thumbCover) {
-        video.addEventListener("playing", () => { thumbCover.style.display = "none"; }, { once: true });
+        video.addEventListener("playing", () => {
+            thumbCover.style.transition = "opacity 0.3s ease";
+            thumbCover.style.opacity = "0";
+            thumbCover.addEventListener("transitionend", () => thumbCover.remove(), { once: true });
+        }, { once: true });
     }
 
     // 플레이어 클릭 → 재생/일시정지, 더블클릭 → 전체화면
@@ -1080,46 +1251,68 @@ function initCustomPlayer() {
         });
     }
 
-    // 재생 속도 메뉴
-    const speedBtn  = document.getElementById("cpSpeedBtn");
-    const speedMenu = document.getElementById("cpSpeedMenu");
-    const speedWrap = document.getElementById("cpSpeedWrap");
-    if (speedBtn && speedMenu) {
-        speedBtn.addEventListener("click", (e) => {
+    // 통합 설정 메뉴 (속도 + 화질)
+    const settingsBtn   = document.getElementById("cpSettingsBtn");
+    const settingsMenu  = document.getElementById("cpSettingsMenu");
+    const settingsWrap  = document.getElementById("cpSettingsWrap");
+    const setMain       = document.getElementById("cpSetMain");
+    const setSpeedPanel = document.getElementById("cpSetSpeedPanel");
+    const setQualPanel  = document.getElementById("cpSetQualPanel");
+    const setSpeedVal   = document.getElementById("cpSetSpeedVal");
+    const setQualVal    = document.getElementById("cpSetQualVal");
+
+    const panels = [setMain, setSpeedPanel, setQualPanel];
+    function showPanel(panel, goingBack) {
+        panels.forEach(p => {
+            if (!p) return;
+            p.style.display = "none";
+            p.classList.remove("is-entering", "is-entering-back");
+        });
+        if (!panel) return;
+        panel.style.display = "block";
+        void panel.offsetWidth;
+        panel.classList.add(goingBack ? "is-entering-back" : "is-entering");
+    }
+
+    if (settingsBtn && settingsMenu) {
+        settingsBtn.addEventListener("click", (e) => {
             e.stopPropagation();
-            speedMenu.classList.toggle("is-open");
-            if (qualityMenu) qualityMenu.classList.remove("is-open");
+            const opening = !settingsMenu.classList.contains("is-open");
+            settingsMenu.classList.toggle("is-open");
+            if (opening) showPanel(setMain);
         });
         document.addEventListener("click", (e) => {
-            if (speedWrap && !speedWrap.contains(e.target)) speedMenu.classList.remove("is-open");
+            if (settingsWrap && !settingsWrap.contains(e.target)) settingsMenu.classList.remove("is-open");
         });
-        speedMenu.querySelectorAll(".cp-quality-item").forEach(item => {
+
+        // 메인 → 속도 패널
+        document.getElementById("cpSetSpeedItem")?.addEventListener("click", () => showPanel(setSpeedPanel));
+        document.getElementById("cpSetSpeedBack")?.addEventListener("click", () => showPanel(setMain, true));
+
+        // 속도 옵션
+        setSpeedPanel?.querySelectorAll(".cp-set-option").forEach(item => {
             item.addEventListener("click", (e) => {
                 e.stopPropagation();
                 const speed = parseFloat(item.dataset.speed);
                 video.playbackRate = speed;
-                speedBtn.textContent = speed === 1 ? "1x" : speed + "x";
-                speedMenu.querySelectorAll(".cp-quality-item").forEach(b => b.classList.remove("active"));
+                const label = speed === 1 ? "보통" : speed + "x";
+                if (setSpeedVal) setSpeedVal.textContent = label;
+                setSpeedPanel.querySelectorAll(".cp-set-option").forEach(b => b.classList.remove("active"));
                 item.classList.add("active");
-                speedMenu.classList.remove("is-open");
+                settingsMenu.classList.remove("is-open");
             });
         });
-    }
 
-    // 화질 메뉴
-    if (qualityBtn && qualityMenu) {
-        qualityBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            qualityMenu.classList.toggle("is-open");
-        });
-        document.addEventListener("click", (e) => {
-            if (qualityWrap && !qualityWrap.contains(e.target)) qualityMenu.classList.remove("is-open");
-        });
-        qualityMenu.querySelectorAll(".cp-quality-item").forEach(item => {
+        // 메인 → 화질 패널
+        document.getElementById("cpSetQualItem")?.addEventListener("click", () => showPanel(setQualPanel));
+        document.getElementById("cpSetQualBack")?.addEventListener("click", () => showPanel(setMain, true));
+
+        // 화질 옵션
+        setQualPanel?.querySelectorAll(".cp-set-option").forEach(item => {
             item.addEventListener("click", (e) => {
                 e.stopPropagation();
                 const src = item.dataset.src;
-                if (!src || item.classList.contains("active")) { qualityMenu.classList.remove("is-open"); return; }
+                if (!src || item.classList.contains("active")) { settingsMenu.classList.remove("is-open"); return; }
                 const t = video.currentTime;
                 const wasPaused = video.paused;
                 const canvas = document.createElement("canvas");
@@ -1137,9 +1330,10 @@ function initCustomPlayer() {
                 }, { once: true });
                 video.addEventListener("seeked", removeCanvas, { once: true });
                 setTimeout(removeCanvas, 2000);
-                qualityMenu.querySelectorAll(".cp-quality-item").forEach(b => b.classList.remove("active"));
+                if (setQualVal) setQualVal.textContent = item.dataset.label || item.textContent;
+                setQualPanel.querySelectorAll(".cp-set-option").forEach(b => b.classList.remove("active"));
                 item.classList.add("active");
-                qualityMenu.classList.remove("is-open");
+                settingsMenu.classList.remove("is-open");
             });
         });
     }
@@ -2360,6 +2554,56 @@ async function initWatchPage() {
     }
 
     initCustomPlayer();
+    initMiniPlayerWatcher(currentVideo);
+
+    const startTime = parseFloat(params.get("t"));
+    const fromMini  = params.get("autoplay") === "1";
+
+    // 미니 플레이어에서 왔을 때: FLIP 애니메이션 (우측 하단에서 커지는 효과)
+    if (fromMini) {
+        const player = document.getElementById("customPlayer");
+        if (player) {
+            const rect = player.getBoundingClientRect();
+            const mW = 320, mH = Math.round(320 * 9 / 16);
+            const sx = mW / rect.width;
+            const sy = mH / rect.height;
+            const dx = (window.innerWidth  - 24 - mW / 2) - (rect.left + rect.width  / 2);
+            const dy = (window.innerHeight - 24 - mH / 2) - (rect.top  + rect.height / 2);
+
+            player.style.cssText += `
+                transform-origin: center center;
+                transform: translate(${dx}px, ${dy}px) scale(${sx}, ${sy});
+                transition: none;
+                border-radius: 12px;
+                overflow: hidden;
+                z-index: 100;
+            `;
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                player.style.transition = "transform 0.42s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.42s";
+                player.style.transform  = "";
+                player.style.borderRadius = "";
+                player.addEventListener("transitionend", () => {
+                    player.style.zIndex = player.style.transition = "";
+                }, { once: true });
+            }));
+        }
+    }
+
+    if (startTime > 0) {
+        const playerVideo = document.querySelector("#customPlayer video.player-video");
+        if (playerVideo) {
+            const doSeek = () => {
+                playerVideo.currentTime = startTime;
+                if (fromMini) {
+                    playerVideo.addEventListener("seeked", () => {
+                        playerVideo.play().catch(() => {});
+                    }, { once: true });
+                }
+            };
+            if (playerVideo.readyState >= 1) doSeek();
+            else playerVideo.addEventListener("loadedmetadata", doSeek, { once: true });
+        }
+    }
 
     const subscribeBtn = document.getElementById("subscribeBtn");
     const likeBtn = document.getElementById("likeBtn");
@@ -3020,6 +3264,7 @@ const page = document.body.dataset.page;
 
     consumePendingToast();
     initGlobalTopSearch();
+    initMiniPlayer();
 
     if (page === "upload") initUploadPage();
     if (page === "home") initHomePage();

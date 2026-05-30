@@ -9,6 +9,12 @@ body {
     background: #0f0f0f;
     color: #f1f1f1;
     font-family: "Roboto", sans-serif;
+    animation: page-fade-in 0.22s ease both;
+}
+
+@keyframes page-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 
 body {
@@ -497,84 +503,6 @@ img {
     cursor: pointer;
 }
 
-.cp-speed-wrap {
-    position: relative;
-}
-
-.cp-speed-btn {
-    font-size: 13px;
-    font-weight: 600;
-    min-width: 28px;
-    letter-spacing: -0.3px;
-}
-
-.cp-speed-menu {
-    display: none;
-    position: absolute;
-    bottom: calc(100% + 8px);
-    right: 0;
-    background: rgba(28,28,28,0.96);
-    border-radius: 10px;
-    padding: 6px 0;
-    min-width: 110px;
-    z-index: 10;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
-    line-height: normal;
-}
-
-.cp-speed-menu.is-open {
-    display: block;
-}
-
-.cp-quality-wrap {
-    position: relative;
-}
-
-.cp-quality-menu {
-    display: none;
-    position: absolute;
-    bottom: calc(100% + 8px);
-    right: 0;
-    background: rgba(28,28,28,0.96);
-    border-radius: 10px;
-    padding: 6px 0;
-    min-width: 110px;
-    z-index: 10;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
-    line-height: normal;
-}
-
-.cp-quality-menu.is-open {
-    display: block;
-}
-
-.cp-quality-header {
-    font-size: 12px;
-    color: #9aa0a6;
-    padding: 4px 14px 6px;
-}
-
-.cp-quality-item {
-    display: block;
-    width: 100%;
-    text-align: left;
-    background: none;
-    border: none;
-    color: #e8e8e8;
-    padding: 8px 14px;
-    font-size: 14px;
-    cursor: pointer;
-}
-
-.cp-quality-item:hover {
-    background: rgba(255,255,255,0.1);
-    color: #fff;
-}
-
-.cp-quality-item.active {
-    color: #fff;
-    font-weight: 700;
-}
 
 .watch-title {
     margin: 18px 0 14px;
@@ -1529,3 +1457,218 @@ body:not(.upload-clean-layout) .menu-btn {
     align-items: center;
     justify-content: center;
 }
+/* ── 미니 플레이어 ─────────────────────────────────────── */
+.mini-player {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 320px;
+    background: #1a1a1a;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+    animation: mp-enter 0.3s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.mini-player.is-closing {
+    animation: mp-exit 0.2s ease forwards;
+}
+
+@keyframes mp-enter {
+    from { opacity: 0; transform: translateY(20px) scale(0.93); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes mp-exit {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to   { opacity: 0; transform: translateY(16px) scale(0.93); }
+}
+
+.mp-video-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: #000;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.mp-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.mp-bottom {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    gap: 4px;
+    cursor: grab;
+}
+
+.mp-bottom:active { cursor: grabbing; }
+
+.mp-info {
+    flex: 1;
+    min-width: 0;
+    padding-right: 4px;
+}
+
+.mp-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+}
+
+.mp-channel {
+    font-size: 11px;
+    color: #aaa;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+}
+
+.mp-btn {
+    background: none;
+    border: none;
+    color: #ccc;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+}
+
+.mp-btn:hover { background: #333; color: #fff; }
+
+@media (max-width: 480px) {
+    .mini-player { width: 260px; right: 12px; bottom: 12px; }
+}
+/* ─────────────────────────────────────────────────────── */
+
+/* ── 통합 설정 메뉴 (속도 + 화질) ─────────────────────── */
+.cp-settings-wrap { position: relative; }
+
+.cp-settings-menu {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    right: 0;
+    background: rgba(20,20,20,0.97);
+    border: 1px solid #333;
+    border-radius: 10px;
+    min-width: 200px;
+    overflow: hidden;
+    z-index: 20;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(6px) scale(0.97);
+    transform-origin: bottom right;
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+}
+
+.cp-settings-menu.is-open {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+.cp-set-panel { padding: 6px 0; }
+
+.cp-set-panel.is-entering {
+    animation: cp-panel-in 0.15s ease;
+}
+
+@keyframes cp-panel-in {
+    from { opacity: 0; transform: translateX(10px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes cp-panel-back {
+    from { opacity: 0; transform: translateX(-10px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+.cp-set-panel.is-entering-back {
+    animation: cp-panel-back 0.15s ease;
+}
+
+.cp-set-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    font-size: 13px;
+    color: #fff;
+    cursor: pointer;
+    gap: 16px;
+}
+
+.cp-set-item::after {
+    content: '›';
+    color: #aaa;
+    font-size: 16px;
+}
+
+.cp-set-item { transition: background 0.12s; }
+.cp-set-item:hover { background: rgba(255,255,255,0.08); }
+
+.cp-set-val {
+    color: #aaa;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.cp-set-back {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    border-bottom: 1px solid #2a2a2a;
+    cursor: pointer;
+}
+
+.cp-set-back::before { content: '‹'; font-size: 16px; color: #aaa; }
+.cp-set-back { transition: background 0.12s; }
+.cp-set-back:hover { background: rgba(255,255,255,0.06); }
+
+.cp-set-option {
+    padding: 9px 16px 9px 36px;
+    font-size: 13px;
+    color: #ccc;
+    cursor: pointer;
+    position: relative;
+}
+
+.cp-set-option { transition: background 0.12s, color 0.12s; }
+.cp-set-option:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+.cp-set-option.active {
+    color: #fff;
+    font-weight: 600;
+}
+
+.cp-set-option.active::before {
+    content: '✓';
+    position: absolute;
+    left: 14px;
+    color: #fff;
+}
+/* ─────────────────────────────────────────────────────── */

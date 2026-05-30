@@ -20,8 +20,10 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -42,6 +44,9 @@ public class VideoUploadController {
     private final LoginUserResolver loginUserResolver;
     private final AdminChecker adminChecker;
     private final S3StorageService storageService;
+
+    // 동시에 처리할 최대 영상 수 (CPU 과부하 방지)
+    private static final Semaphore BATCH_SEMAPHORE = new Semaphore(2);
 
     public VideoUploadController(VideoRepository videoRepository, LoginUserResolver loginUserResolver,
                                  AdminChecker adminChecker, S3StorageService storageService) {
@@ -180,31 +185,44 @@ public class VideoUploadController {
             String uuid = fileName.endsWith(".mp4") ? fileName.substring(0, fileName.length() - 4) : fileName;
             final Long videoId = video.getId();
 
-            if (video.getVideoUrl().startsWith("http")) {
-                final String sourceUrl = video.getVideoUrl();
-                final Path tempPath = dirPath.resolve(uuid + "_batch_tmp.mp4");
-                CompletableFuture.runAsync(() -> {
-                    try {
-                        try (var in = new java.net.URL(sourceUrl).openStream()) {
-                            Files.copy(in, tempPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                        }
-                        generateResolutionVariants(ffmpeg, tempPath, dirPath, uuid, videoId);
-                    } catch (Exception e) {
-                        System.err.println("[Batch] Download failed: " + sourceUrl + " - " + e.getMessage());
-                    } finally {
-                        try { Files.deleteIfExists(tempPath); } catch (Exception ignored) {}
-                    }
-                });
-            } else {
-                final Path sourcePath = dirPath.resolve(uuid + ".mp4");
-                CompletableFuture.runAsync(() ->
-                    generateResolutionVariants(ffmpeg, sourcePath, dirPath, uuid, videoId)
-                );
-            }
+            final String sourceInput = video.getVideoUrl().startsWith("http")
+                    ? video.getVideoUrl()
+                    : dirPath.resolve(uuid + ".mp4").toString();
+
+            CompletableFuture.runAsync(() -> {
+                try {
+                    BATCH_SEMAPHORE.acquire();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                try {
+                    generateResolutionVariants(ffmpeg, sourceInput, dirPath, uuid, videoId);
+                } finally {
+                    BATCH_SEMAPHORE.release();
+                }
+            });
         }
 
         return ResponseEntity.ok(Map.of("success", true, "queued", targets.size(),
                 "message", targets.size() + "개 영상의 해상도 변환을 백그라운드에서 시작했습니다."));
+    }
+
+    @GetMapping("/admin/generate-resolutions/status")
+    public ResponseEntity<?> generateResolutionsStatus(HttpSession session) {
+        if (!adminChecker.isAdmin(session, loginUserResolver)) {
+            return ResponseEntity.status(403).body(Map.of("success", false));
+        }
+        List<Video> all = videoRepository.findAll().stream()
+                .filter(v -> v.getVideoUrl() != null && !v.getVideoUrl().isBlank())
+                .collect(java.util.stream.Collectors.toList());
+        long done = all.stream()
+                .filter(v -> !isNullOrEmpty(v.getVideoUrl1080()) && !isNullOrEmpty(v.getVideoUrl720())
+                          && !isNullOrEmpty(v.getVideoUrl480()) && !isNullOrEmpty(v.getVideoUrl360()))
+                .count();
+        long total = all.size();
+        long pending = total - done;
+        return ResponseEntity.ok(Map.of("total", total, "done", done, "pending", pending));
     }
 
     private String uploadThumbnailToS3(MultipartFile file) throws Exception {
@@ -257,7 +275,7 @@ public class VideoUploadController {
         }
 
         // Generate resolution variants (uses local servePath as source)
-        generateResolutionVariants(ffmpeg, servePath, dirPath, uuid, videoId);
+        generateResolutionVariants(ffmpeg, servePath.toString(), dirPath, uuid, videoId);
 
         // Upload converted main file to S3 (overwrite initial upload), then clean up local
         if (storageService.isConfigured() && servePath.toFile().exists()) {
@@ -277,38 +295,109 @@ public class VideoUploadController {
         return null;
     }
 
-    private void generateResolutionVariants(String ffmpeg, Path sourcePath, Path dirPath, String uuid, Long videoId) {
-        if (!sourcePath.toFile().exists()) return;
+    private int getSourceHeight(String ffmpeg, String sourceInput) {
+        try {
+            String ffprobe = ffmpeg.endsWith("ffmpeg") ? ffmpeg.replace("ffmpeg", "ffprobe")
+                           : ffmpeg.endsWith("ffmpeg.exe") ? ffmpeg.replace("ffmpeg.exe", "ffprobe.exe")
+                           : "ffprobe";
+            ProcessBuilder pb = new ProcessBuilder(
+                    ffprobe, "-v", "error",
+                    "-select_streams", "v:0",
+                    "-show_entries", "stream=height",
+                    "-of", "csv=p=0",
+                    sourceInput
+            );
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String out = new String(p.getInputStream().readAllBytes()).trim();
+            p.waitFor(30, TimeUnit.SECONDS);
+            String firstLine = out.split("\n")[0].trim();
+            return firstLine.isEmpty() ? Integer.MAX_VALUE : Integer.parseInt(firstLine);
+        } catch (Exception e) {
+            return Integer.MAX_VALUE;
+        }
+    }
 
-        int[] heights = {1080, 720, 480, 360};
-        String[] resultUrls = new String[heights.length];
+    private void generateResolutionVariants(String ffmpeg, String sourceInput, Path dirPath, String uuid, Long videoId) {
+        // 로컬 파일이면 존재 여부 확인
+        if (!sourceInput.startsWith("http") && !new java.io.File(sourceInput).exists()) return;
 
-        for (int i = 0; i < heights.length; i++) {
-            int h = heights[i];
+        int sourceHeight = getSourceHeight(ffmpeg, sourceInput);
+        int[] allHeights = {1080, 720, 480, 360};
+
+        List<Integer> targetHeights = new ArrayList<>();
+        for (int h : allHeights) {
+            if (h <= sourceHeight) targetHeights.add(h);
+        }
+        if (targetHeights.isEmpty()) return;
+
+        int n = targetHeights.size();
+        String[] resultUrls = new String[allHeights.length];
+        List<Path> variantPaths = new ArrayList<>();
+
+        // filter_complex: 원본을 한 번만 디코딩해서 N개 출력으로 분기
+        StringBuilder fc = new StringBuilder();
+        fc.append("[0:v]split=").append(n);
+        for (int i = 0; i < n; i++) fc.append("[sv").append(i).append("]");
+        for (int i = 0; i < n; i++) {
+            fc.append(";[sv").append(i).append("]scale=-2:").append(targetHeights.get(i))
+              .append("[ov").append(i).append("]");
+        }
+
+        List<String> cmd = new ArrayList<>();
+        cmd.add(ffmpeg); cmd.add("-y");
+        cmd.add("-i"); cmd.add(sourceInput);
+        cmd.add("-filter_complex"); cmd.add(fc.toString());
+
+        for (int i = 0; i < n; i++) {
+            int h = targetHeights.get(i);
             Path variantPath = dirPath.resolve(uuid + "_" + h + "p.mp4");
-            try {
-                ProcessBuilder pb = new ProcessBuilder(
-                        ffmpeg, "-y",
-                        "-i", sourcePath.toString(),
-                        "-vf", "scale=-2:'min(" + h + ",ih)'",
-                        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-                        "-c:a", "aac", "-b:a", "96k",
-                        "-movflags", "+faststart",
-                        variantPath.toString()
-                );
-                pb.redirectErrorStream(true);
-                Process process = pb.start();
-                process.getInputStream().transferTo(OutputStream.nullOutputStream());
-                boolean done = process.waitFor(30, TimeUnit.MINUTES);
-                if (done && process.exitValue() == 0) {
+            variantPaths.add(variantPath);
+            cmd.add("-map"); cmd.add("[ov" + i + "]");
+            cmd.add("-c:v"); cmd.add("libx264");
+            cmd.add("-preset"); cmd.add("veryfast");
+            cmd.add("-crf"); cmd.add("23");
+            cmd.add("-map"); cmd.add("0:a?");
+            cmd.add("-c:a"); cmd.add("aac");
+            cmd.add("-b:a"); cmd.add("96k");
+            cmd.add("-movflags"); cmd.add("+faststart");
+            cmd.add(variantPath.toString());
+        }
+
+        try {
+            System.out.println("[Batch] ffmpeg 명령: " + String.join(" ", cmd));
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            String ffmpegOutput = new String(process.getInputStream().readAllBytes());
+            boolean done = process.waitFor(90, TimeUnit.MINUTES);
+            System.out.println("[Batch] ffmpeg 종료코드=" + (done ? process.exitValue() : "TIMEOUT") + " [" + uuid + "]");
+            if (!ffmpegOutput.isBlank()) System.out.println("[Batch] ffmpeg 출력:\n" + ffmpegOutput.substring(0, Math.min(ffmpegOutput.length(), 2000)));
+
+            if (done && process.exitValue() == 0) {
+                for (int i = 0; i < n; i++) {
+                    int h = targetHeights.get(i);
+                    int idx = 0;
+                    for (int j = 0; j < allHeights.length; j++) {
+                        if (allHeights[j] == h) { idx = j; break; }
+                    }
+                    Path variantPath = variantPaths.get(i);
                     if (storageService.isConfigured()) {
-                        resultUrls[i] = storageService.upload(variantPath, "videos/" + uuid + "_" + h + "p.mp4", "video/mp4");
-                        Files.deleteIfExists(variantPath);
+                        try {
+                            resultUrls[idx] = storageService.upload(variantPath, "videos/" + uuid + "_" + h + "p.mp4", "video/mp4");
+                            Files.deleteIfExists(variantPath);
+                        } catch (Exception e) {
+                            System.err.println("[Batch] R2 업로드 실패 " + h + "p [" + uuid + "]: " + e.getMessage());
+                        }
                     } else {
-                        resultUrls[i] = "/uploads/videos/" + uuid + "_" + h + "p.mp4";
+                        resultUrls[idx] = "/uploads/videos/" + uuid + "_" + h + "p.mp4";
                     }
                 }
-            } catch (Exception ignored) {}
+            } else {
+                System.err.println("[Batch] ffmpeg 실패 또는 타임아웃 [" + uuid + "]");
+            }
+        } catch (Exception e) {
+            System.err.println("[Batch] ffmpeg 오류 [" + uuid + "]: " + e.getMessage());
         }
 
         videoRepository.findById(videoId).ifPresent(video -> {

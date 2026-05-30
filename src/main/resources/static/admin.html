@@ -179,6 +179,16 @@
         <div class="count-badge" id="videoCount"></div>
         <div id="videoTableWrap"></div>
 
+        <!-- 해상도 일괄 변환 -->
+        <div style="margin-top:32px; border-top:1px solid #272727; padding-top:24px;">
+            <div style="font-size:15px; font-weight:700; color:#fff; margin-bottom:8px;">해상도 일괄 변환</div>
+            <div style="font-size:13px; color:#888; margin-bottom:14px;">1080p, 720p, 480p, 360p 변환이 안 된 영상을 백그라운드에서 일괄 변환해.</div>
+            <div class="broken-toolbar">
+                <button class="btn-action" onclick="generateResolutions()">해상도 일괄 변환 시작</button>
+                <span id="genResStatus" style="color:#888; font-size:13px;"></span>
+            </div>
+        </div>
+
         <!-- 재생 불가 영상 -->
         <div style="margin-top:32px; border-top:1px solid #272727; padding-top:24px;">
             <div style="font-size:15px; font-weight:700; color:#fff; margin-bottom:14px;">재생 불가 영상 관리</div>
@@ -298,6 +308,55 @@
         } else {
             alert(data.message || '삭제 실패');
         }
+    }
+
+    let genResTimer = null;
+
+    async function checkGenResStatus() {
+        const status = document.getElementById('genResStatus');
+        try {
+            const res = await fetch('/api/admin/generate-resolutions/status');
+            const data = await res.json();
+            if (data.pending === 0) {
+                clearInterval(genResTimer);
+                genResTimer = null;
+                status.style.color = '#7ce59a';
+                status.textContent = `완료! 전체 ${data.total}개 영상 모두 변환됨`;
+            } else {
+                status.style.color = '#f1c40f';
+                status.textContent = `변환 중... ${data.done}/${data.total}개 완료 (${data.pending}개 남음)`;
+            }
+        } catch { /* ignore */ }
+    }
+
+    async function generateResolutions() {
+        const btn = event.target;
+        const status = document.getElementById('genResStatus');
+        btn.disabled = true;
+        status.style.color = '#888';
+        status.textContent = '요청 중...';
+        try {
+            const res = await fetch('/api/admin/generate-resolutions', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                if (data.queued === 0) {
+                    status.style.color = '#7ce59a';
+                    status.textContent = '모든 영상이 이미 변환되어 있어.';
+                } else {
+                    status.style.color = '#f1c40f';
+                    status.textContent = `${data.queued}개 변환 시작됨 — 진행 중...`;
+                    if (genResTimer) clearInterval(genResTimer);
+                    genResTimer = setInterval(checkGenResStatus, 5000);
+                }
+            } else {
+                status.style.color = '#e55';
+                status.textContent = data.message || '실패';
+            }
+        } catch {
+            status.style.color = '#e55';
+            status.textContent = '요청 실패';
+        }
+        btn.disabled = false;
     }
 
     let brokenVideos = [];
