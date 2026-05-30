@@ -322,6 +322,25 @@ public class VideoUploadController {
         // 로컬 파일이면 존재 여부 확인
         if (!sourceInput.startsWith("http") && !new java.io.File(sourceInput).exists()) return;
 
+        // R2 URL이면 로컬에 미리 다운받아서 인코딩 속도 향상
+        Path downloadedTemp = null;
+        if (sourceInput.startsWith("http")) {
+            downloadedTemp = dirPath.resolve(uuid + "_dl_tmp.mp4");
+            try {
+                System.out.println("[Batch] R2 다운로드 시작: " + uuid);
+                try (var in = new java.net.URI(sourceInput).toURL().openStream()) {
+                    Files.copy(in, downloadedTemp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+                System.out.println("[Batch] R2 다운로드 완료: " + uuid);
+                sourceInput = downloadedTemp.toString();
+            } catch (Exception e) {
+                System.err.println("[Batch] R2 다운로드 실패 [" + uuid + "]: " + e.getMessage());
+                try { Files.deleteIfExists(downloadedTemp); } catch (Exception ignored) {}
+                downloadedTemp = null;
+                // 실패 시 원래 URL로 계속 진행
+            }
+        }
+
         int sourceHeight = getSourceHeight(ffmpeg, sourceInput);
         int[] allHeights = {1080, 720, 480, 360};
 
@@ -355,8 +374,8 @@ public class VideoUploadController {
             variantPaths.add(variantPath);
             cmd.add("-map"); cmd.add("[ov" + i + "]");
             cmd.add("-c:v"); cmd.add("libx264");
-            cmd.add("-preset"); cmd.add("veryfast");
-            cmd.add("-crf"); cmd.add("23");
+            cmd.add("-preset"); cmd.add("ultrafast");
+            cmd.add("-crf"); cmd.add("26");
             cmd.add("-map"); cmd.add("0:a?");
             cmd.add("-c:a"); cmd.add("aac");
             cmd.add("-b:a"); cmd.add("96k");
@@ -398,6 +417,11 @@ public class VideoUploadController {
             }
         } catch (Exception e) {
             System.err.println("[Batch] ffmpeg 오류 [" + uuid + "]: " + e.getMessage());
+        }
+
+        // 임시 다운로드 파일 정리
+        if (downloadedTemp != null) {
+            try { Files.deleteIfExists(downloadedTemp); } catch (Exception ignored) {}
         }
 
         videoRepository.findById(videoId).ifPresent(video -> {
