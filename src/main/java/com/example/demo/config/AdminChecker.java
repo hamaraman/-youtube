@@ -7,14 +7,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class AdminChecker {
 
-    private static final String ADMIN_USERNAME = "admin";
-
     public boolean isAdmin(HttpSession session, LoginUserResolver loginUserResolver) {
         AuthController.SessionUser user = loginUserResolver.getUser(session);
-        return user != null && ADMIN_USERNAME.equals(user.getUsername());
+        return user != null && user.isAdmin();
     }
 
     public boolean isAdmin(AuthController.SessionUser user) {
-        return user != null && ADMIN_USERNAME.equals(user.getUsername());
+        return user != null && user.isAdmin();
     }
 }

@@ -39,7 +39,7 @@ public class JwtFilter extends OncePerRequestFilter {
                 String profileImage = claims.get("profileImage", String.class);
 
                 AuthController.SessionUser user = new AuthController.SessionUser(
-                        userId, username, nickname, email, channelName, profileImage
+                        userId, username, nickname, email, channelName, profileImage, "USER"
                 );
                 request.setAttribute("jwtLoginUser", user);
             }

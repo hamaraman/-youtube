@@ -49,16 +49,25 @@ public class DataInitializer implements ApplicationRunner {
             "ALTER TABLE videos ADD COLUMN IF NOT EXISTS view_count BIGINT NOT NULL DEFAULT 0"
         );
 
-        // 관리자 계정 생성
-        if (!userRepository.existsByUsername("admin")) {
-            User admin = new User();
-            admin.setUsername("admin");
-            admin.setPassword(passwordEncoder.encode("admin1234"));
-            admin.setNickname("관리자");
-            admin.setChannelName("관리자");
-            admin.setEmail(null);
-            userRepository.save(admin);
-        }
+        // 관리자 계정 생성 / role 업데이트
+        userRepository.findByUsername("admin").ifPresentOrElse(
+            admin -> {
+                if (!"ADMIN".equals(admin.getRole())) {
+                    admin.setRole("ADMIN");
+                    userRepository.save(admin);
+                }
+            },
+            () -> {
+                User admin = new User();
+                admin.setUsername("admin");
+                admin.setPassword(passwordEncoder.encode("admin1234"));
+                admin.setNickname("관리자");
+                admin.setChannelName("관리자");
+                admin.setEmail(null);
+                admin.setRole("ADMIN");
+                userRepository.save(admin);
+            }
+        );
 
         // 더미 데이터(ownerId가 null인 영상) 일괄 삭제
         var dummies = videoRepository.findByOwnerIdIsNull();

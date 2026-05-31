@@ -90,6 +90,24 @@
 
         .btn-del:hover { background: #e00; }
 
+        .btn-role {
+            padding: 4px 10px;
+            background: #333;
+            color: #aaa;
+            border: 1px solid #444;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn-role:hover { background: #444; }
+        .btn-role.btn-role-admin {
+            background: #2d1f6e;
+            color: #a78bfa;
+            border-color: #4c3a9e;
+        }
+        .btn-role.btn-role-admin:hover { background: #3b2a8a; }
+
         .btn-action {
             padding: 6px 14px;
             background: #272727;
@@ -274,23 +292,28 @@
             return;
         }
 
-        const rows = users.map(u => `
+        const rows = users.map(u => {
+            const isAdmin = u.role === 'ADMIN';
+            const roleBtn = `<button class="btn-role ${isAdmin ? 'btn-role-admin' : ''}" onclick="toggleRole(${u.id}, '${u.username}', '${u.role}')">${isAdmin ? '관리자' : '일반'}</button>`;
+            const delBtn = isAdmin ? '' : `<button class="btn-del" onclick="deleteUser(${u.id}, '${u.username}')">삭제</button>`;
+            return `
             <tr id="urow-${u.id}">
                 <td style="color:#888;width:48px">${u.id}</td>
                 <td>${u.username}</td>
                 <td>${u.nickname}</td>
                 <td>${u.channelName}</td>
                 <td style="color:#888">${u.email}</td>
-                <td>${u.username === 'admin' ? '' : `<button class="btn-del" onclick="deleteUser(${u.id}, '${u.username}')">삭제</button>`}</td>
-            </tr>
-        `).join('');
+                <td>${roleBtn}</td>
+                <td>${delBtn}</td>
+            </tr>`;
+        }).join('');
 
         document.getElementById('userTableWrap').innerHTML = `
             <table>
                 <thead>
                     <tr>
                         <th>ID</th><th>아이디</th><th>닉네임</th>
-                        <th>채널명</th><th>이메일</th><th></th>
+                        <th>채널명</th><th>이메일</th><th>권한</th><th></th>
                     </tr>
                 </thead>
                 <tbody>${rows}</tbody>
@@ -447,6 +470,23 @@
             loadVideos();
         } else {
             alert(data.message || '삭제 실패');
+        }
+    }
+
+    async function toggleRole(id, username, currentRole) {
+        const newRole = currentRole === 'ADMIN' ? 'USER' : 'ADMIN';
+        const label = newRole === 'ADMIN' ? '관리자로 승격' : '일반 유저로 변경';
+        if (!confirm(`'${username}'을(를) ${label}할까요?`)) return;
+        const res = await fetch(`/api/admin/users/${id}/role`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: newRole })
+        });
+        const data = await res.json();
+        if (data.success) {
+            loadUsers();
+        } else {
+            alert(data.message || '변경 실패');
         }
     }
 

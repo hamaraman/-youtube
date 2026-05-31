@@ -143,7 +143,8 @@ public class AuthController {
                     user.getNickname(),
                     user.getEmail(),
                     user.getChannelName(),
-                    user.getProfileImage()
+                    user.getProfileImage(),
+                    user.getRole()
             );
 
             session.setAttribute("loginUser", sessionUser);
@@ -324,19 +325,21 @@ public class AuthController {
         private String email;
         private String channelName;
         private String profileImage;
+        private String role;
         private long subscriberCount;
 
-        public SessionUser(Long id, String username, String nickname, String email, String channelName, String profileImage) {
+        public SessionUser(Long id, String username, String nickname, String email, String channelName, String profileImage, String role) {
             this.id = id;
             this.username = username;
             this.nickname = nickname;
             this.email = email;
             this.channelName = channelName;
             this.profileImage = profileImage;
+            this.role = role != null ? role : "USER";
         }
 
         public SessionUser withSubscriberCount(long count) {
-            SessionUser copy = new SessionUser(id, username, nickname, email, channelName, profileImage);
+            SessionUser copy = new SessionUser(id, username, nickname, email, channelName, profileImage, role);
             copy.subscriberCount = count;
             return copy;
         }
@@ -347,7 +350,9 @@ public class AuthController {
         public String getEmail() { return email; }
         public String getChannelName() { return channelName; }
         public String getProfileImage() { return profileImage; }
+        public String getRole() { return role; }
         public long getSubscriberCount() { return subscriberCount; }
+        public boolean isAdmin() { return "ADMIN".equals(role); }
     }
 
     public static class SimpleResponse {

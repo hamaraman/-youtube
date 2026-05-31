@@ -171,13 +171,16 @@ public class AdminController {
             return ResponseEntity.status(403).body(Map.of("message", "관리자 권한이 필요합니다."));
         }
         List<Map<String, Object>> result = userRepository.findAll().stream()
-                .map(u -> Map.<String, Object>of(
-                        "id", u.getId(),
-                        "username", u.getUsername(),
-                        "nickname", u.getNickname() == null ? "" : u.getNickname(),
-                        "channelName", u.getChannelName() == null ? "" : u.getChannelName(),
-                        "email", u.getEmail() == null ? "" : u.getEmail()
-                ))
+                .map(u -> {
+                    Map<String, Object> m = new java.util.HashMap<>();
+                    m.put("id", u.getId());
+                    m.put("username", u.getUsername());
+                    m.put("nickname", u.getNickname() == null ? "" : u.getNickname());
+                    m.put("channelName", u.getChannelName() == null ? "" : u.getChannelName());
+                    m.put("email", u.getEmail() == null ? "" : u.getEmail());
+                    m.put("role", u.getRole() == null ? "USER" : u.getRole());
+                    return m;
+                })
                 .collect(Collectors.toList());
         return ResponseEntity.ok(result);
     }
@@ -204,5 +207,23 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("success", false, "message", "삭제 실패: " + e.getMessage()));
         }
+    }
+
+    @PostMapping("/users/{id}/role")
+    public ResponseEntity<?> setUserRole(@PathVariable Long id,
+                                         @RequestBody Map<String, String> body,
+                                         HttpSession session) {
+        if (!adminChecker.isAdmin(session, loginUserResolver)) {
+            return ResponseEntity.status(403).body(Map.of("message", "관리자 권한이 필요합니다."));
+        }
+        String role = body.getOrDefault("role", "USER").toUpperCase();
+        if (!role.equals("ADMIN") && !role.equals("USER")) {
+            return ResponseEntity.badRequest().body(Map.of("message", "유효하지 않은 role입니다."));
+        }
+        return userRepository.findById(id).map(user -> {
+            user.setRole(role);
+            userRepository.save(user);
+            return ResponseEntity.ok(Map.of("success", true, "username", user.getUsername(), "role", role));
+        }).orElse(ResponseEntity.notFound().build());
     }
 }

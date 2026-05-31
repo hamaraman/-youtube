@@ -123,7 +123,8 @@ public class ProfileController {
                 user.getNickname(),
                 user.getEmail(),
                 safeChannelName(user),
-                safeProfileImage(user)
+                safeProfileImage(user),
+                user.getRole()
         );
         session.setAttribute("loginUser", updatedSessionUser);
 

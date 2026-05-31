@@ -34,6 +34,9 @@ public class User {
     @Column(name = "bio", columnDefinition = "TEXT")
     private String bio;
 
+    @Column(nullable = false, length = 20)
+    private String role = "USER";
+
     public User() {
     }
 
@@ -98,4 +101,7 @@ public class User {
 
     public String getBio() { return bio; }
     public void setBio(String bio) { this.bio = bio; }
+
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 }
