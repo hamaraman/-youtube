@@ -1418,6 +1418,12 @@ function createReplyItemHtml(r) {
           <span class="comment-time">${escapeHtml(r.time || "방금 전")}</span>
         </div>
         <p class="comment-text" data-comment-text>${escapeHtml(r.text || "")}</p>
+        <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;align-items:center;">
+          <button type="button" class="comment-like-btn${r.isLiked ? " is-liked" : ""}" data-comment-like="${r.id}" data-liked="${r.isLiked ? "true" : "false"}">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
+            <span class="comment-like-count">${r.likeCount > 0 ? r.likeCount : ""}</span>
+          </button>
+        </div>
         ${(r.isMine || r.mine) ? `
           <div class="comment-owner-actions" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
             <button type="button" class="comment-btn-edit" data-comment-edit="${r.id}" style="border:none;background:transparent;color:#aaa;cursor:pointer;padding:0;font-size:13px;">수정</button>
@@ -1449,6 +1455,10 @@ function createCommentItem(comment) {
         </div>
         <p class="comment-text" data-comment-text>${escapeHtml(comment.text || "")}</p>
         <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;align-items:center;">
+          <button type="button" class="comment-like-btn${comment.isLiked ? " is-liked" : ""}" data-comment-like="${comment.id}" data-liked="${comment.isLiked ? "true" : "false"}">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
+            <span class="comment-like-count">${comment.likeCount > 0 ? comment.likeCount : ""}</span>
+          </button>
           <button type="button" class="comment-reply-btn" data-reply-to="${comment.id}" style="border:none;background:transparent;color:#aaa;cursor:pointer;padding:0;font-size:13px;">답글</button>
           ${isMine ? `
             <button type="button" class="comment-btn-edit" data-comment-edit="${comment.id}" style="border:none;background:transparent;color:#aaa;cursor:pointer;padding:0;font-size:13px;">수정</button>
@@ -2240,125 +2250,134 @@ async function initHomePage() {
     const homeSearchInput = document.getElementById("homeSearchInput");
     const homeSearchForm = document.getElementById("homeSearchForm");
     const homeEmptyState = document.getElementById("homeEmptyState");
+    const scrollLoader = document.getElementById("scrollLoader");
+    const scrollSentinel = document.getElementById("scrollSentinel");
 
     if (!videoGrid) return;
 
-    const uploadedVideos = await fetchUploadedVideos();
-    const allVideos = makeFeedVideos(uploadedVideos);
     const url = new URL(window.location.href);
-    const initialKeyword = url.searchParams.get("q") || "";
-
+    let currentKeyword = url.searchParams.get("q") || "";
     let selectedCategory = "";
+    let currentPage = 0;
+    let isLoading = false;
+    let hasMore = true;
 
-    function buildCategoryBar() {
+    if (homeSearchInput) homeSearchInput.value = currentKeyword;
+
+    function showLoader(show) {
+        if (scrollLoader) scrollLoader.style.display = show ? "flex" : "none";
+    }
+
+    function updateSearchUrl(keyword) {
+        const nextUrl = new URL(window.location.href);
+        if (keyword.trim()) nextUrl.searchParams.set("q", keyword.trim());
+        else nextUrl.searchParams.delete("q");
+        window.history.pushState({}, "", nextUrl);
+    }
+
+    async function loadCategories() {
+        try {
+            const res = await fetch("/api/videos/categories");
+            if (!res.ok) return;
+            const categories = await res.json();
+            buildCategoryBar(categories);
+        } catch {}
+    }
+
+    function buildCategoryBar(categories) {
         if (!categoryBar) return;
-        const categories = [...new Set(
-            allVideos.map((v) => (v.category || "").trim()).filter(Boolean)
-        )].sort();
-
         const chips = [{ label: "전체", value: "" }, ...categories.map((c) => ({ label: c, value: c }))];
-
         categoryBar.innerHTML = chips.map((chip) => `
             <button class="category-chip${chip.value === selectedCategory ? " is-active" : ""}"
                     data-category="${chip.value}">
                 ${chip.label}
             </button>
         `).join("");
-
         categoryBar.querySelectorAll(".category-chip").forEach((btn) => {
             btn.addEventListener("click", () => {
                 selectedCategory = btn.dataset.category;
                 categoryBar.querySelectorAll(".category-chip").forEach((b) => b.classList.remove("is-active"));
                 btn.classList.add("is-active");
-                renderHomeVideos(homeSearchInput?.value || "");
+                resetAndLoad();
             });
         });
     }
 
-    function filterVideos(keyword) {
-        const normalizedKeyword = keyword.trim().toLowerCase();
+    async function loadPage() {
+        if (isLoading || !hasMore) return;
+        isLoading = true;
+        showLoader(true);
 
-        return allVideos.filter((video) => {
-            const videoCategory = (video.category || "").trim();
-            if (selectedCategory && videoCategory !== selectedCategory) return false;
+        try {
+            const params = new URLSearchParams({ page: currentPage, size: 12 });
+            if (currentKeyword.trim()) params.set("keyword", currentKeyword.trim());
+            if (selectedCategory) params.set("category", selectedCategory);
 
-            if (!normalizedKeyword) return true;
+            const res = await fetch(`/api/videos/feed?${params}`);
+            if (!res.ok) throw new Error();
+            const data = await res.json();
 
-            const title = String(video.title || "").toLowerCase();
-            const channel = String(video.channel || "").toLowerCase();
-            const description = String(video.description || "").toLowerCase();
-            const category = videoCategory.toLowerCase();
+            if (currentPage === 0) {
+                videoGrid.innerHTML = "";
+                if (homeEmptyState) {
+                    homeEmptyState.hidden = data.videos.length > 0;
+                    const titleEl = homeEmptyState.querySelector(".home-empty-title");
+                    const textEl = homeEmptyState.querySelector(".home-empty-text");
+                    if (currentKeyword.trim() || selectedCategory) {
+                        if (titleEl) titleEl.textContent = "검색 결과가 없습니다";
+                        if (textEl) textEl.textContent = "다른 검색어나 카테고리로 다시 시도해봐.";
+                    } else {
+                        if (titleEl) titleEl.textContent = "표시할 영상이 없습니다";
+                        if (textEl) textEl.textContent = "영상을 업로드하고 첫 번째 영상의 주인공이 되어봐.";
+                    }
+                }
+            }
 
-            return (
-                title.includes(normalizedKeyword) ||
-                channel.includes(normalizedKeyword) ||
-                description.includes(normalizedKeyword) ||
-                category.includes(normalizedKeyword)
-            );
-        });
+            if (data.videos.length > 0) {
+                videoGrid.insertAdjacentHTML("beforeend", data.videos.map(createVideoCard).join(""));
+            }
+
+            hasMore = data.hasMore;
+            currentPage++;
+        } catch {
+            hasMore = false;
+        } finally {
+            isLoading = false;
+            showLoader(false);
+        }
     }
 
-    function updateSearchUrl(keyword) {
-        const nextUrl = new URL(window.location.href);
-
-        if (keyword.trim()) {
-            nextUrl.searchParams.set("q", keyword.trim());
-        } else {
-            nextUrl.searchParams.delete("q");
-        }
-
-        window.history.pushState({}, "", nextUrl);
-    }
-
-    function updateEmptyState(keyword) {
-        if (!homeEmptyState) return;
-
-        const titleEl = homeEmptyState.querySelector(".home-empty-title");
-        const textEl = homeEmptyState.querySelector(".home-empty-text");
-
-        if (!keyword.trim() && !selectedCategory) {
-            if (titleEl) titleEl.textContent = "표시할 영상이 없습니다";
-            if (textEl) textEl.textContent = "영상을 업로드하거나 홈으로 돌아가 다시 확인해봐.";
-            return;
-        }
-
-        if (titleEl) titleEl.textContent = "검색 결과가 없습니다";
-        if (textEl) textEl.textContent = "다른 검색어나 카테고리로 다시 시도해봐.";
-    }
-
-    function renderHomeVideos(keyword = "") {
-        const filteredVideos = filterVideos(keyword);
-
-        updateEmptyState(keyword);
-
-        if (filteredVideos.length === 0) {
-            videoGrid.innerHTML = "";
-            if (homeEmptyState) homeEmptyState.hidden = false;
-            return;
-        }
-
+    function resetAndLoad() {
+        currentPage = 0;
+        hasMore = true;
+        isLoading = false;
+        videoGrid.innerHTML = "";
         if (homeEmptyState) homeEmptyState.hidden = true;
-        videoGrid.innerHTML = filteredVideos.map(createVideoCard).join("");
+        loadPage();
     }
 
-    buildCategoryBar();
+    if (scrollSentinel) {
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) loadPage();
+        }, { rootMargin: "300px" });
+        observer.observe(scrollSentinel);
+    }
 
-    if (homeSearchInput) homeSearchInput.value = initialKeyword;
-
-    homeSearchForm?.addEventListener("submit", (event) => {
-        event.preventDefault();
-        const keyword = homeSearchInput?.value || "";
-        updateSearchUrl(keyword);
-        renderHomeVideos(keyword);
+    homeSearchForm?.addEventListener("submit", (e) => {
+        e.preventDefault();
+        currentKeyword = homeSearchInput?.value || "";
+        updateSearchUrl(currentKeyword);
+        resetAndLoad();
     });
 
     window.addEventListener("popstate", () => {
-        const currentKeyword = new URL(window.location.href).searchParams.get("q") || "";
+        currentKeyword = new URL(window.location.href).searchParams.get("q") || "";
         if (homeSearchInput) homeSearchInput.value = currentKeyword;
-        renderHomeVideos(currentKeyword);
+        resetAndLoad();
     });
 
-    renderHomeVideos(initialKeyword);
+    await loadCategories();
+    await loadPage();
 }
 
 async function initSavedPage() {
@@ -2833,6 +2852,20 @@ async function initWatchPage() {
         const replyCancels = commentList?.querySelectorAll("[data-reply-cancel]") || [];
         const replySubmits = commentList?.querySelectorAll("[data-reply-submit]") || [];
         const replyInputs = commentList?.querySelectorAll("[data-reply-input]") || [];
+        const likeBtns = commentList?.querySelectorAll("[data-comment-like]") || [];
+
+        likeBtns.forEach(btn => {
+            btn.addEventListener("click", async () => {
+                const commentId = btn.dataset.commentLike;
+                const res = await fetch(`/api/comments/${commentId}/like`, { method: "POST" });
+                if (!res.ok) return;
+                const data = await res.json();
+                btn.dataset.liked = data.liked ? "true" : "false";
+                btn.classList.toggle("is-liked", data.liked);
+                const countEl = btn.querySelector(".comment-like-count");
+                if (countEl) countEl.textContent = data.likeCount > 0 ? data.likeCount : "";
+            });
+        });
 
         // 답글 버튼 토글
         replyBtns.forEach(btn => {

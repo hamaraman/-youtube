@@ -10,6 +10,8 @@ import com.example.demo.repository.VideoLikeRepository;
 import com.example.demo.repository.VideoRepository;
 import com.example.demo.repository.VideoSaveRepository;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -71,6 +73,52 @@ public class VideoController {
                         loginUserId != null && videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
                 ))
                 .collect(Collectors.toList());
+    }
+
+    @GetMapping("/videos/categories")
+    public List<String> getCategories() {
+        return videoRepository.findAllPublicCategories();
+    }
+
+    @GetMapping("/videos/feed")
+    public Map<String, Object> getFeed(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String category,
+            HttpSession session) {
+        Long loginUserId = getLoginUserId(session);
+        PageRequest pageable = PageRequest.of(page, size);
+
+        Page<Video> videoPage;
+        boolean hasKeyword = keyword != null && !keyword.isBlank();
+        boolean hasCategory = category != null && !category.isBlank();
+
+        if (hasKeyword && hasCategory) {
+            videoPage = videoRepository.searchPublicByKeywordAndCategoryPageable(keyword, category, pageable);
+        } else if (hasKeyword) {
+            videoPage = videoRepository.searchPublicByKeywordPageable(keyword, pageable);
+        } else if (hasCategory) {
+            videoPage = videoRepository.findAllPublicByCategoryPageable(category, pageable);
+        } else {
+            videoPage = videoRepository.findAllPublicPageable(pageable);
+        }
+
+        List<VideoItem> items = videoPage.getContent().stream()
+                .map(v -> VideoItem.from(
+                        v,
+                        videoLikeRepository.countByVideoId(v.getId()),
+                        loginUserId != null && videoLikeRepository.existsByVideoIdAndUserId(v.getId(), loginUserId),
+                        loginUserId != null && videoSaveRepository.existsByVideoIdAndUserId(v.getId(), loginUserId)
+                ))
+                .collect(Collectors.toList());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("videos", items);
+        result.put("hasMore", !videoPage.isLast());
+        result.put("page", page);
+        result.put("totalElements", videoPage.getTotalElements());
+        return result;
     }
 
     @GetMapping("/videos/{id}")

@@ -1,6 +1,8 @@
 package com.example.demo.repository;
 
 import com.example.demo.entity.Video;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -32,6 +34,27 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
            "LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "LOWER(v.channel) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     List<Video> searchByKeyword(@Param("keyword") String keyword);
+
+    @Query("SELECT v FROM Video v WHERE v.visibility IS NULL OR v.visibility != '비공개' ORDER BY v.id DESC")
+    Page<Video> findAllPublicPageable(Pageable pageable);
+
+    @Query("SELECT v FROM Video v WHERE (v.visibility IS NULL OR v.visibility != '비공개') AND v.category = :category ORDER BY v.id DESC")
+    Page<Video> findAllPublicByCategoryPageable(@Param("category") String category, Pageable pageable);
+
+    @Query("SELECT v FROM Video v WHERE " +
+           "(LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(v.channel) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (v.visibility IS NULL OR v.visibility != '비공개') ORDER BY v.id DESC")
+    Page<Video> searchPublicByKeywordPageable(@Param("keyword") String keyword, Pageable pageable);
+
+    @Query("SELECT v FROM Video v WHERE " +
+           "(LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(v.channel) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (v.visibility IS NULL OR v.visibility != '비공개') AND v.category = :category ORDER BY v.id DESC")
+    Page<Video> searchPublicByKeywordAndCategoryPageable(@Param("keyword") String keyword, @Param("category") String category, Pageable pageable);
+
+    @Query("SELECT DISTINCT v.category FROM Video v WHERE v.category IS NOT NULL AND v.category <> '' AND (v.visibility IS NULL OR v.visibility != '비공개') ORDER BY v.category ASC")
+    List<String> findAllPublicCategories();
 
     List<Video> findByOwnerIdIsNull();
 

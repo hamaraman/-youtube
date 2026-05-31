@@ -4,7 +4,9 @@ import com.example.demo.config.LoginUserResolver;
 import com.example.demo.config.NotificationService;
 import com.example.demo.dto.CommentRequest;
 import com.example.demo.entity.Comment;
+import com.example.demo.entity.CommentLike;
 import com.example.demo.entity.Video;
+import com.example.demo.repository.CommentLikeRepository;
 import com.example.demo.repository.CommentRepository;
 import com.example.demo.repository.VideoRepository;
 import jakarta.servlet.http.HttpSession;
@@ -21,13 +23,16 @@ public class CommentController {
 
     private final CommentRepository commentRepository;
     private final VideoRepository videoRepository;
+    private final CommentLikeRepository commentLikeRepository;
     private final LoginUserResolver loginUserResolver;
     private final NotificationService notificationService;
 
     public CommentController(CommentRepository commentRepository, VideoRepository videoRepository,
+                             CommentLikeRepository commentLikeRepository,
                              LoginUserResolver loginUserResolver, NotificationService notificationService) {
         this.commentRepository = commentRepository;
         this.videoRepository = videoRepository;
+        this.commentLikeRepository = commentLikeRepository;
         this.loginUserResolver = loginUserResolver;
         this.notificationService = notificationService;
     }
@@ -45,10 +50,14 @@ public class CommentController {
         List<CommentItem> comments = commentRepository.findByVideoIdAndParentIdIsNullOrderByIdDesc(id)
                 .stream()
                 .map(comment -> {
-                    CommentItem item = CommentItem.from(comment, finalLoginUserId);
+                    CommentItem item = CommentItem.from(comment, finalLoginUserId,
+                            commentLikeRepository.countByCommentId(comment.getId()),
+                            finalLoginUserId != null && commentLikeRepository.existsByCommentIdAndUserId(comment.getId(), finalLoginUserId));
                     item.replies = commentRepository.findByParentIdOrderByIdAsc(comment.getId())
                             .stream()
-                            .map(r -> CommentItem.from(r, finalLoginUserId))
+                            .map(r -> CommentItem.from(r, finalLoginUserId,
+                                    commentLikeRepository.countByCommentId(r.getId()),
+                                    finalLoginUserId != null && commentLikeRepository.existsByCommentIdAndUserId(r.getId(), finalLoginUserId)))
                             .collect(Collectors.toList());
                     return item;
                 })
@@ -99,7 +108,7 @@ public class CommentController {
 
         return ResponseEntity.ok(new CommentCreateResponse(
                 true,
-                CommentItem.from(saved, sessionUser.getId())
+                CommentItem.from(saved, sessionUser.getId(), 0L, false)
         ));
     }
 
@@ -138,7 +147,42 @@ public class CommentController {
         reply.setParentId(commentId);
 
         Comment saved = commentRepository.save(reply);
-        return ResponseEntity.ok(new CommentCreateResponse(true, CommentItem.from(saved, sessionUser.getId())));
+        return ResponseEntity.ok(new CommentCreateResponse(true, CommentItem.from(saved, sessionUser.getId(), 0L, false)));
+    }
+
+    @PostMapping("/comments/{commentId}/like")
+    public ResponseEntity<?> toggleCommentLike(@PathVariable Long commentId, HttpSession session) {
+        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+        if (sessionUser == null) return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
+
+        Optional<Comment> optComment = commentRepository.findById(commentId);
+        if (optComment.isEmpty()) return ResponseEntity.notFound().build();
+
+        Comment comment = optComment.get();
+        Optional<CommentLike> existing = commentLikeRepository.findByCommentIdAndUserId(commentId, sessionUser.getId());
+
+        boolean liked;
+        if (existing.isPresent()) {
+            commentLikeRepository.delete(existing.get());
+            liked = false;
+        } else {
+            CommentLike cl = new CommentLike();
+            cl.setCommentId(commentId);
+            cl.setUserId(sessionUser.getId());
+            commentLikeRepository.save(cl);
+            liked = true;
+
+            String name = sessionUser.getChannelName() != null && !sessionUser.getChannelName().isBlank()
+                    ? sessionUser.getChannelName() : sessionUser.getNickname();
+            videoRepository.findById(comment.getVideoId()).ifPresent(video ->
+                notificationService.send(comment.getUserId(), sessionUser.getId(), "COMMENT_LIKE",
+                        name + "님이 댓글에 좋아요를 눌렀어요: " + truncate(comment.getText(), 30),
+                        video.getId(), video.getThumbnail())
+            );
+        }
+
+        long likeCount = commentLikeRepository.countByCommentId(commentId);
+        return ResponseEntity.ok(java.util.Map.of("liked", liked, "likeCount", likeCount));
     }
 
     @PutMapping("/comments/{commentId}")
@@ -170,10 +214,12 @@ public class CommentController {
 
         comment.setText(content);
         Comment saved = commentRepository.save(comment);
+        long likeCount = commentLikeRepository.countByCommentId(commentId);
+        boolean isLiked = commentLikeRepository.existsByCommentIdAndUserId(commentId, sessionUser.getId());
 
         return ResponseEntity.ok(new CommentCreateResponse(
                 true,
-                CommentItem.from(saved, sessionUser.getId())
+                CommentItem.from(saved, sessionUser.getId(), likeCount, isLiked)
         ));
     }
 
@@ -215,9 +261,11 @@ public class CommentController {
         private String text;
         private String time;
         private boolean isMine;
+        private long likeCount;
+        private boolean isLiked;
         public List<CommentItem> replies = new java.util.ArrayList<>();
 
-        public static CommentItem from(Comment comment, Long loginUserId) {
+        public static CommentItem from(Comment comment, Long loginUserId, long likeCount, boolean isLiked) {
             CommentItem item = new CommentItem();
             item.id = comment.getId();
             item.videoId = comment.getVideoId();
@@ -227,6 +275,8 @@ public class CommentController {
             item.text = comment.getText();
             item.time = comment.getTime();
             item.isMine = loginUserId != null && loginUserId.equals(comment.getUserId());
+            item.likeCount = likeCount;
+            item.isLiked = isLiked;
             return item;
         }
 
@@ -262,9 +312,9 @@ public class CommentController {
             return time;
         }
 
-        public boolean isMine() {
-            return isMine;
-        }
+        public boolean isMine() { return isMine; }
+        public long getLikeCount() { return likeCount; }
+        public boolean isLiked() { return isLiked; }
     }
 
     public static class SimpleResponse {
