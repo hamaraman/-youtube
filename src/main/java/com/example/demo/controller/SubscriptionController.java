@@ -3,25 +3,33 @@ package com.example.demo.controller;
 import com.example.demo.config.LoginUserResolver;
 import com.example.demo.config.NotificationService;
 import com.example.demo.entity.Subscription;
+import com.example.demo.entity.User;
 import com.example.demo.repository.SubscriptionRepository;
+import com.example.demo.repository.UserRepository;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/users")
 public class SubscriptionController {
 
     private final SubscriptionRepository subscriptionRepository;
+    private final UserRepository userRepository;
     private final LoginUserResolver loginUserResolver;
     private final NotificationService notificationService;
 
     public SubscriptionController(SubscriptionRepository subscriptionRepository,
+                                  UserRepository userRepository,
                                   LoginUserResolver loginUserResolver,
                                   NotificationService notificationService) {
         this.subscriptionRepository = subscriptionRepository;
+        this.userRepository = userRepository;
         this.loginUserResolver = loginUserResolver;
         this.notificationService = notificationService;
     }
@@ -56,6 +64,26 @@ public class SubscriptionController {
 
         long count = subscriptionRepository.countByChannelOwnerId(id);
         return ResponseEntity.ok(new SubscribeResponse(true, subscribed, count));
+    }
+
+    @GetMapping("/me/subscriptions")
+    public ResponseEntity<?> getMySubscriptions(HttpSession session) {
+        Long loginUserId = loginUserResolver.getUserId(session);
+        if (loginUserId == null) return ResponseEntity.status(401).build();
+
+        List<Map<String, Object>> result = subscriptionRepository.findBySubscriberId(loginUserId)
+                .stream()
+                .map(sub -> userRepository.findById(sub.getChannelOwnerId()).map(user -> {
+                    Map<String, Object> m = new java.util.HashMap<>();
+                    m.put("channelOwnerId", user.getId());
+                    m.put("channelName", user.getChannelName() != null ? user.getChannelName() : user.getNickname());
+                    m.put("profileImage", user.getProfileImage());
+                    return m;
+                }).orElse(null))
+                .filter(m -> m != null)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/{id}/subscription-status")

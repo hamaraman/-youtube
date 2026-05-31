@@ -147,6 +147,14 @@ public class CommentController {
         reply.setParentId(commentId);
 
         Comment saved = commentRepository.save(reply);
+
+        String name = reply.getAuthor();
+        videoRepository.findById(parent.get().getVideoId()).ifPresent(video ->
+            notificationService.send(parent.get().getUserId(), sessionUser.getId(), "COMMENT",
+                    name + "님이 답글을 달았어요: " + truncate(content, 40),
+                    video.getId(), video.getThumbnail())
+        );
+
         return ResponseEntity.ok(new CommentCreateResponse(true, CommentItem.from(saved, sessionUser.getId(), 0L, false)));
     }
 

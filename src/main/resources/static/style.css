@@ -203,6 +203,38 @@ img {
     flex-shrink: 0;
 }
 
+/* subscription sidebar */
+.sidebar-sub-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    padding: 4px 12px 8px;
+}
+
+.sub-sidebar-avatar {
+    width: 24px !important;
+    height: 24px !important;
+    border-radius: 50% !important;
+    overflow: hidden;
+    background: linear-gradient(135deg, #ff4e45, #ff8a00);
+    flex-shrink: 0;
+}
+
+.sub-sidebar-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.sub-sidebar-avatar-text {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+}
+
 /* comment like button */
 .comment-like-btn {
     display: inline-flex;

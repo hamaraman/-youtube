@@ -1540,6 +1540,41 @@ function formatDuration(seconds) {
     return `${minutes}:${String(secs).padStart(2, "0")}`;
 }
 
+async function initSubscriptionSidebar() {
+    const sidebar = document.querySelector(".sidebar");
+    if (!sidebar) return;
+
+    const authMe = getAuthMe();
+    if (!authMe?.loggedIn) return;
+
+    try {
+        const res = await fetch("/api/users/me/subscriptions");
+        if (!res.ok) return;
+        const subs = await res.json();
+        if (!subs.length) return;
+
+        const section = document.createElement("nav");
+        section.className = "sidebar-section";
+        section.id = "subscriptionSidebarSection";
+        section.innerHTML = `
+            <div class="sidebar-sub-title">구독</div>
+            ${subs.map(s => {
+                const name = s.channelName || "채널";
+                const initial = name.charAt(0).toUpperCase();
+                const avatar = s.profileImage
+                    ? `<img src="${s.profileImage}" alt="${escapeHtml(name)}" class="sub-sidebar-avatar-img">`
+                    : `<span class="sub-sidebar-avatar-text">${escapeHtml(initial)}</span>`;
+                return `
+                <a href="index.html?q=${encodeURIComponent(name)}" class="sidebar-link">
+                    <span class="sidebar-icon sub-sidebar-avatar">${avatar}</span>
+                    <span class="sidebar-label">${escapeHtml(name)}</span>
+                </a>`;
+            }).join("")}
+        `;
+        sidebar.appendChild(section);
+    } catch {}
+}
+
 function initNotifications() {
     const wrap = document.getElementById("notifWrap");
     if (!wrap) return;
@@ -3663,6 +3698,7 @@ const page = document.body.dataset.page;
     initGlobalTopSearch();
     initMiniPlayer();
     initNotifications();
+    initSubscriptionSidebar();
 
     if (page === "upload") initUploadPage();
     if (page === "home") initHomePage();
