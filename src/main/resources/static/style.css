@@ -2512,14 +2512,9 @@ body:not(.upload-clean-layout) .menu-btn {
     display: none;
 }
 
-/* 축소 모드에서 구독 채널 섹션: 아바타만 표시 (텍스트 숨김) */
-.sidebar.is-collapsed #subscriptionSidebarSection .sidebar-label {
+/* 축소 모드에서 구독 채널 섹션 전체 숨김 (펼쳤을 때만 표시) */
+.sidebar.is-collapsed #subscriptionSidebarSection {
     display: none;
-}
-
-.sidebar.is-collapsed #subscriptionSidebarSection .sidebar-link {
-    min-height: 40px;
-    flex-direction: row;
 }
 
 /* ── Theme transition ────────────────────────────────────────── */
