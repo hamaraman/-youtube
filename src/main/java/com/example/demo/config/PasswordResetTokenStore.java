@@ -1,47 +1,48 @@
 package com.example.demo.config;
 
+import com.example.demo.entity.PasswordResetToken;
+import com.example.demo.repository.PasswordResetTokenRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Map;
+import java.time.LocalDateTime;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class PasswordResetTokenStore {
 
-    private static final long EXPIRY_MS = 10 * 60 * 1000; // 10분
+    private static final int EXPIRY_MINUTES = 10;
 
-    private final Map<String, TokenEntry> store = new ConcurrentHashMap<>();
+    private final PasswordResetTokenRepository repository;
 
+    public PasswordResetTokenStore(PasswordResetTokenRepository repository) {
+        this.repository = repository;
+    }
+
+    @Transactional
     public String create(Long userId) {
         // 기존 토큰 제거 (유저당 하나만 유지)
-        store.entrySet().removeIf(e -> e.getValue().userId.equals(userId));
-        String token = UUID.randomUUID().toString();
-        store.put(token, new TokenEntry(userId, System.currentTimeMillis() + EXPIRY_MS));
-        return token;
+        repository.deleteByUserId(userId);
+        // 만료된 토큰도 정리
+        repository.deleteExpired(LocalDateTime.now());
+
+        PasswordResetToken prt = new PasswordResetToken();
+        prt.setUserId(userId);
+        prt.setToken(UUID.randomUUID().toString());
+        prt.setExpiresAt(LocalDateTime.now().plusMinutes(EXPIRY_MINUTES));
+        repository.save(prt);
+        return prt.getToken();
     }
 
     public Long validate(String token) {
-        TokenEntry entry = store.get(token);
-        if (entry == null) return null;
-        if (entry.expiry < System.currentTimeMillis()) {
-            store.remove(token);
-            return null;
-        }
-        return entry.userId;
+        return repository.findByToken(token)
+                .filter(t -> t.getExpiresAt().isAfter(LocalDateTime.now()))
+                .map(PasswordResetToken::getUserId)
+                .orElse(null);
     }
 
+    @Transactional
     public void remove(String token) {
-        store.remove(token);
-    }
-
-    private static class TokenEntry {
-        final Long userId;
-        final long expiry;
-
-        TokenEntry(Long userId, long expiry) {
-            this.userId = userId;
-            this.expiry = expiry;
-        }
+        repository.findByToken(token).ifPresent(repository::delete);
     }
 }

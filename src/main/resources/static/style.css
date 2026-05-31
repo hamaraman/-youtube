@@ -203,6 +203,55 @@ img {
     flex-shrink: 0;
 }
 
+/* subscription feed page */
+.sub-feed-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.sub-feed-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 20px;
+}
+
+.sub-feed-empty {
+    padding: 60px 24px;
+    text-align: center;
+    color: #9aa0a6;
+}
+
+.sub-feed-empty-icon {
+    font-size: 48px;
+    margin: 0 0 16px;
+}
+
+.sub-feed-empty h3 {
+    font-size: 20px;
+    color: #fff;
+    margin: 0 0 10px;
+}
+
+.sub-feed-empty p {
+    font-size: 14px;
+    line-height: 1.7;
+    margin: 0 0 20px;
+}
+
+.sub-feed-empty-btn {
+    display: inline-flex;
+    align-items: center;
+    height: 40px;
+    padding: 0 20px;
+    border-radius: 999px;
+    background: #fff;
+    color: #111;
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none;
+}
+
 /* subscription sidebar */
 .sidebar-sub-title {
     font-size: 12px;

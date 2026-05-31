@@ -1546,18 +1546,36 @@ async function initSubscriptionSidebar() {
 
     const authMe = getAuthMe();
     if (!authMe?.loggedIn) return;
+    const currentPage = document.body.dataset.page || "";
 
+    // 구독 피드 링크 주입 (subscriptions.html 외 모든 페이지)
+    if (currentPage !== "subscriptions") {
+        const firstSection = sidebar.querySelector(".sidebar-section");
+        if (firstSection && !firstSection.querySelector('a[href="subscriptions.html"]')) {
+            firstSection.insertAdjacentHTML("beforeend", `
+                <a href="subscriptions.html" class="sidebar-link">
+                    <span class="sidebar-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 18v-2h4v2h-4Zm-4-5v-2h12v2H6Zm-3-5V6h18v2H3Z"/></svg>
+                    </span>
+                    <span class="sidebar-label">구독</span>
+                </a>
+            `);
+        }
+    }
+
+    // 구독한 채널 목록 주입
     try {
         const res = await fetch("/api/users/me/subscriptions");
         if (!res.ok) return;
         const subs = await res.json();
         if (!subs.length) return;
 
+        if (sidebar.querySelector("#subscriptionSidebarSection")) return;
         const section = document.createElement("nav");
         section.className = "sidebar-section";
         section.id = "subscriptionSidebarSection";
         section.innerHTML = `
-            <div class="sidebar-sub-title">구독</div>
+            <div class="sidebar-sub-title">구독한 채널</div>
             ${subs.map(s => {
                 const name = s.channelName || "채널";
                 const initial = name.charAt(0).toUpperCase();
@@ -1565,7 +1583,7 @@ async function initSubscriptionSidebar() {
                     ? `<img src="${s.profileImage}" alt="${escapeHtml(name)}" class="sub-sidebar-avatar-img">`
                     : `<span class="sub-sidebar-avatar-text">${escapeHtml(initial)}</span>`;
                 return `
-                <a href="index.html?q=${encodeURIComponent(name)}" class="sidebar-link">
+                <a href="subscriptions.html?channel=${encodeURIComponent(name)}" class="sidebar-link">
                     <span class="sidebar-icon sub-sidebar-avatar">${avatar}</span>
                     <span class="sidebar-label">${escapeHtml(name)}</span>
                 </a>`;
@@ -1573,6 +1591,95 @@ async function initSubscriptionSidebar() {
         `;
         sidebar.appendChild(section);
     } catch {}
+}
+
+async function initSubscriptionPage() {
+    const grid = document.getElementById("subFeedGrid");
+    const loader = document.getElementById("subFeedLoader");
+    const sentinel = document.getElementById("subFeedSentinel");
+    const emptyEl = document.getElementById("subFeedEmpty");
+    const searchForm = document.getElementById("subFeedSearchForm");
+    const searchInput = document.getElementById("subFeedSearchInput");
+
+    if (!grid) return;
+
+    const authMe = getAuthMe();
+    if (!authMe?.loggedIn) {
+        window.location.href = "login.html?next=subscriptions.html";
+        return;
+    }
+
+    const url = new URL(window.location.href);
+    let filterChannel = url.searchParams.get("channel") || "";
+    let currentPage = 0;
+    let isLoading = false;
+    let hasMore = true;
+
+    if (searchInput && filterChannel) searchInput.value = filterChannel;
+
+    function showLoader(show) {
+        if (loader) loader.style.display = show ? "flex" : "none";
+    }
+
+    async function loadPage() {
+        if (isLoading || !hasMore) return;
+        isLoading = true;
+        showLoader(true);
+
+        try {
+            const params = new URLSearchParams({ page: currentPage, size: 12 });
+            if (filterChannel.trim()) params.set("keyword", filterChannel.trim());
+
+            const res = await fetch(`/api/videos/subscriptions?${params}`);
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+
+            if (currentPage === 0) {
+                grid.innerHTML = "";
+                if (emptyEl) emptyEl.hidden = data.videos.length > 0;
+            }
+
+            if (data.videos.length > 0) {
+                grid.insertAdjacentHTML("beforeend", data.videos.map(createVideoCard).join(""));
+            }
+
+            hasMore = data.hasMore;
+            currentPage++;
+        } catch {
+            hasMore = false;
+        } finally {
+            isLoading = false;
+            showLoader(false);
+        }
+    }
+
+    function resetAndLoad() {
+        currentPage = 0;
+        hasMore = true;
+        isLoading = false;
+        grid.innerHTML = "";
+        if (emptyEl) emptyEl.hidden = true;
+        loadPage();
+    }
+
+    if (sentinel) {
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) loadPage();
+        }, { rootMargin: "300px" });
+        observer.observe(sentinel);
+    }
+
+    searchForm?.addEventListener("submit", (e) => {
+        e.preventDefault();
+        filterChannel = searchInput?.value || "";
+        const nextUrl = new URL(window.location.href);
+        if (filterChannel) nextUrl.searchParams.set("channel", filterChannel);
+        else nextUrl.searchParams.delete("channel");
+        window.history.pushState({}, "", nextUrl);
+        resetAndLoad();
+    });
+
+    await loadPage();
 }
 
 function initNotifications() {
@@ -3709,6 +3816,7 @@ const page = document.body.dataset.page;
     if (page === "channel") initChannelPage();
     if (page === "history") initHistoryPage();
     if (page === "studio") initStudioPage();
+    if (page === "subscriptions") initSubscriptionPage();
 })();
 
 /* =========================================================

@@ -3,9 +3,11 @@ package com.example.demo.controller;
 import com.example.demo.config.AdminChecker;
 import com.example.demo.config.LoginUserResolver;
 import com.example.demo.config.S3StorageService;
+import com.example.demo.entity.Subscription;
 import com.example.demo.entity.Video;
 import com.example.demo.entity.VideoLike;
 import com.example.demo.entity.VideoSave;
+import com.example.demo.repository.SubscriptionRepository;
 import com.example.demo.repository.VideoLikeRepository;
 import com.example.demo.repository.VideoRepository;
 import com.example.demo.repository.VideoSaveRepository;
@@ -26,6 +28,7 @@ public class VideoController {
     private final VideoRepository videoRepository;
     private final VideoLikeRepository videoLikeRepository;
     private final VideoSaveRepository videoSaveRepository;
+    private final SubscriptionRepository subscriptionRepository;
     private final LoginUserResolver loginUserResolver;
     private final AdminChecker adminChecker;
     private final S3StorageService storageService;
@@ -34,6 +37,7 @@ public class VideoController {
             VideoRepository videoRepository,
             VideoLikeRepository videoLikeRepository,
             VideoSaveRepository videoSaveRepository,
+            SubscriptionRepository subscriptionRepository,
             LoginUserResolver loginUserResolver,
             AdminChecker adminChecker,
             S3StorageService storageService
@@ -41,6 +45,7 @@ public class VideoController {
         this.videoRepository = videoRepository;
         this.videoLikeRepository = videoLikeRepository;
         this.videoSaveRepository = videoSaveRepository;
+        this.subscriptionRepository = subscriptionRepository;
         this.loginUserResolver = loginUserResolver;
         this.adminChecker = adminChecker;
         this.storageService = storageService;
@@ -73,6 +78,43 @@ public class VideoController {
                         loginUserId != null && videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
                 ))
                 .collect(Collectors.toList());
+    }
+
+    @GetMapping("/videos/subscriptions")
+    public Map<String, Object> getSubscriptionFeed(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "12") int size,
+            HttpSession session) {
+        Long loginUserId = getLoginUserId(session);
+        if (loginUserId == null) {
+            return Map.of("videos", List.of(), "hasMore", false, "page", 0, "totalElements", 0L);
+        }
+
+        List<Long> ownerIds = subscriptionRepository.findBySubscriberId(loginUserId)
+                .stream()
+                .map(Subscription::getChannelOwnerId)
+                .collect(Collectors.toList());
+
+        if (ownerIds.isEmpty()) {
+            return Map.of("videos", List.of(), "hasMore", false, "page", 0, "totalElements", 0L);
+        }
+
+        Page<Video> videoPage = videoRepository.findByOwnerIdsPageable(ownerIds, PageRequest.of(page, size));
+        List<VideoItem> items = videoPage.getContent().stream()
+                .map(v -> VideoItem.from(
+                        v,
+                        videoLikeRepository.countByVideoId(v.getId()),
+                        videoLikeRepository.existsByVideoIdAndUserId(v.getId(), loginUserId),
+                        videoSaveRepository.existsByVideoIdAndUserId(v.getId(), loginUserId)
+                ))
+                .collect(Collectors.toList());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("videos", items);
+        result.put("hasMore", !videoPage.isLast());
+        result.put("page", page);
+        result.put("totalElements", videoPage.getTotalElements());
+        return result;
     }
 
     @GetMapping("/videos/categories")

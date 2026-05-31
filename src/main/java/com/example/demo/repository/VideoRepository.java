@@ -56,6 +56,9 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     @Query("SELECT DISTINCT v.category FROM Video v WHERE v.category IS NOT NULL AND v.category <> '' AND (v.visibility IS NULL OR v.visibility != '비공개') ORDER BY v.category ASC")
     List<String> findAllPublicCategories();
 
+    @Query("SELECT v FROM Video v WHERE v.ownerId IN :ownerIds AND (v.visibility IS NULL OR v.visibility != '비공개') ORDER BY v.id DESC")
+    Page<Video> findByOwnerIdsPageable(@Param("ownerIds") java.util.List<Long> ownerIds, Pageable pageable);
+
     List<Video> findByOwnerIdIsNull();
 
     List<Video> findByChannel(String channel);
