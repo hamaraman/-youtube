@@ -3,7 +3,11 @@ package com.example.demo.controller;
 import com.example.demo.config.AdminChecker;
 import com.example.demo.config.LoginUserResolver;
 import com.example.demo.config.S3StorageService;
+import com.example.demo.entity.Notification;
+import com.example.demo.entity.Subscription;
 import com.example.demo.entity.Video;
+import com.example.demo.repository.NotificationRepository;
+import com.example.demo.repository.SubscriptionRepository;
 import com.example.demo.repository.VideoRepository;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,16 +48,22 @@ public class VideoUploadController {
     private final LoginUserResolver loginUserResolver;
     private final AdminChecker adminChecker;
     private final S3StorageService storageService;
+    private final SubscriptionRepository subscriptionRepository;
+    private final NotificationRepository notificationRepository;
 
     // 동시에 처리할 최대 영상 수 (CPU 과부하 방지)
     private static final Semaphore BATCH_SEMAPHORE = new Semaphore(2);
 
     public VideoUploadController(VideoRepository videoRepository, LoginUserResolver loginUserResolver,
-                                 AdminChecker adminChecker, S3StorageService storageService) {
+                                 AdminChecker adminChecker, S3StorageService storageService,
+                                 SubscriptionRepository subscriptionRepository,
+                                 NotificationRepository notificationRepository) {
         this.videoRepository = videoRepository;
         this.loginUserResolver = loginUserResolver;
         this.adminChecker = adminChecker;
         this.storageService = storageService;
+        this.subscriptionRepository = subscriptionRepository;
+        this.notificationRepository = notificationRepository;
     }
 
     @PostMapping("/upload")
@@ -128,6 +138,19 @@ public class VideoUploadController {
 
             // Step 3: save entity to get ID
             Video savedVideo = videoRepository.save(video);
+
+            // notify subscribers
+            if ("공개".equals(savedVideo.getVisibility())) {
+                List<Subscription> subs = subscriptionRepository.findByChannelOwnerId(sessionUser.getId());
+                for (Subscription sub : subs) {
+                    Notification notif = new Notification();
+                    notif.setReceiverId(sub.getSubscriberId());
+                    notif.setMessage(channel.trim() + "이(가) 새 영상을 올렸어요: " + title.trim());
+                    notif.setRelatedVideoId(savedVideo.getId());
+                    notif.setThumbnail(finalThumbnailUrl);
+                    notificationRepository.save(notif);
+                }
+            }
 
             // Step 4: trigger background H.264 conversion + resolution variants
             if (videoUuid != null) {

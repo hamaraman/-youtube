@@ -9,4 +9,5 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     long countByChannelOwnerId(Long channelOwnerId);
     boolean existsBySubscriberIdAndChannelOwnerId(Long subscriberId, Long channelOwnerId);
     Optional<Subscription> findBySubscriberIdAndChannelOwnerId(Long subscriberId, Long channelOwnerId);
+    java.util.List<Subscription> findByChannelOwnerId(Long channelOwnerId);
 }

@@ -288,6 +288,16 @@
                 <path d="M11 6h2v5h5v2h-5v5h-2v-5H6v-2h5V6Z"></path>
             </svg>
         </a>
+        <div class="notif-wrap" id="notifWrap">
+            <button class="icon-btn notif-btn" id="notifBtn" aria-label="알림">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6v-5a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2Z"/></svg>
+                <span class="notif-badge" id="notifBadge" style="display:none"></span>
+            </button>
+            <div class="notif-dropdown" id="notifDropdown" style="display:none">
+                <div class="notif-header"><span>알림</span><button class="notif-read-all" id="notifReadAll">모두 읽음</button></div>
+                <div class="notif-list" id="notifList"></div>
+            </div>
+        </div>
         <a href="channel.html" class="profile" aria-label="내 채널">T</a>
     </div>
 </header>

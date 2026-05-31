@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.config.LoginUserResolver;
+import com.example.demo.config.NotificationService;
 import com.example.demo.dto.CommentRequest;
 import com.example.demo.entity.Comment;
 import com.example.demo.entity.Video;
@@ -21,12 +22,14 @@ public class CommentController {
     private final CommentRepository commentRepository;
     private final VideoRepository videoRepository;
     private final LoginUserResolver loginUserResolver;
+    private final NotificationService notificationService;
 
     public CommentController(CommentRepository commentRepository, VideoRepository videoRepository,
-                             LoginUserResolver loginUserResolver) {
+                             LoginUserResolver loginUserResolver, NotificationService notificationService) {
         this.commentRepository = commentRepository;
         this.videoRepository = videoRepository;
         this.loginUserResolver = loginUserResolver;
+        this.notificationService = notificationService;
     }
 
     @GetMapping("/videos/{id}/comments")
@@ -89,10 +92,19 @@ public class CommentController {
 
         Comment saved = commentRepository.save(comment);
 
+        Video video = optionalVideo.get();
+        notificationService.send(video.getOwnerId(), sessionUser.getId(), "COMMENT",
+                comment.getAuthor() + "님이 댓글을 달았어요: " + truncate(content, 40),
+                id, video.getThumbnail());
+
         return ResponseEntity.ok(new CommentCreateResponse(
                 true,
                 CommentItem.from(saved, sessionUser.getId())
         ));
+    }
+
+    private String truncate(String s, int max) {
+        return s.length() <= max ? s : s.substring(0, max) + "…";
     }
 
     @PostMapping("/comments/{commentId}/replies")

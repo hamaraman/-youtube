@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.config.LoginUserResolver;
+import com.example.demo.config.NotificationService;
 import com.example.demo.entity.Subscription;
 import com.example.demo.repository.SubscriptionRepository;
 import jakarta.servlet.http.HttpSession;
@@ -15,11 +16,14 @@ public class SubscriptionController {
 
     private final SubscriptionRepository subscriptionRepository;
     private final LoginUserResolver loginUserResolver;
+    private final NotificationService notificationService;
 
     public SubscriptionController(SubscriptionRepository subscriptionRepository,
-                                  LoginUserResolver loginUserResolver) {
+                                  LoginUserResolver loginUserResolver,
+                                  NotificationService notificationService) {
         this.subscriptionRepository = subscriptionRepository;
         this.loginUserResolver = loginUserResolver;
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/{id}/subscribe")
@@ -32,6 +36,7 @@ public class SubscriptionController {
             return ResponseEntity.badRequest().body(new SubscribeResponse(false, false, 0));
         }
 
+        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
         Optional<Subscription> existing = subscriptionRepository.findBySubscriberIdAndChannelOwnerId(loginUserId, id);
         boolean subscribed;
         if (existing.isPresent()) {
@@ -43,6 +48,10 @@ public class SubscriptionController {
             sub.setChannelOwnerId(id);
             subscriptionRepository.save(sub);
             subscribed = true;
+            String name = sessionUser.getChannelName() != null && !sessionUser.getChannelName().isBlank()
+                    ? sessionUser.getChannelName() : sessionUser.getNickname();
+            notificationService.send(id, loginUserId, "SUBSCRIBE",
+                    name + "님이 구독했어요", null, null);
         }
 
         long count = subscriptionRepository.countByChannelOwnerId(id);

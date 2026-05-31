@@ -1,6 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.config.LoginUserResolver;
+import com.example.demo.config.NotificationService;
 import com.example.demo.entity.Video;
 import com.example.demo.entity.VideoLike;
 import com.example.demo.entity.VideoSave;
@@ -21,25 +22,29 @@ public class VideoActionController {
     private final VideoLikeRepository videoLikeRepository;
     private final VideoSaveRepository videoSaveRepository;
     private final LoginUserResolver loginUserResolver;
+    private final NotificationService notificationService;
 
     public VideoActionController(
             VideoRepository videoRepository,
             VideoLikeRepository videoLikeRepository,
             VideoSaveRepository videoSaveRepository,
-            LoginUserResolver loginUserResolver
+            LoginUserResolver loginUserResolver,
+            NotificationService notificationService
     ) {
         this.videoRepository = videoRepository;
         this.videoLikeRepository = videoLikeRepository;
         this.videoSaveRepository = videoSaveRepository;
         this.loginUserResolver = loginUserResolver;
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/videos/{id}/like")
     public ResponseEntity<?> toggleLike(@PathVariable Long id, HttpSession session) {
-        Long loginUserId = getLoginUserId(session);
-        if (loginUserId == null) {
+        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+        if (sessionUser == null) {
             return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
         }
+        Long loginUserId = sessionUser.getId();
 
         Optional<Video> optionalVideo = videoRepository.findById(id);
         if (optionalVideo.isEmpty()) {
@@ -58,6 +63,12 @@ public class VideoActionController {
             videoLike.setUserId(loginUserId);
             videoLikeRepository.save(videoLike);
             liked = true;
+            Video video = optionalVideo.get();
+            String name = sessionUser.getChannelName() != null && !sessionUser.getChannelName().isBlank()
+                    ? sessionUser.getChannelName() : sessionUser.getNickname();
+            notificationService.send(video.getOwnerId(), loginUserId, "LIKE",
+                    name + "님이 좋아요를 눌렀어요: " + video.getTitle(),
+                    id, video.getThumbnail());
         }
 
         long likeCount = videoLikeRepository.countByVideoId(id);

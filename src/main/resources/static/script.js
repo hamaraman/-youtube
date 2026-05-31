@@ -1530,6 +1530,180 @@ function formatDuration(seconds) {
     return `${minutes}:${String(secs).padStart(2, "0")}`;
 }
 
+function initNotifications() {
+    const wrap = document.getElementById("notifWrap");
+    if (!wrap) return;
+
+    const btn = document.getElementById("notifBtn");
+    const badge = document.getElementById("notifBadge");
+    const dropdown = document.getElementById("notifDropdown");
+    const list = document.getElementById("notifList");
+    const readAllBtn = document.getElementById("notifReadAll");
+    const mainHeader = document.getElementById("notifMainHeader");
+    const commentView = document.getElementById("notifCommentView");
+    const commentList = document.getElementById("notifCommentList");
+    const backBtn = document.getElementById("notifBackBtn");
+    const goVideoLink = document.getElementById("notifGoVideo");
+
+    let open = false;
+
+    async function fetchNotifs() {
+        try {
+            const res = await fetch("/api/notifications");
+            if (!res.ok) return null;
+            return await res.json();
+        } catch {
+            return null;
+        }
+    }
+
+    function timeAgo(isoStr) {
+        const diff = Date.now() - new Date(isoStr).getTime();
+        const m = Math.floor(diff / 60000);
+        if (m < 1) return "방금 전";
+        if (m < 60) return `${m}분 전`;
+        const h = Math.floor(m / 60);
+        if (h < 24) return `${h}시간 전`;
+        return `${Math.floor(h / 24)}일 전`;
+    }
+
+    function typeIcon(type) {
+        if (type === "LIKE")         return `<div class="notif-type-icon">❤️</div>`;
+        if (type === "COMMENT")      return `<div class="notif-type-icon">💬</div>`;
+        if (type === "COMMENT_LIKE") return `<div class="notif-type-icon">💬</div>`;
+        if (type === "SUBSCRIBE")    return `<div class="notif-type-icon">🔔</div>`;
+        return `<div class="notif-type-icon">🎬</div>`;
+    }
+
+    function showMainView() {
+        list.style.display = "block";
+        if (mainHeader) mainHeader.style.display = "flex";
+        if (commentView) commentView.style.display = "none";
+    }
+
+    async function showCommentView(videoId) {
+        if (!commentView || !commentList) return;
+        list.style.display = "none";
+        if (mainHeader) mainHeader.style.display = "none";
+        commentView.style.display = "block";
+        if (goVideoLink) goVideoLink.href = `watch.html?v=${videoId}`;
+        commentList.innerHTML = `<div class="notif-comment-loading">불러오는 중...</div>`;
+
+        try {
+            const res = await fetch(`/api/videos/${videoId}/comments`);
+            if (!res.ok) throw new Error();
+            const comments = await res.json();
+            if (!comments.length) {
+                commentList.innerHTML = `<div class="notif-comment-empty">댓글이 없어요</div>`;
+                return;
+            }
+            commentList.innerHTML = comments.map((c) => `
+                <div class="notif-comment-item">
+                    <span class="notif-comment-author">${c.author}</span>
+                    <span class="notif-comment-text">${c.text}</span>
+                    <span class="notif-comment-time">${c.time}</span>
+                </div>
+            `).join("");
+        } catch {
+            commentList.innerHTML = `<div class="notif-comment-empty">불러오지 못했어요</div>`;
+        }
+    }
+
+    function renderList(notifications) {
+        showMainView();
+        if (!notifications || !notifications.length) {
+            list.innerHTML = '<div class="notif-empty">알림이 없어요</div>';
+            return;
+        }
+        list.innerHTML = notifications.map((n) => `
+            <div class="notif-item${n.read ? "" : " unread"}"
+                 data-id="${n.id}"
+                 data-type="${n.type || ""}"
+                 data-video="${n.relatedVideoId || ""}">
+                <div class="notif-thumb-wrap">
+                    ${n.thumbnail
+                        ? `<img class="notif-thumb" src="${n.thumbnail}" alt="">`
+                        : `<div class="notif-thumb"></div>`}
+                    ${typeIcon(n.type)}
+                </div>
+                <div class="notif-msg">
+                    ${n.message}
+                    <div class="notif-time">${timeAgo(n.createdAt)}</div>
+                </div>
+            </div>
+        `).join("");
+
+        list.querySelectorAll(".notif-item").forEach((item) => {
+            item.addEventListener("click", async () => {
+                const id = item.dataset.id;
+                const type = item.dataset.type;
+                const videoId = item.dataset.video;
+
+                await fetch(`/api/notifications/${id}/read`, { method: "POST" });
+                badge.style.display = "none";
+
+                if (type === "COMMENT" || type === "COMMENT_LIKE") {
+                    if (videoId) await showCommentView(videoId);
+                } else if (videoId) {
+                    window.location.href = `watch.html?v=${videoId}`;
+                } else {
+                    await refresh();
+                }
+            });
+        });
+    }
+
+    backBtn?.addEventListener("click", async () => {
+        showMainView();
+        const data = await fetchNotifs();
+        if (data) renderList(data.notifications);
+    });
+
+    async function refresh() {
+        const data = await fetchNotifs();
+        if (!data) return;
+
+        if (data.unreadCount > 0) {
+            badge.textContent = data.unreadCount > 99 ? "99+" : data.unreadCount;
+            badge.style.display = "flex";
+        } else {
+            badge.style.display = "none";
+        }
+
+        if (open && list.style.display !== "none") renderList(data.notifications);
+    }
+
+    btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        open = !open;
+        dropdown.style.display = open ? "block" : "none";
+        if (open) {
+            showMainView();
+            const data = await fetchNotifs();
+            if (data) renderList(data.notifications);
+        }
+    });
+
+    document.addEventListener("click", (e) => {
+        if (!wrap.contains(e.target)) {
+            open = false;
+            dropdown.style.display = "none";
+        }
+    });
+
+    readAllBtn?.addEventListener("click", async () => {
+        await fetch("/api/notifications/read-all", { method: "POST" });
+        const data = await fetchNotifs();
+        if (data) {
+            badge.style.display = "none";
+            renderList(data.notifications);
+        }
+    });
+
+    refresh();
+    setInterval(refresh, 30000);
+}
+
 function initGlobalTopSearch() {
     const searchForms = document.querySelectorAll(".search-form");
     if (!searchForms.length) return;
@@ -3455,6 +3629,7 @@ const page = document.body.dataset.page;
     consumePendingToast();
     initGlobalTopSearch();
     initMiniPlayer();
+    initNotifications();
 
     if (page === "upload") initUploadPage();
     if (page === "home") initHomePage();
@@ -5018,11 +5193,16 @@ function ensureHistoryPatchStyle() {
                         </svg>
                     </a>
 
-                    <button class="icon-btn common-layout-alert-btn" type="button" aria-label="알림">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6v-5a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2Z"></path>
-                        </svg>
-                    </button>
+                    <div class="notif-wrap" id="notifWrap">
+                        <button class="icon-btn notif-btn" id="notifBtn" aria-label="알림">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6v-5a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2Z"/></svg>
+                            <span class="notif-badge" id="notifBadge" style="display:none"></span>
+                        </button>
+                        <div class="notif-dropdown" id="notifDropdown" style="display:none">
+                            <div class="notif-header"><span>알림</span><button class="notif-read-all" id="notifReadAll">모두 읽음</button></div>
+                            <div class="notif-list" id="notifList"></div>
+                        </div>
+                    </div>
 
                     <a href="channel.html" class="profile" aria-label="내 채널">T</a>
                 </div>
@@ -5355,22 +5535,6 @@ function ensureHistoryPatchStyle() {
     }
 
     function bindTopbarButtons() {
-        const alertButtons = document.querySelectorAll(".common-layout-alert-btn");
-
-        alertButtons.forEach((button) => {
-            if (button.dataset.commonLayoutAlertBound === "true") return;
-
-            button.dataset.commonLayoutAlertBound = "true";
-
-            button.addEventListener("click", () => {
-                if (typeof showToast === "function") {
-                    showToast("알림 기능은 아직 준비 중입니다.");
-                } else {
-                    alert("알림 기능은 아직 준비 중입니다.");
-                }
-            });
-        });
-
         const micButtons = document.querySelectorAll(".mic-btn");
 
         micButtons.forEach((button) => {
