@@ -1583,7 +1583,7 @@ async function initSubscriptionSidebar() {
                     ? `<img src="${s.profileImage}" alt="${escapeHtml(name)}" class="sub-sidebar-avatar-img">`
                     : `<span class="sub-sidebar-avatar-text">${escapeHtml(initial)}</span>`;
                 return `
-                <a href="user.html?id=${s.channelOwnerId}" class="sidebar-link">
+                <a href="user.html?id=${s.channelOwnerId}" class="sidebar-link" title="${escapeHtml(name)}">
                     <span class="sidebar-icon sub-sidebar-avatar">${avatar}</span>
                     <span class="sidebar-label">${escapeHtml(name)}</span>
                 </a>`;
