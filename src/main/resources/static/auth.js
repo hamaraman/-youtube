@@ -69,6 +69,7 @@ function injectAuthStyles() {
             font-size: 14px;
             flex-shrink: 0;
             border: 1px solid rgba(255,255,255,0.08);
+            cursor: pointer;
         }
 
         .auth-topbar-user img {
@@ -77,6 +78,76 @@ function injectAuthStyles() {
             object-fit: cover;
             display: block;
         }
+
+        /* 모바일 유저 메뉴 */
+        .mobile-user-menu {
+            display: none;
+            position: fixed;
+            top: 56px;
+            left: 0;
+            right: 0;
+            background: #1a1a1a;
+            border-bottom: 1px solid #2a2a2a;
+            z-index: 5001;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+        }
+        .mobile-user-menu.is-open { display: block; }
+
+        .mum-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 5000;
+        }
+        .mum-backdrop.is-open { display: block; }
+
+        .mum-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            font-size: 15px;
+            color: #f1f1f1;
+            text-decoration: none;
+            border-bottom: 1px solid #272727;
+            background: none;
+            border-left: none;
+            border-right: none;
+            border-top: none;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            font: inherit;
+            transition: background 0.15s;
+        }
+        .mum-item:last-child { border-bottom: none; }
+        .mum-item:hover { background: rgba(255,255,255,0.06); }
+        .mum-logout { color: #ffb4b4; }
+
+        /* 모바일에서 데스크톱 전용 요소 숨김 */
+        @media (max-width: 640px) {
+            .auth-desktop-only { display: none !important; }
+            .theme-toggle-btn { display: none !important; }
+            .auth-topbar-btn:not(.mobile-login-btn) { display: none !important; }
+            .mobile-login-btn {
+                min-width: unset !important;
+                padding: 0 12px !important;
+                height: 34px !important;
+                font-size: 13px !important;
+            }
+        }
+
+        /* 라이트 모드 대응 */
+        html[data-theme="light"] .mobile-user-menu {
+            background: #ffffff;
+            border-bottom-color: #e5e5e5;
+        }
+        html[data-theme="light"] .mum-item {
+            color: #0f0f0f;
+            border-bottom-color: #f0f0f0;
+        }
+        html[data-theme="light"] .mum-item:hover { background: rgba(0,0,0,0.04); }
+        html[data-theme="light"] .mum-logout { color: #cc3333; }
     `;
     document.head.appendChild(style);
 }
@@ -89,8 +160,8 @@ function renderTopbarAuth(user) {
 
     if (!user) {
         container.innerHTML = `
-            <a href="login.html" class="auth-topbar-btn">로그인</a>
-            <a href="signup.html" class="auth-topbar-btn primary">회원가입</a>
+            <a href="login.html" class="auth-topbar-btn mobile-login-btn">로그인</a>
+            <a href="signup.html" class="auth-topbar-btn primary auth-desktop-only">회원가입</a>
         `;
         if (window.ThemeManager) {
             container.insertBefore(window.ThemeManager.createToggleBtn(), container.firstChild);
@@ -104,12 +175,16 @@ function renderTopbarAuth(user) {
         ? `<img src="${user.profileImage}" alt="${displayName}" />`
         : first;
 
-    const adminLink = user.username === 'admin'
-        ? `<a href="admin.html" class="auth-topbar-btn" style="border-color:#c00;color:#ff6b6b">관리자 패널</a>`
+    const isAdmin = user.username === 'admin' || user.role === 'ADMIN';
+    const adminLink = isAdmin
+        ? `<a href="admin.html" class="auth-topbar-btn auth-desktop-only" style="border-color:#c00;color:#ff6b6b">관리자 패널</a>`
+        : '';
+    const adminLinkMobile = isAdmin
+        ? `<a href="admin.html" class="mum-item" style="color:#ff6b6b">관리자 패널</a>`
         : '';
 
     container.innerHTML = `
-        <a href="upload.html" class="icon-btn" aria-label="업로드">
+        <a href="upload.html" class="icon-btn auth-desktop-only" aria-label="업로드">
             <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M11 6h2v5h5v2h-5v5h-2v-5H6v-2h5V6Z"></path>
             </svg>
@@ -132,26 +207,50 @@ function renderTopbarAuth(user) {
             </div>
         </div>
         ${adminLink}
-        <a href="channel.html" class="auth-topbar-btn">내 채널</a>
-        <a href="profile.html" class="auth-topbar-btn">프로필</a>
-        <button type="button" class="auth-topbar-btn logout" id="logoutBtn">로그아웃</button>
-        <a href="profile.html" class="auth-topbar-user" title="${displayName}">${profileVisual}</a>
+        <a href="channel.html" class="auth-topbar-btn auth-desktop-only">내 채널</a>
+        <a href="profile.html" class="auth-topbar-btn auth-desktop-only">프로필</a>
+        <button type="button" class="auth-topbar-btn logout auth-desktop-only" id="logoutBtn">로그아웃</button>
+        <a href="profile.html" class="auth-topbar-user auth-desktop-only" title="${displayName}">${profileVisual}</a>
+        <button type="button" class="auth-topbar-user" id="mobileMenuBtn" title="${displayName}" aria-label="사용자 메뉴">${profileVisual}</button>
+        <div class="mum-backdrop" id="mumBackdrop"></div>
+        <div class="mobile-user-menu" id="mobileUserMenu">
+            <a href="upload.html" class="mum-item">업로드</a>
+            <a href="channel.html" class="mum-item">내 채널</a>
+            <a href="profile.html" class="mum-item">프로필</a>
+            ${adminLinkMobile}
+            <button type="button" class="mum-item mum-logout" id="mobileLogoutBtn">로그아웃</button>
+        </div>
     `;
 
     if (window.ThemeManager) {
         container.insertBefore(window.ThemeManager.createToggleBtn(), container.firstChild);
     }
 
-    const logoutBtn = document.getElementById("logoutBtn");
-    logoutBtn?.addEventListener("click", async () => {
-        const response = await fetch("/api/logout", {
-            method: "POST"
-        });
+    async function doLogout() {
+        const response = await fetch("/api/logout", { method: "POST" });
+        if (response.ok) window.location.href = "index.html";
+    }
 
-        if (response.ok) {
-            window.location.href = "index.html";
-        }
+    document.getElementById("logoutBtn")?.addEventListener("click", doLogout);
+    document.getElementById("mobileLogoutBtn")?.addEventListener("click", doLogout);
+
+    const mobileMenuBtn = document.getElementById("mobileMenuBtn");
+    const mobileUserMenu = document.getElementById("mobileUserMenu");
+    const mumBackdrop = document.getElementById("mumBackdrop");
+
+    function openMobileMenu() {
+        mobileUserMenu?.classList.add("is-open");
+        mumBackdrop?.classList.add("is-open");
+    }
+    function closeMobileMenu() {
+        mobileUserMenu?.classList.remove("is-open");
+        mumBackdrop?.classList.remove("is-open");
+    }
+
+    mobileMenuBtn?.addEventListener("click", () => {
+        mobileUserMenu?.classList.contains("is-open") ? closeMobileMenu() : openMobileMenu();
     });
+    mumBackdrop?.addEventListener("click", closeMobileMenu);
 }
 
 function validateLoginForm() {
