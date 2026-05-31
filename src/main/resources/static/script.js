@@ -1583,7 +1583,7 @@ async function initSubscriptionSidebar() {
                     ? `<img src="${s.profileImage}" alt="${escapeHtml(name)}" class="sub-sidebar-avatar-img">`
                     : `<span class="sub-sidebar-avatar-text">${escapeHtml(initial)}</span>`;
                 return `
-                <a href="subscriptions.html?channel=${encodeURIComponent(name)}" class="sidebar-link">
+                <a href="user.html?id=${s.channelOwnerId}" class="sidebar-link">
                     <span class="sidebar-icon sub-sidebar-avatar">${avatar}</span>
                     <span class="sidebar-label">${escapeHtml(name)}</span>
                 </a>`;
@@ -1591,6 +1591,99 @@ async function initSubscriptionSidebar() {
         `;
         sidebar.appendChild(section);
     } catch {}
+}
+
+async function initUserPage() {
+    const params = new URLSearchParams(window.location.search);
+    const userId = params.get("id");
+    if (!userId) { window.location.href = "index.html"; return; }
+
+    const bannerWrap   = document.getElementById("userBannerWrap");
+    const avatarEl     = document.getElementById("userAvatar");
+    const nameEl       = document.getElementById("userChannelName");
+    const metaEl       = document.getElementById("userMeta");
+    const bioEl        = document.getElementById("userBio");
+    const subBtn       = document.getElementById("userSubscribeBtn");
+    const grid         = document.getElementById("userVideoGrid");
+    const loader       = document.getElementById("userScrollLoader");
+    const sentinel     = document.getElementById("userScrollSentinel");
+    const emptyEl      = document.getElementById("userVideoEmpty");
+
+    // 프로필 로드
+    try {
+        const res = await fetch(`/api/users/${userId}/channel`);
+        if (!res.ok) { window.location.href = "index.html"; return; }
+        const ch = await res.json();
+
+        document.title = `${ch.channelName} - MyTube`;
+
+        // 배너
+        if (ch.bannerImage) {
+            bannerWrap.innerHTML = `<img class="user-banner" src="${escapeHtml(ch.bannerImage)}" alt="배너">`;
+        } else {
+            bannerWrap.innerHTML = `<div class="user-banner-placeholder"></div>`;
+        }
+
+        // 아바타
+        if (ch.profileImage) {
+            avatarEl.innerHTML = `<img src="${escapeHtml(ch.profileImage)}" alt="${escapeHtml(ch.channelName)}">`;
+        } else {
+            avatarEl.textContent = String(ch.channelName || "?").charAt(0).toUpperCase();
+        }
+
+        nameEl.textContent = ch.channelName || "채널";
+        metaEl.textContent = `구독자 ${formatCount(ch.subscriberCount)}명 · 영상 ${ch.videoCount}개`;
+        if (ch.bio) { bioEl.textContent = ch.bio; bioEl.style.display = "block"; }
+
+        // 구독 버튼 (본인 채널이면 숨김)
+        if (!ch.isMe) {
+            subBtn.style.display = "block";
+            subBtn.textContent = ch.subscribed ? "구독 중" : "구독";
+            subBtn.classList.toggle("subscribed", ch.subscribed);
+            let subscribed = ch.subscribed;
+
+            subBtn.addEventListener("click", async () => {
+                const r = await fetch(`/api/users/${userId}/subscribe`, { method: "POST" });
+                if (!r.ok) return;
+                const data = await r.json();
+                subscribed = data.subscribed;
+                subBtn.textContent = subscribed ? "구독 중" : "구독";
+                subBtn.classList.toggle("subscribed", subscribed);
+                metaEl.textContent = `구독자 ${formatCount(data.subscriberCount)}명 · 영상 ${ch.videoCount}개`;
+            });
+        }
+    } catch { window.location.href = "index.html"; return; }
+
+    // 영상 무한 스크롤
+    let currentPage = 0, isLoading = false, hasMore = true;
+
+    async function loadPage() {
+        if (isLoading || !hasMore) return;
+        isLoading = true;
+        if (loader) loader.style.display = "flex";
+        try {
+            const res = await fetch(`/api/videos/feed?ownerId=${userId}&page=${currentPage}&size=12`);
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            if (currentPage === 0 && !data.videos.length) {
+                if (emptyEl) emptyEl.style.display = "block";
+            }
+            if (data.videos.length) {
+                grid.insertAdjacentHTML("beforeend", data.videos.map(createVideoCard).join(""));
+            }
+            hasMore = data.hasMore;
+            currentPage++;
+        } catch { hasMore = false; }
+        finally { isLoading = false; if (loader) loader.style.display = "none"; }
+    }
+
+    if (sentinel) {
+        new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) loadPage();
+        }, { rootMargin: "300px" }).observe(sentinel);
+    }
+
+    await loadPage();
 }
 
 async function initSubscriptionPage() {
@@ -2517,7 +2610,7 @@ async function initHomePage() {
                 const vidCount = ch.videoCount || 0;
                 return `
                 <div class="ch-card" data-channel-id="${ch.id}">
-                    <a href="index.html?q=${encodeURIComponent(name)}" class="ch-card-link">
+                    <a href="user.html?id=${ch.id}" class="ch-card-link">
                         <div class="ch-card-avatar">${avatar}</div>
                         <div class="ch-card-info">
                             <span class="ch-card-name">${escapeHtml(name)}</span>
@@ -3874,6 +3967,7 @@ const page = document.body.dataset.page;
     if (page === "history") initHistoryPage();
     if (page === "studio") initStudioPage();
     if (page === "subscriptions") initSubscriptionPage();
+    if (page === "user") initUserPage();
 })();
 
 /* =========================================================

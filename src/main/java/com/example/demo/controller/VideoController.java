@@ -4,10 +4,12 @@ import com.example.demo.config.AdminChecker;
 import com.example.demo.config.LoginUserResolver;
 import com.example.demo.config.S3StorageService;
 import com.example.demo.entity.Subscription;
+import com.example.demo.entity.User;
 import com.example.demo.entity.Video;
 import com.example.demo.entity.VideoLike;
 import com.example.demo.entity.VideoSave;
 import com.example.demo.repository.SubscriptionRepository;
+import com.example.demo.repository.UserRepository;
 import com.example.demo.repository.VideoLikeRepository;
 import com.example.demo.repository.VideoRepository;
 import com.example.demo.repository.VideoSaveRepository;
@@ -29,6 +31,7 @@ public class VideoController {
     private final VideoLikeRepository videoLikeRepository;
     private final VideoSaveRepository videoSaveRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final UserRepository userRepository;
     private final LoginUserResolver loginUserResolver;
     private final AdminChecker adminChecker;
     private final S3StorageService storageService;
@@ -38,6 +41,7 @@ public class VideoController {
             VideoLikeRepository videoLikeRepository,
             VideoSaveRepository videoSaveRepository,
             SubscriptionRepository subscriptionRepository,
+            UserRepository userRepository,
             LoginUserResolver loginUserResolver,
             AdminChecker adminChecker,
             S3StorageService storageService
@@ -46,6 +50,7 @@ public class VideoController {
         this.videoLikeRepository = videoLikeRepository;
         this.videoSaveRepository = videoSaveRepository;
         this.subscriptionRepository = subscriptionRepository;
+        this.userRepository = userRepository;
         this.loginUserResolver = loginUserResolver;
         this.adminChecker = adminChecker;
         this.storageService = storageService;
@@ -78,6 +83,25 @@ public class VideoController {
                         loginUserId != null && videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
                 ))
                 .collect(Collectors.toList());
+    }
+
+    @GetMapping("/users/{id}/channel")
+    public ResponseEntity<?> getChannelProfile(@PathVariable Long id, HttpSession session) {
+        return userRepository.findById(id).map(user -> {
+            Long loginUserId = getLoginUserId(session);
+            Map<String, Object> result = new HashMap<>();
+            result.put("id", user.getId());
+            result.put("channelName", user.getChannelName() != null ? user.getChannelName() : user.getNickname());
+            result.put("profileImage", user.getProfileImage());
+            result.put("bannerImage", user.getBannerImage());
+            result.put("bio", user.getBio());
+            result.put("subscriberCount", subscriptionRepository.countByChannelOwnerId(id));
+            result.put("videoCount", videoRepository.countPublicByOwnerId(id));
+            result.put("subscribed", loginUserId != null &&
+                    subscriptionRepository.existsBySubscriberIdAndChannelOwnerId(loginUserId, id));
+            result.put("isMe", loginUserId != null && loginUserId.equals(id));
+            return ResponseEntity.ok(result);
+        }).orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/videos/subscriptions")
@@ -128,6 +152,7 @@ public class VideoController {
             @RequestParam(defaultValue = "12") int size,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) Long ownerId,
             HttpSession session) {
         Long loginUserId = getLoginUserId(session);
         PageRequest pageable = PageRequest.of(page, size);
@@ -136,7 +161,9 @@ public class VideoController {
         boolean hasKeyword = keyword != null && !keyword.isBlank();
         boolean hasCategory = category != null && !category.isBlank();
 
-        if (hasKeyword && hasCategory) {
+        if (ownerId != null) {
+            videoPage = videoRepository.findPublicByOwnerIdPageable(ownerId, pageable);
+        } else if (hasKeyword && hasCategory) {
             videoPage = videoRepository.searchPublicByKeywordAndCategoryPageable(keyword, category, pageable);
         } else if (hasKeyword) {
             videoPage = videoRepository.searchPublicByKeywordPageable(keyword, pageable);
