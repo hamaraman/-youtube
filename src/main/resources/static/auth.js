@@ -92,6 +92,9 @@ function renderTopbarAuth(user) {
             <a href="login.html" class="auth-topbar-btn">로그인</a>
             <a href="signup.html" class="auth-topbar-btn primary">회원가입</a>
         `;
+        if (window.ThemeManager) {
+            container.insertBefore(window.ThemeManager.createToggleBtn(), container.firstChild);
+        }
         return;
     }
 
@@ -134,6 +137,10 @@ function renderTopbarAuth(user) {
         <button type="button" class="auth-topbar-btn logout" id="logoutBtn">로그아웃</button>
         <a href="profile.html" class="auth-topbar-user" title="${displayName}">${profileVisual}</a>
     `;
+
+    if (window.ThemeManager) {
+        container.insertBefore(window.ThemeManager.createToggleBtn(), container.firstChild);
+    }
 
     const logoutBtn = document.getElementById("logoutBtn");
     logoutBtn?.addEventListener("click", async () => {
