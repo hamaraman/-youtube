@@ -2512,8 +2512,16 @@ body:not(.upload-clean-layout) .menu-btn {
     display: none;
 }
 
-/* 축소 모드: 구독 채널 섹션 타이틀 숨기고, 링크는 아바타만 표시 */
-.sidebar.is-collapsed #subscriptionSidebarSection .sidebar-label {
+/* 구독 채널 이름 라벨 (확장프로그램 간섭 방지용 별도 클래스) */
+.sub-channel-label {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.sidebar.is-collapsed .sub-channel-label {
     display: none;
 }
 

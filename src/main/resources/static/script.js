@@ -1585,7 +1585,7 @@ async function initSubscriptionSidebar() {
                 return `
                 <a href="user.html?id=${s.channelOwnerId}" class="sidebar-link" title="${escapeHtml(name)}">
                     <span class="sidebar-icon sub-sidebar-avatar">${avatar}</span>
-                    <span class="sidebar-label">${escapeHtml(name)}</span>
+                    <span class="sub-channel-label">${escapeHtml(name)}</span>
                 </a>`;
             }).join("")}
         `;
