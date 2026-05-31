@@ -6,6 +6,7 @@ import com.example.demo.entity.Subscription;
 import com.example.demo.entity.User;
 import com.example.demo.repository.SubscriptionRepository;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.repository.VideoRepository;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,15 +22,18 @@ public class SubscriptionController {
 
     private final SubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
+    private final VideoRepository videoRepository;
     private final LoginUserResolver loginUserResolver;
     private final NotificationService notificationService;
 
     public SubscriptionController(SubscriptionRepository subscriptionRepository,
                                   UserRepository userRepository,
+                                  VideoRepository videoRepository,
                                   LoginUserResolver loginUserResolver,
                                   NotificationService notificationService) {
         this.subscriptionRepository = subscriptionRepository;
         this.userRepository = userRepository;
+        this.videoRepository = videoRepository;
         this.loginUserResolver = loginUserResolver;
         this.notificationService = notificationService;
     }
@@ -64,6 +68,30 @@ public class SubscriptionController {
 
         long count = subscriptionRepository.countByChannelOwnerId(id);
         return ResponseEntity.ok(new SubscribeResponse(true, subscribed, count));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<?> searchChannels(@RequestParam String keyword, HttpSession session) {
+        if (keyword == null || keyword.isBlank()) return ResponseEntity.ok(List.of());
+        Long loginUserId = loginUserResolver.getUserId(session);
+
+        List<Map<String, Object>> result = userRepository.searchByKeyword(keyword.trim())
+                .stream()
+                .map(user -> {
+                    Map<String, Object> m = new java.util.HashMap<>();
+                    m.put("id", user.getId());
+                    m.put("channelName", user.getChannelName() != null ? user.getChannelName() : user.getNickname());
+                    m.put("username", user.getUsername());
+                    m.put("profileImage", user.getProfileImage());
+                    m.put("subscriberCount", subscriptionRepository.countByChannelOwnerId(user.getId()));
+                    m.put("videoCount", videoRepository.countPublicByOwnerId(user.getId()));
+                    m.put("subscribed", loginUserId != null &&
+                            subscriptionRepository.existsBySubscriberIdAndChannelOwnerId(loginUserId, user.getId()));
+                    return m;
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/me/subscriptions")

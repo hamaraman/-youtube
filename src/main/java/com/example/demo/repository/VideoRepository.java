@@ -59,6 +59,9 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     @Query("SELECT v FROM Video v WHERE v.ownerId IN :ownerIds AND (v.visibility IS NULL OR v.visibility != '비공개') ORDER BY v.id DESC")
     Page<Video> findByOwnerIdsPageable(@Param("ownerIds") java.util.List<Long> ownerIds, Pageable pageable);
 
+    @Query("SELECT COUNT(v) FROM Video v WHERE v.ownerId = :ownerId AND (v.visibility IS NULL OR v.visibility != '비공개')")
+    long countPublicByOwnerId(@Param("ownerId") Long ownerId);
+
     List<Video> findByOwnerIdIsNull();
 
     List<Video> findByChannel(String channel);

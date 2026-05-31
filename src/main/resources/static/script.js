@@ -2394,6 +2394,8 @@ async function initHomePage() {
     const homeEmptyState = document.getElementById("homeEmptyState");
     const scrollLoader = document.getElementById("scrollLoader");
     const scrollSentinel = document.getElementById("scrollSentinel");
+    const channelResults = document.getElementById("channelResults");
+    const channelResultsList = document.getElementById("channelResultsList");
 
     if (!videoGrid) return;
 
@@ -2489,12 +2491,67 @@ async function initHomePage() {
         }
     }
 
+    async function loadChannels(keyword) {
+        if (!channelResults || !channelResultsList) return;
+        if (!keyword.trim()) {
+            channelResults.style.display = "none";
+            channelResultsList.innerHTML = "";
+            return;
+        }
+        try {
+            const res = await fetch(`/api/users/search?keyword=${encodeURIComponent(keyword.trim())}`);
+            if (!res.ok) return;
+            const channels = await res.json();
+            if (!channels.length) {
+                channelResults.style.display = "none";
+                return;
+            }
+            channelResults.style.display = "block";
+            channelResultsList.innerHTML = channels.map(ch => {
+                const name = ch.channelName || ch.username;
+                const initial = String(name).charAt(0).toUpperCase();
+                const avatar = ch.profileImage
+                    ? `<img src="${escapeHtml(ch.profileImage)}" alt="${escapeHtml(name)}" class="ch-card-avatar-img">`
+                    : `<span class="ch-card-avatar-text">${escapeHtml(initial)}</span>`;
+                const subCount = formatCount(ch.subscriberCount || 0);
+                const vidCount = ch.videoCount || 0;
+                return `
+                <div class="ch-card" data-channel-id="${ch.id}">
+                    <a href="index.html?q=${encodeURIComponent(name)}" class="ch-card-link">
+                        <div class="ch-card-avatar">${avatar}</div>
+                        <div class="ch-card-info">
+                            <span class="ch-card-name">${escapeHtml(name)}</span>
+                            <span class="ch-card-meta">구독자 ${subCount}명 · 영상 ${vidCount}개</span>
+                        </div>
+                    </a>
+                    <button class="ch-card-sub-btn${ch.subscribed ? " is-subscribed" : ""}"
+                            data-ch-id="${ch.id}" data-subscribed="${ch.subscribed}">
+                        ${ch.subscribed ? "구독 중" : "구독"}
+                    </button>
+                </div>`;
+            }).join("");
+
+            channelResultsList.querySelectorAll(".ch-card-sub-btn").forEach(btn => {
+                btn.addEventListener("click", async () => {
+                    const chId = btn.dataset.chId;
+                    const res = await fetch(`/api/users/${chId}/subscribe`, { method: "POST" });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    btn.dataset.subscribed = data.subscribed ? "true" : "false";
+                    btn.classList.toggle("is-subscribed", data.subscribed);
+                    btn.textContent = data.subscribed ? "구독 중" : "구독";
+                });
+            });
+        } catch {}
+    }
+
     function resetAndLoad() {
         currentPage = 0;
         hasMore = true;
         isLoading = false;
         videoGrid.innerHTML = "";
         if (homeEmptyState) homeEmptyState.hidden = true;
+        loadChannels(currentKeyword);
         loadPage();
     }
 
@@ -2519,7 +2576,7 @@ async function initHomePage() {
     });
 
     await loadCategories();
-    await loadPage();
+    await Promise.all([loadChannels(currentKeyword), loadPage()]);
 }
 
 async function initSavedPage() {
