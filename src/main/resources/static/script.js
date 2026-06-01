@@ -1563,34 +1563,6 @@ async function initSubscriptionSidebar() {
         }
     }
 
-    // 구독한 채널 목록 주입
-    try {
-        const res = await fetch("/api/users/me/subscriptions");
-        if (!res.ok) return;
-        const subs = await res.json();
-        if (!subs.length) return;
-
-        if (sidebar.querySelector("#subscriptionSidebarSection")) return;
-        const section = document.createElement("nav");
-        section.className = "sidebar-section";
-        section.id = "subscriptionSidebarSection";
-        section.innerHTML = `
-            <div class="sidebar-sub-title">구독한 채널</div>
-            ${subs.map(s => {
-                const name = s.channelName || "채널";
-                const initial = name.charAt(0).toUpperCase();
-                const avatar = s.profileImage
-                    ? `<img src="${s.profileImage}" alt="${escapeHtml(name)}" class="sub-sidebar-avatar-img">`
-                    : `<span class="sub-sidebar-avatar-text">${escapeHtml(initial)}</span>`;
-                return `
-                <a href="user.html?id=${s.channelOwnerId}" class="sidebar-link" title="${escapeHtml(name)}">
-                    <span class="sidebar-icon sub-sidebar-avatar">${avatar}</span>
-                    <span class="sub-channel-label">${escapeHtml(name)}</span>
-                </a>`;
-            }).join("")}
-        `;
-        sidebar.appendChild(section);
-    } catch {}
 }
 
 async function initUserPage() {
@@ -1693,6 +1665,7 @@ async function initSubscriptionPage() {
     const emptyEl = document.getElementById("subFeedEmpty");
     const searchForm = document.getElementById("subFeedSearchForm");
     const searchInput = document.getElementById("subFeedSearchInput");
+    const channelStrip = document.getElementById("subChannelStrip");
 
     if (!grid) return;
 
@@ -1700,6 +1673,28 @@ async function initSubscriptionPage() {
     if (!authMe?.loggedIn) {
         window.location.href = "login.html?next=subscriptions.html";
         return;
+    }
+
+    // 구독 채널 아바타 스트립
+    if (channelStrip) {
+        try {
+            const res = await fetch("/api/users/me/subscriptions");
+            if (res.ok) {
+                const subs = await res.json();
+                channelStrip.innerHTML = subs.map(s => {
+                    const name = s.channelName || "채널";
+                    const initial = name.charAt(0).toUpperCase();
+                    const avatarInner = s.profileImage
+                        ? `<img src="${escapeHtml(s.profileImage)}" alt="${escapeHtml(name)}">`
+                        : escapeHtml(initial);
+                    return `
+                        <a href="user.html?id=${s.channelOwnerId}" class="sub-channel-item" title="${escapeHtml(name)}">
+                            <div class="sub-channel-avatar">${avatarInner}</div>
+                            <span class="sub-channel-name">${escapeHtml(name)}</span>
+                        </a>`;
+                }).join("");
+            }
+        } catch {}
     }
 
     const url = new URL(window.location.href);
