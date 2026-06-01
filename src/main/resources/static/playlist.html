@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>재생목록 - MyTube</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet"/>
+    <script src="theme.js"></script>
+    <link rel="stylesheet" href="style.css?v=2"/>
+    <style>
+        .playlist-shell { display: flex; min-height: calc(100vh - 56px); }
+        .sidebar { width: 240px; background: #0f0f0f; border-right: 1px solid #222; padding: 12px 10px; position: sticky; top: 56px; height: calc(100vh - 56px); overflow-y: auto; flex-shrink: 0; transition: width 0.22s, transform 0.22s; }
+        .sidebar.is-collapsed { width: 72px; padding-left: 8px; padding-right: 8px; }
+        .sidebar-section { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-bottom: 1px solid #222; }
+        .sidebar-section:last-child { border-bottom: none; }
+        .sidebar-link { display: flex; align-items: center; gap: 16px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #f1f1f1; text-decoration: none; transition: background 0.18s; }
+        .sidebar-link:hover { background: #222; }
+        .sidebar-link.is-active { background: #272727; font-weight: 700; }
+        .sidebar-icon { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+        .sidebar-icon svg { width: 22px; height: 22px; fill: currentColor; }
+        .sidebar-label { font-size: 14px; white-space: nowrap; }
+        .sidebar.is-collapsed .sidebar-link { justify-content: center; padding: 0; min-height: 64px; flex-direction: column; gap: 6px; border-radius: 12px; }
+        .sidebar.is-collapsed .sidebar-label { font-size: 11px; line-height: 1.2; text-align: center; }
+        .menu-btn { width: 40px; height: 40px; border: none; border-radius: 999px; background: transparent; color: #fff; display: inline-flex; align-items: center; justify-content: center; margin-right: 8px; flex-shrink: 0; cursor: pointer; }
+        .menu-btn:hover { background: #222; }
+        .menu-btn svg { width: 24px; height: 24px; fill: currentColor; }
+        .mobile-sidebar-backdrop { display: none; }
+        @media (max-width: 900px) {
+            .sidebar { position: fixed; top: 56px; left: 0; width: 240px; height: calc(100vh - 56px); z-index: 120; transform: translateX(-100%); }
+            .sidebar.is-open { transform: translateX(0); }
+            .sidebar.is-collapsed { width: 240px; padding-left: 10px; padding-right: 10px; }
+            .sidebar.is-collapsed .sidebar-link { justify-content: flex-start; padding: 0 12px; min-height: 40px; flex-direction: row; gap: 16px; }
+            .sidebar.is-collapsed .sidebar-label { font-size: 14px; }
+            .mobile-sidebar-backdrop { display: block; position: fixed; inset: 56px 0 0 0; background: rgba(0,0,0,.45); z-index: 119; display: none; }
+            .mobile-sidebar-backdrop.is-visible { display: block; }
+        }
+
+        .playlist-content { flex: 1; padding: 24px 32px; max-width: 960px; }
+        .playlist-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+        .playlist-header h2 { font-size: 22px; font-weight: 700; }
+        .create-playlist-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 999px; background: #ff0000; color: #fff; border: none; cursor: pointer; font-size: 14px; font-weight: 600; }
+        .create-playlist-btn:hover { background: #cc0000; }
+
+        .pl-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; }
+        .pl-card { background: #1a1a1a; border-radius: 12px; overflow: hidden; cursor: pointer; transition: transform 0.18s; }
+        .pl-card:hover { transform: translateY(-2px); }
+        .pl-thumb { position: relative; aspect-ratio: 16/9; background: #222; overflow: hidden; }
+        .pl-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .pl-thumb-empty { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 36px; color: #555; }
+        .pl-count { position: absolute; bottom: 6px; right: 8px; background: rgba(0,0,0,0.7); color: #fff; font-size: 12px; padding: 2px 8px; border-radius: 4px; }
+        .pl-info { padding: 12px; }
+        .pl-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+        .pl-meta { font-size: 12px; color: #aaa; }
+        .pl-delete-btn { margin-top: 8px; background: none; border: none; color: #ff6b6b; cursor: pointer; font-size: 12px; padding: 0; }
+
+        /* 상세 보기 */
+        .pl-detail { display: none; }
+        .pl-detail.is-open { display: block; }
+        .pl-detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+        .pl-back-btn { background: none; border: none; color: #f1f1f1; cursor: pointer; font-size: 14px; padding: 6px 12px; border-radius: 6px; }
+        .pl-back-btn:hover { background: #222; }
+        .pl-detail-title { font-size: 20px; font-weight: 700; }
+
+        .pl-video-list { display: flex; flex-direction: column; gap: 12px; }
+        .pl-video-item { display: flex; gap: 14px; align-items: flex-start; background: #1a1a1a; border-radius: 10px; padding: 10px; }
+        .pl-video-thumb { width: 160px; flex-shrink: 0; aspect-ratio: 16/9; border-radius: 8px; overflow: hidden; background: #222; }
+        .pl-video-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .pl-video-info { flex: 1; }
+        .pl-video-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .pl-video-meta { font-size: 12px; color: #aaa; }
+        .pl-video-remove { margin-left: auto; background: none; border: none; color: #aaa; cursor: pointer; font-size: 12px; flex-shrink: 0; }
+        .pl-video-remove:hover { color: #ff6b6b; }
+        .pl-video-link { text-decoration: none; color: inherit; }
+
+        .pl-empty { text-align: center; padding: 60px 20px; color: #888; }
+        .pl-empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+        /* 모달 */
+        .pl-modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; }
+        .pl-modal-backdrop.is-open { display: flex; }
+        .pl-modal { background: #1a1a1a; border-radius: 12px; padding: 24px; width: 340px; }
+        .pl-modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+        .pl-modal input { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #333; background: #111; color: #f1f1f1; font-size: 14px; box-sizing: border-box; margin-bottom: 16px; }
+        .pl-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+        .pl-modal-cancel { background: #333; color: #fff; border: none; padding: 8px 18px; border-radius: 8px; cursor: pointer; }
+        .pl-modal-confirm { background: #ff0000; color: #fff; border: none; padding: 8px 18px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+
+        html[data-theme="light"] .pl-card { background: #f5f5f5; }
+        html[data-theme="light"] .pl-video-item { background: #f5f5f5; }
+        html[data-theme="light"] .pl-modal { background: #fff; }
+        html[data-theme="light"] .pl-modal input { background: #f5f5f5; border-color: #ddd; color: #0f0f0f; }
+    </style>
+</head>
+<body data-page="playlist">
+<header class="topbar">
+    <div class="topbar-left">
+        <button type="button" class="menu-btn" id="menuToggle" aria-label="메뉴 열기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3V6Zm0 5h18v2H3v-2Zm0 5h18v2H3v-2Z"></path></svg>
+        </button>
+        <a href="index.html" class="logo-wrap" aria-label="MyTube 홈">
+            <span class="logo-badge">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
+                    <rect x="4" y="7" width="16" height="10" rx="2" stroke="white" stroke-width="1.4"/>
+                    <rect x="2" y="9.5" width="2" height="2" rx="0.5" fill="white"/>
+                    <rect x="2" y="12.5" width="2" height="2" rx="0.5" fill="white"/>
+                    <rect x="20" y="9.5" width="2" height="2" rx="0.5" fill="white"/>
+                    <rect x="20" y="12.5" width="2" height="2" rx="0.5" fill="white"/>
+                    <path d="M10.5 10l4 2-4 2v-4z" fill="white"/>
+                </svg>
+            </span>
+            <span class="logo-text">MY</span>
+        </a>
+    </div>
+    <div class="topbar-center"></div>
+    <div class="topbar-right">
+        <div class="notif-wrap" id="notifWrap">
+            <button class="icon-btn notif-btn" id="notifBtn" aria-label="알림">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6v-5a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2Z"/></svg>
+                <span class="notif-badge" id="notifBadge" style="display:none"></span>
+            </button>
+            <div class="notif-dropdown" id="notifDropdown" style="display:none">
+                <div class="notif-header" id="notifMainHeader"><span>알림</span><button class="notif-read-all" id="notifReadAll">모두 읽음</button></div>
+                <div class="notif-list" id="notifList"></div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<div class="mobile-sidebar-backdrop" id="sidebarBackdrop"></div>
+
+<div class="playlist-shell">
+    <aside class="sidebar is-collapsed" id="sidebar">
+        <nav class="sidebar-section">
+            <a href="index.html" class="sidebar-link">
+                <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20h-5v-5h-6v5H4v-9.5Z"></path></svg></span>
+                <span class="sidebar-label">홈</span>
+            </a>
+        </nav>
+        <nav class="sidebar-section">
+            <a href="saved.html" class="sidebar-link">
+                <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H7a2 2 0 0 0-2 2v16l7-4 7 4V5a2 2 0 0 0-2-2Z"></path></svg></span>
+                <span class="sidebar-label">저장한 영상</span>
+            </a>
+            <a href="liked.html" class="sidebar-link">
+                <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 21-1.45-1.32C5.4 15.05 2 11.97 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3C19.58 3 22 5.42 22 8.5c0 3.47-3.4 6.55-8.55 11.18L12 21Z"></path></svg></span>
+                <span class="sidebar-label">좋아요한 영상</span>
+            </a>
+            <a href="playlist.html" class="sidebar-link is-active">
+                <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h12v2H3V5zm0 4h12v2H3V9zm0 4h8v2H3v-2zm13 3v-6l5 3-5 3z"/></svg></span>
+                <span class="sidebar-label">재생목록</span>
+            </a>
+            <a href="history.html" class="sidebar-link">
+                <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3a9 9 0 1 0 8.95 10H20a7 7 0 1 1-2.05-4.95L15 11h7V4l-2.62 2.62A8.96 8.96 0 0 0 13 3Zm-1 5h2v5l4 2-.9 1.8-5.1-2.55V8Z"></path></svg></span>
+                <span class="sidebar-label">시청 기록</span>
+            </a>
+        </nav>
+        <nav class="sidebar-section">
+            <a href="channel.html" class="sidebar-link">
+                <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z"></path></svg></span>
+                <span class="sidebar-label">내 채널</span>
+            </a>
+            <a href="studio.html" class="sidebar-link">
+                <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg></span>
+                <span class="sidebar-label">내 스튜디오</span>
+            </a>
+            <a href="upload.html" class="sidebar-link">
+                <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6h2v5h5v2h-5v5h-2v-5H6v-2h5V6Z"></path></svg></span>
+                <span class="sidebar-label">업로드</span>
+            </a>
+        </nav>
+    </aside>
+
+    <div class="playlist-content">
+        <!-- 목록 뷰 -->
+        <div id="plListView">
+            <div class="playlist-header">
+                <h2>재생목록</h2>
+                <button type="button" class="create-playlist-btn" id="createPlBtn">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M11 6h2v5h5v2h-5v5h-2v-5H6v-2h5V6Z"/></svg>
+                    새 재생목록
+                </button>
+            </div>
+            <div class="pl-list" id="plList"></div>
+            <div class="pl-empty" id="plEmpty" style="display:none">
+                <div class="pl-empty-icon">🎵</div>
+                <p>재생목록이 없어요.<br>영상을 재생목록에 추가해보세요.</p>
+            </div>
+        </div>
+
+        <!-- 상세 뷰 -->
+        <div id="plDetailView" class="pl-detail">
+            <div class="pl-detail-header">
+                <button type="button" class="pl-back-btn" id="plBackBtn">← 목록으로</button>
+                <span class="pl-detail-title" id="plDetailTitle"></span>
+            </div>
+            <div class="pl-video-list" id="plVideoList"></div>
+            <div class="pl-empty" id="plDetailEmpty" style="display:none">
+                <div class="pl-empty-icon">📭</div>
+                <p>아직 영상이 없어요.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 생성 모달 -->
+<div class="pl-modal-backdrop" id="plModal">
+    <div class="pl-modal">
+        <h3>새 재생목록</h3>
+        <input type="text" id="plNameInput" placeholder="재생목록 이름" maxlength="50"/>
+        <div class="pl-modal-actions">
+            <button type="button" class="pl-modal-cancel" id="plModalCancel">취소</button>
+            <button type="button" class="pl-modal-confirm" id="plModalConfirm">만들기</button>
+        </div>
+    </div>
+</div>
+
+<script src="auth.js?v=11"></script>
+<script src="script.js?v=8"></script>
+</body>
+</html>

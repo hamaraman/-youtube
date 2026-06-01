@@ -8,6 +8,7 @@ import com.example.demo.entity.User;
 import com.example.demo.entity.Video;
 import com.example.demo.entity.VideoLike;
 import com.example.demo.entity.VideoSave;
+import com.example.demo.repository.CommentRepository;
 import com.example.demo.repository.SubscriptionRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.repository.VideoLikeRepository;
@@ -30,6 +31,7 @@ public class VideoController {
     private final VideoRepository videoRepository;
     private final VideoLikeRepository videoLikeRepository;
     private final VideoSaveRepository videoSaveRepository;
+    private final CommentRepository commentRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
     private final LoginUserResolver loginUserResolver;
@@ -40,6 +42,7 @@ public class VideoController {
             VideoRepository videoRepository,
             VideoLikeRepository videoLikeRepository,
             VideoSaveRepository videoSaveRepository,
+            CommentRepository commentRepository,
             SubscriptionRepository subscriptionRepository,
             UserRepository userRepository,
             LoginUserResolver loginUserResolver,
@@ -49,6 +52,7 @@ public class VideoController {
         this.videoRepository = videoRepository;
         this.videoLikeRepository = videoLikeRepository;
         this.videoSaveRepository = videoSaveRepository;
+        this.commentRepository = commentRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.userRepository = userRepository;
         this.loginUserResolver = loginUserResolver;
@@ -79,6 +83,7 @@ public class VideoController {
                 .map(video -> VideoItem.from(
                         video,
                         videoLikeRepository.countByVideoId(video.getId()),
+                        commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
                         loginUserId != null && videoLikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId),
                         loginUserId != null && videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
                 ))
@@ -128,6 +133,7 @@ public class VideoController {
                 .map(v -> VideoItem.from(
                         v,
                         videoLikeRepository.countByVideoId(v.getId()),
+                        commentRepository.countByVideoIdAndParentIdIsNull(v.getId()),
                         videoLikeRepository.existsByVideoIdAndUserId(v.getId(), loginUserId),
                         videoSaveRepository.existsByVideoIdAndUserId(v.getId(), loginUserId)
                 ))
@@ -177,6 +183,7 @@ public class VideoController {
                 .map(v -> VideoItem.from(
                         v,
                         videoLikeRepository.countByVideoId(v.getId()),
+                        commentRepository.countByVideoIdAndParentIdIsNull(v.getId()),
                         loginUserId != null && videoLikeRepository.existsByVideoIdAndUserId(v.getId(), loginUserId),
                         loginUserId != null && videoSaveRepository.existsByVideoIdAndUserId(v.getId(), loginUserId)
                 ))
@@ -212,6 +219,7 @@ public class VideoController {
                 VideoItem.from(
                         video,
                         videoLikeRepository.countByVideoId(video.getId()),
+                        commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
                         loginUserId != null && videoLikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId),
                         loginUserId != null && videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
                 )
@@ -232,6 +240,7 @@ public class VideoController {
                 .map(video -> VideoItem.from(
                         video,
                         videoLikeRepository.countByVideoId(video.getId()),
+                        commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
                         videoLikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId),
                         videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
                 ))
@@ -254,6 +263,7 @@ public class VideoController {
                 .map(video -> VideoItem.from(
                         video,
                         videoLikeRepository.countByVideoId(video.getId()),
+                        commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
                         videoLikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId),
                         videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
                 ))
@@ -324,6 +334,7 @@ public class VideoController {
                 VideoItem.from(
                         saved,
                         videoLikeRepository.countByVideoId(saved.getId()),
+                        commentRepository.countByVideoIdAndParentIdIsNull(saved.getId()),
                         videoLikeRepository.existsByVideoIdAndUserId(saved.getId(), loginUserId),
                         videoSaveRepository.existsByVideoIdAndUserId(saved.getId(), loginUserId)
                 )
@@ -379,6 +390,7 @@ public class VideoController {
                 .map(video -> VideoItem.from(
                         video,
                         videoLikeRepository.countByVideoId(video.getId()),
+                        commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
                         true,
                         videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
                 ))
@@ -406,6 +418,7 @@ public class VideoController {
                 .map(video -> VideoItem.from(
                         video,
                         videoLikeRepository.countByVideoId(video.getId()),
+                        commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
                         videoLikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId),
                         true
                 ))
@@ -500,10 +513,11 @@ public class VideoController {
         private String embedUrl;
         private long viewCount;
         private long likeCount;
+        private long commentCount;
         private boolean likedByMe;
         private boolean savedByMe;
 
-        public static VideoItem from(Video video, long likeCount, boolean likedByMe, boolean savedByMe) {
+        public static VideoItem from(Video video, long likeCount, long commentCount, boolean likedByMe, boolean savedByMe) {
             VideoItem item = new VideoItem();
             item.id = video.getId();
             item.ownerId = video.getOwnerId();
@@ -524,6 +538,7 @@ public class VideoController {
             item.embedUrl = video.getEmbedUrl();
             item.viewCount = video.getViewCount();
             item.likeCount = likeCount;
+            item.commentCount = commentCount;
             item.likedByMe = likedByMe;
             item.savedByMe = savedByMe;
             return item;
@@ -548,6 +563,7 @@ public class VideoController {
         public String getEmbedUrl() { return embedUrl; }
         public long getViewCount() { return viewCount; }
         public long getLikeCount() { return likeCount; }
+        public long getCommentCount() { return commentCount; }
         public boolean isLikedByMe() { return likedByMe; }
         public boolean isSavedByMe() { return savedByMe; }
     }

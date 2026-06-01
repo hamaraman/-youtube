@@ -9,6 +9,7 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     List<Comment> findByVideoIdOrderByIdDesc(Long videoId);
     List<Comment> findByVideoIdAndParentIdIsNullOrderByIdDesc(Long videoId);
     List<Comment> findByParentIdOrderByIdAsc(Long parentId);
+    long countByVideoIdAndParentIdIsNull(Long videoId);
     void deleteByVideoId(Long videoId);
     void deleteByParentId(Long parentId);
 }

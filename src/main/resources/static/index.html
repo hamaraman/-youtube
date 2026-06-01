@@ -145,19 +145,23 @@
             display: none;
         }
 
+        .category-bar-wrap {
+            position: sticky;
+            top: 56px;
+            z-index: 10;
+            background: #0f0f0f;
+            border-bottom: 1px solid #1f1f1f;
+            margin: 0 -24px 24px;
+        }
+        html[data-theme="light"] .category-bar-wrap { background: #fff; border-bottom-color: #e5e5e5; }
+
         .category-bar {
             display: flex;
             gap: 10px;
-            padding: 12px 24px;
+            padding: 10px 24px;
             overflow-x: auto;
             scrollbar-width: none;
             -ms-overflow-style: none;
-            border-bottom: 1px solid #1f1f1f;
-            position: sticky;
-            top: 56px;
-            background: #0f0f0f;
-            z-index: 10;
-            margin: 0 -24px 24px;
         }
 
         .category-bar::-webkit-scrollbar {
@@ -168,25 +172,31 @@
             flex-shrink: 0;
             height: 32px;
             padding: 0 14px;
-            border-radius: 8px;
+            border-radius: 999px;
             border: none;
             background: #272727;
             color: #f1f1f1;
             font-size: 14px;
+            font-weight: 500;
             cursor: pointer;
             white-space: nowrap;
-            transition: background 0.15s;
+            transition: background 0.15s, transform 0.1s;
         }
 
         .category-chip:hover {
             background: #3f3f3f;
+            transform: translateY(-1px);
         }
 
         .category-chip.is-active {
             background: #f1f1f1;
             color: #0f0f0f;
-            font-weight: 600;
+            font-weight: 700;
         }
+
+        html[data-theme="light"] .category-chip { background: #e5e5e5; color: #0f0f0f; }
+        html[data-theme="light"] .category-chip:hover { background: #d0d0d0; }
+        html[data-theme="light"] .category-chip.is-active { background: #0f0f0f; color: #fff; }
 
         .home-empty-state {
             margin-top: 22px;
@@ -316,7 +326,6 @@
 
             .category-bar {
                 padding: 10px 16px;
-                margin: 0 -24px 16px;
             }
         }
 
@@ -465,7 +474,9 @@
     </aside>
 
     <main class="main home-content">
-        <div class="category-bar" id="categoryBar"></div>
+        <div class="category-bar-wrap">
+            <div class="category-bar" id="categoryBar"></div>
+        </div>
         <section class="channel-results" id="channelResults" style="display:none">
             <h3 class="channel-results-title">채널</h3>
             <div class="channel-results-list" id="channelResultsList"></div>

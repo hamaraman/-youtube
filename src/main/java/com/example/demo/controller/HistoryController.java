@@ -3,6 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.config.LoginUserResolver;
 import com.example.demo.entity.Video;
 import com.example.demo.entity.VideoHistory;
+import com.example.demo.repository.CommentRepository;
 import com.example.demo.repository.VideoHistoryRepository;
 import com.example.demo.repository.VideoLikeRepository;
 import com.example.demo.repository.VideoRepository;
@@ -23,6 +24,7 @@ public class HistoryController {
     private final VideoRepository videoRepository;
     private final VideoLikeRepository videoLikeRepository;
     private final VideoSaveRepository videoSaveRepository;
+    private final CommentRepository commentRepository;
     private final LoginUserResolver loginUserResolver;
 
     public HistoryController(
@@ -30,12 +32,14 @@ public class HistoryController {
             VideoRepository videoRepository,
             VideoLikeRepository videoLikeRepository,
             VideoSaveRepository videoSaveRepository,
+            CommentRepository commentRepository,
             LoginUserResolver loginUserResolver
     ) {
         this.videoHistoryRepository = videoHistoryRepository;
         this.videoRepository = videoRepository;
         this.videoLikeRepository = videoLikeRepository;
         this.videoSaveRepository = videoSaveRepository;
+        this.commentRepository = commentRepository;
         this.loginUserResolver = loginUserResolver;
     }
 
@@ -90,6 +94,7 @@ public class HistoryController {
                 .map(video -> VideoController.VideoItem.from(
                         video,
                         videoLikeRepository.countByVideoId(video.getId()),
+                        commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
                         videoLikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId),
                         videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
                 ))
