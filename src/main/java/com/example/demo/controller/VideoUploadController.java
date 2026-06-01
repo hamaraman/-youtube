@@ -134,7 +134,6 @@ public class VideoUploadController {
             video.setEmbedUrl((embedUrl == null || embedUrl.trim().isEmpty()) ? "" : embedUrl.trim());
             video.setThumbnail(finalThumbnailUrl);
             video.setVideoUrl(videoUrl);
-            video.setDateText("방금 전");
 
             // Step 3: save entity to get ID
             Video savedVideo = videoRepository.save(video);

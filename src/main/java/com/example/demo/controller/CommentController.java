@@ -97,7 +97,6 @@ public class CommentController {
                         : sessionUser.getUsername()
         );
         comment.setText(content);
-        comment.setTime("방금 전");
 
         Comment saved = commentRepository.save(comment);
 
@@ -143,7 +142,6 @@ public class CommentController {
         reply.setAuthor(sessionUser.getNickname() != null && !sessionUser.getNickname().isBlank()
                 ? sessionUser.getNickname() : sessionUser.getUsername());
         reply.setText(content);
-        reply.setTime("방금 전");
         reply.setParentId(commentId);
 
         Comment saved = commentRepository.save(reply);
