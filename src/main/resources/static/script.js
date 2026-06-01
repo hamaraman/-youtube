@@ -8941,7 +8941,8 @@ function ensureHistoryPatchStyle() {
         return (
             document.getElementById("main") ||
             document.querySelector("main") ||
-            document.querySelector(".main")
+            document.querySelector(".main") ||
+            document.querySelector(".user-channel-content")
         );
     }
 
@@ -9133,7 +9134,8 @@ function ensureHistoryPatchStyle() {
 
             body.${PATCH_ID}.sidebar-unified-collapsed .main,
             body.${PATCH_ID}.sidebar-unified-collapsed main,
-            body.${PATCH_ID}.sidebar-unified-collapsed #main {
+            body.${PATCH_ID}.sidebar-unified-collapsed #main,
+            body.${PATCH_ID}.sidebar-unified-collapsed .user-channel-content {
                 margin-left: 72px !important;
             }
 
@@ -9193,7 +9195,8 @@ function ensureHistoryPatchStyle() {
 
             body.${PATCH_ID}.sidebar-unified-expanded .main,
             body.${PATCH_ID}.sidebar-unified-expanded main,
-            body.${PATCH_ID}.sidebar-unified-expanded #main {
+            body.${PATCH_ID}.sidebar-unified-expanded #main,
+            body.${PATCH_ID}.sidebar-unified-expanded .user-channel-content {
                 margin-left: 240px !important;
             }
 
@@ -9213,9 +9216,11 @@ function ensureHistoryPatchStyle() {
                 body.${PATCH_ID}.sidebar-unified-collapsed .main,
                 body.${PATCH_ID}.sidebar-unified-collapsed main,
                 body.${PATCH_ID}.sidebar-unified-collapsed #main,
+                body.${PATCH_ID}.sidebar-unified-collapsed .user-channel-content,
                 body.${PATCH_ID}.sidebar-unified-expanded .main,
                 body.${PATCH_ID}.sidebar-unified-expanded main,
-                body.${PATCH_ID}.sidebar-unified-expanded #main {
+                body.${PATCH_ID}.sidebar-unified-expanded #main,
+                body.${PATCH_ID}.sidebar-unified-expanded .user-channel-content {
                     margin-left: 0 !important;
                 }
             }
@@ -9235,6 +9240,7 @@ function ensureHistoryPatchStyle() {
         document.body.classList.toggle("sidebar-unified-collapsed", !expanded);
 
         sidebar.classList.remove("collapsed");
+        sidebar.classList.toggle("is-collapsed", !expanded);
         sidebar.classList.toggle("is-mobile-open", expanded);
 
         sidebar.style.setProperty("width", expanded ? "240px" : "72px", "important");
