@@ -124,6 +124,12 @@ function injectAuthStyles() {
         .mum-item:hover { background: rgba(255,255,255,0.06); }
         .mum-logout { color: #ffb4b4; }
 
+        /* 모바일 전용: 기본 숨김, 모바일에서만 표시 */
+        .auth-mobile-only { display: none !important; }
+        @media (max-width: 640px) {
+            .auth-mobile-only { display: inline-flex !important; }
+        }
+
         /* 모바일에서 데스크톱 전용 요소 숨김 */
         @media (max-width: 640px) {
             .auth-desktop-only { display: none !important; }
@@ -224,6 +230,12 @@ function renderTopbarAuth(user) {
 
     if (window.ThemeManager) {
         container.insertBefore(window.ThemeManager.createToggleBtn(), container.firstChild);
+    }
+
+    if (window.innerWidth > 640) {
+        document.getElementById("mobileMenuBtn")?.remove();
+        document.getElementById("mumBackdrop")?.remove();
+        document.getElementById("mobileUserMenu")?.remove();
     }
 
     async function doLogout() {
