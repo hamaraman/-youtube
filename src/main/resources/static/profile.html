@@ -300,12 +300,27 @@
             </div>
         </div>
 
+        <div class="profile-actions" id="sendCodeActions">
+            <button type="button" class="profile-btn primary" id="sendCodeBtn">인증 코드 발송</button>
+        </div>
+
+        <div id="verifyCodeSection" style="display:none; margin-top:16px;">
+            <div class="profile-grid">
+                <div class="profile-field full">
+                    <label for="verificationCode">이메일 인증 코드</label>
+                    <input type="text" id="verificationCode" class="profile-input" maxlength="6" placeholder="6자리 코드 입력" autocomplete="one-time-code" />
+                    <div class="profile-help">이메일로 발송된 6자리 코드를 입력해줘. (5분 내 유효)</div>
+                    <div class="profile-error" id="verificationCodeError"></div>
+                </div>
+            </div>
+            <div class="profile-actions">
+                <button type="button" class="profile-btn" id="resendCodeBtn">코드 재발송</button>
+                <button type="submit" class="profile-btn primary" id="passwordSubmitBtn">비밀번호 변경</button>
+            </div>
+        </div>
+
         <div class="profile-error" id="passwordCommonError"></div>
         <div class="profile-success" id="passwordSuccessMessage"></div>
-
-        <div class="profile-actions">
-            <button type="submit" class="profile-btn primary" id="passwordSubmitBtn">비밀번호 변경</button>
-        </div>
     </form>
 </section>
         </section>

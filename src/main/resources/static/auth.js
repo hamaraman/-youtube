@@ -634,30 +634,33 @@ async function initProfilePage(me) {
         );
     });
 
-        const passwordForm = document.getElementById("passwordForm");
+    const passwordForm = document.getElementById("passwordForm");
     const currentPassword = document.getElementById("currentPassword");
     const newPassword = document.getElementById("newPassword");
     const confirmNewPassword = document.getElementById("confirmNewPassword");
     const passwordCommonError = document.getElementById("passwordCommonError");
     const passwordSuccessMessage = document.getElementById("passwordSuccessMessage");
     const passwordSubmitBtn = document.getElementById("passwordSubmitBtn");
+    const sendCodeBtn = document.getElementById("sendCodeBtn");
+    const resendCodeBtn = document.getElementById("resendCodeBtn");
+    const verifyCodeSection = document.getElementById("verifyCodeSection");
+    const verificationCodeInput = document.getElementById("verificationCode");
+    const verificationCodeError = document.getElementById("verificationCodeError");
 
-    passwordForm?.addEventListener("submit", async (event) => {
-        event.preventDefault();
-
+    async function sendCode() {
         passwordCommonError.textContent = "";
         passwordSuccessMessage.textContent = "";
+        if (verificationCodeError) verificationCodeError.textContent = "";
 
         if (!validatePasswordForm()) return;
 
-        passwordSubmitBtn.disabled = true;
-        passwordSubmitBtn.textContent = "변경 중...";
+        const btn = sendCodeBtn.id === "sendCodeBtn" ? sendCodeBtn : resendCodeBtn;
+        if (sendCodeBtn) { sendCodeBtn.disabled = true; sendCodeBtn.textContent = "발송 중..."; }
+        if (resendCodeBtn) { resendCodeBtn.disabled = true; resendCodeBtn.textContent = "발송 중..."; }
 
-        const response = await fetch("/api/profile/password", {
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json"
-            },
+        const res = await fetch("/api/profile/password/send-code", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 currentPassword: currentPassword.value,
                 newPassword: newPassword.value,
@@ -665,23 +668,60 @@ async function initProfilePage(me) {
             })
         });
 
-        const result = await response.json().catch(() => ({}));
+        const result = await res.json().catch(() => ({}));
 
-        if (!response.ok || !result.success) {
-            passwordCommonError.textContent = result.message || "비밀번호 변경에 실패했어.";
-            passwordSubmitBtn.disabled = false;
-            passwordSubmitBtn.textContent = "비밀번호 변경";
+        if (sendCodeBtn) { sendCodeBtn.disabled = false; sendCodeBtn.textContent = "인증 코드 발송"; }
+        if (resendCodeBtn) { resendCodeBtn.disabled = false; resendCodeBtn.textContent = "코드 재발송"; }
+
+        if (!res.ok || !result.success) {
+            passwordCommonError.textContent = result.message || "인증 코드 발송에 실패했어.";
             return;
         }
 
-        passwordSuccessMessage.textContent = result.message || "비밀번호가 변경되었습니다.";
+        passwordSuccessMessage.textContent = result.message || "인증 코드를 이메일로 보냈어.";
+        if (verifyCodeSection) verifyCodeSection.style.display = "block";
+        if (verificationCodeInput) verificationCodeInput.focus();
+    }
 
+    sendCodeBtn?.addEventListener("click", sendCode);
+    resendCodeBtn?.addEventListener("click", sendCode);
+
+    passwordForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        passwordCommonError.textContent = "";
+        passwordSuccessMessage.textContent = "";
+        if (verificationCodeError) verificationCodeError.textContent = "";
+
+        const code = verificationCodeInput?.value.trim() || "";
+        if (!code) {
+            if (verificationCodeError) verificationCodeError.textContent = "인증 코드를 입력해줘.";
+            return;
+        }
+
+        if (passwordSubmitBtn) { passwordSubmitBtn.disabled = true; passwordSubmitBtn.textContent = "변경 중..."; }
+
+        const res = await fetch("/api/profile/password", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ verificationCode: code })
+        });
+
+        const result = await res.json().catch(() => ({}));
+
+        if (!res.ok || !result.success) {
+            if (verificationCodeError) verificationCodeError.textContent = result.message || "비밀번호 변경에 실패했어.";
+            if (passwordSubmitBtn) { passwordSubmitBtn.disabled = false; passwordSubmitBtn.textContent = "비밀번호 변경"; }
+            return;
+        }
+
+        passwordSuccessMessage.textContent = result.message || "비밀번호가 변경되었어.";
         currentPassword.value = "";
         newPassword.value = "";
         confirmNewPassword.value = "";
-
-        passwordSubmitBtn.disabled = false;
-        passwordSubmitBtn.textContent = "비밀번호 변경";
+        if (verificationCodeInput) verificationCodeInput.value = "";
+        if (verifyCodeSection) verifyCodeSection.style.display = "none";
+        if (passwordSubmitBtn) { passwordSubmitBtn.disabled = false; passwordSubmitBtn.textContent = "비밀번호 변경"; }
     });
 
     channelName.addEventListener("input", () => {
