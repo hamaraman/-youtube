@@ -230,6 +230,103 @@ public class VideoUploadController {
                 "message", targets.size() + "개 영상의 해상도 변환을 백그라운드에서 시작했습니다."));
     }
 
+    @PostMapping("/admin/migrate-to-r2")
+    public ResponseEntity<?> migrateToR2(HttpSession session) {
+        if (!adminChecker.isAdmin(session, loginUserResolver)) {
+            return ResponseEntity.status(403).body(Map.of("success", false, "message", "관리자 권한이 필요합니다."));
+        }
+        if (!storageService.isConfigured()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "R2가 설정되지 않았습니다."));
+        }
+
+        List<Video> targets = videoRepository.findAll().stream()
+                .filter(v -> v.getVideoUrl() != null && v.getVideoUrl().startsWith("/uploads/"))
+                .collect(Collectors.toList());
+
+        final Path videoDirPath = Paths.get(videoDir).toAbsolutePath();
+        final Path thumbDirPath = Paths.get(thumbnailDir).toAbsolutePath();
+
+        for (Video video : targets) {
+            final Long videoId = video.getId();
+            CompletableFuture.runAsync(() -> {
+                try {
+                    BATCH_SEMAPHORE.acquire();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                try {
+                    migrateVideoFiles(videoId, videoDirPath, thumbDirPath);
+                } finally {
+                    BATCH_SEMAPHORE.release();
+                }
+            });
+        }
+
+        return ResponseEntity.ok(Map.of("success", true, "queued", targets.size(),
+                "message", targets.size() + "개 영상의 R2 마이그레이션을 백그라운드에서 시작했습니다."));
+    }
+
+    @GetMapping("/admin/migrate-to-r2/status")
+    public ResponseEntity<?> migrateToR2Status(HttpSession session) {
+        if (!adminChecker.isAdmin(session, loginUserResolver)) {
+            return ResponseEntity.status(403).body(Map.of("success", false));
+        }
+        List<Video> all = videoRepository.findAll().stream()
+                .filter(v -> v.getVideoUrl() != null && !v.getVideoUrl().isBlank())
+                .collect(Collectors.toList());
+        long local = all.stream().filter(v -> v.getVideoUrl().startsWith("/uploads/")).count();
+        long r2 = all.stream().filter(v -> v.getVideoUrl().startsWith("http")).count();
+        return ResponseEntity.ok(Map.of("total", all.size(), "local", local, "r2", r2,
+                "message", "마이그레이션 진행 중: " + r2 + "/" + all.size() + " 완료"));
+    }
+
+    private void migrateVideoFiles(Long videoId, Path videoDirPath, Path thumbDirPath) {
+        videoRepository.findById(videoId).ifPresent(video -> {
+            try {
+                String newVideoUrl = migrateLocalFile(video.getVideoUrl(), videoDirPath, "video/mp4");
+                String newThumb    = migrateLocalFile(video.getThumbnail(), thumbDirPath, null);
+                String new1080     = migrateLocalFile(video.getVideoUrl1080(), videoDirPath, "video/mp4");
+                String new720      = migrateLocalFile(video.getVideoUrl720(),  videoDirPath, "video/mp4");
+                String new480      = migrateLocalFile(video.getVideoUrl480(),  videoDirPath, "video/mp4");
+                String new360      = migrateLocalFile(video.getVideoUrl360(),  videoDirPath, "video/mp4");
+
+                if (newVideoUrl != null) video.setVideoUrl(newVideoUrl);
+                if (newThumb    != null) video.setThumbnail(newThumb);
+                if (new1080     != null) video.setVideoUrl1080(new1080);
+                if (new720      != null) video.setVideoUrl720(new720);
+                if (new480      != null) video.setVideoUrl480(new480);
+                if (new360      != null) video.setVideoUrl360(new360);
+
+                videoRepository.save(video);
+                System.out.println("[Migrate] 완료: videoId=" + videoId);
+            } catch (Exception e) {
+                System.err.println("[Migrate] 실패 videoId=" + videoId + ": " + e.getMessage());
+            }
+        });
+    }
+
+    private String migrateLocalFile(String url, Path baseDir, String fallbackContentType) {
+        if (url == null || !url.startsWith("/uploads/")) return null;
+        // /uploads/videos/xxx.mp4 → videos/xxx.mp4
+        String key = url.substring("/uploads/".length());
+        Path localFile = baseDir.getParent().resolve(key);
+        if (!localFile.toFile().exists()) {
+            System.err.println("[Migrate] 파일 없음: " + localFile);
+            return null;
+        }
+        String ext = extensionOf(localFile.getFileName().toString());
+        String contentType = fallbackContentType != null ? fallbackContentType : contentTypeFor(ext);
+        try {
+            String r2Url = storageService.upload(localFile, key, contentType);
+            System.out.println("[Migrate] 업로드 완료: " + key);
+            return r2Url;
+        } catch (Exception e) {
+            System.err.println("[Migrate] R2 업로드 실패 [" + key + "]: " + e.getMessage());
+            return null;
+        }
+    }
+
     @GetMapping("/admin/generate-resolutions/status")
     public ResponseEntity<?> generateResolutionsStatus(HttpSession session) {
         if (!adminChecker.isAdmin(session, loginUserResolver)) {
