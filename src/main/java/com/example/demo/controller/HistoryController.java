@@ -60,16 +60,20 @@ public class HistoryController {
             return ResponseEntity.ok(new SimpleResponse(true, "조회수 증가"));
         }
 
+        long now = System.currentTimeMillis();
+        long cooldownMs = 24 * 60 * 60 * 1000L; // 24시간
+
         Optional<VideoHistory> existing = videoHistoryRepository.findByVideoIdAndUserId(id, loginUserId);
         boolean isNew = existing.isEmpty();
+        boolean isExpired = existing.map(h -> now - h.getWatchedAt() > cooldownMs).orElse(false);
 
         VideoHistory history = existing.orElseGet(VideoHistory::new);
         history.setVideoId(id);
         history.setUserId(loginUserId);
-        history.setWatchedAt(System.currentTimeMillis());
+        history.setWatchedAt(now);
         videoHistoryRepository.save(history);
 
-        if (isNew) {
+        if (isNew || isExpired) {
             video.setViewCount(video.getViewCount() + 1);
             videoRepository.save(video);
         }
