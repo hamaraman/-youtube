@@ -4059,6 +4059,76 @@ async function initStudioPage() {
         }, 3000);
     }
 
+    function renderStudioStats(videos) {
+        const statsEl = document.getElementById("studioStats");
+        if (!statsEl) return;
+        const totalViews = videos.reduce((s, v) => s + Number(v.viewCount || 0), 0);
+        const totalLikes = videos.reduce((s, v) => s + Number(v.likeCount || 0), 0);
+        const totalComments = videos.reduce((s, v) => s + Number(v.commentCount || 0), 0);
+        const items = [
+            { label: "총 조회수", value: formatCount(totalViews) },
+            { label: "영상 수",   value: videos.length },
+            { label: "총 좋아요", value: formatCount(totalLikes) },
+            { label: "총 댓글",  value: formatCount(totalComments) },
+        ];
+        statsEl.innerHTML = items.map(s => `
+            <div class="studio-stat-card">
+                <span class="studio-stat-label">${s.label}</span>
+                <span class="studio-stat-value">${s.value}</span>
+            </div>`).join("");
+    }
+
+    function renderViewsChart(videos) {
+        const chartEl = document.getElementById("studioChart");
+        if (!chartEl) return;
+        const top = [...videos]
+            .sort((a, b) => Number(b.viewCount || 0) - Number(a.viewCount || 0))
+            .slice(0, 7);
+        if (top.length === 0) {
+            chartEl.innerHTML = `<p class="studio-chart-empty">업로드된 영상이 없어 차트를 표시할 수 없습니다.</p>`;
+            return;
+        }
+
+        const maxViews = Math.max(...top.map(v => Number(v.viewCount || 0)), 1);
+        const W = 560, H = 200;
+        const padL = 52, padR = 16, padT = 12, padB = 50;
+        const chartW = W - padL - padR;
+        const chartH = H - padT - padB;
+        const barGap = 10;
+        const barW = Math.floor((chartW - barGap * (top.length - 1)) / top.length);
+
+        let grid = "";
+        for (let i = 0; i <= 4; i++) {
+            const val = Math.round(maxViews * i / 4);
+            const y = padT + chartH - (chartH * i / 4);
+            grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#222" stroke-width="1"/>
+            <text x="${padL - 6}" y="${y + 4}" text-anchor="end" fill="#666" font-size="10">${formatCount(val)}</text>`;
+        }
+
+        let bars = "";
+        top.forEach((v, i) => {
+            const views = Number(v.viewCount || 0);
+            const bh = Math.max(2, (views / maxViews) * chartH);
+            const x = padL + i * (barW + barGap);
+            const y = padT + chartH - bh;
+            const label = (v.title || "").length > 7 ? (v.title || "").slice(0, 7) + "…" : (v.title || "");
+            bars += `
+            <rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="3" fill="#3ea6ff">
+                <title>${escapeHtml(v.title || "")}: ${formatCount(views)}회</title>
+            </rect>
+            <text x="${x + barW / 2}" y="${padT + chartH + 14}" text-anchor="middle" fill="#999" font-size="10">${escapeHtml(label)}</text>
+            ${views > 0 ? `<text x="${x + barW / 2}" y="${y - 4}" text-anchor="middle" fill="#bbb" font-size="9">${formatCount(views)}</text>` : ""}`;
+        });
+
+        chartEl.innerHTML = `
+        <svg viewBox="0 0 ${W} ${H}" style="width:100%;overflow:visible">
+            ${grid}
+            <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + chartH}" stroke="#333" stroke-width="1"/>
+            <line x1="${padL}" y1="${padT + chartH}" x2="${W - padR}" y2="${padT + chartH}" stroke="#333" stroke-width="1"/>
+            ${bars}
+        </svg>`;
+    }
+
     async function loadAndRender() {
         try {
             const res = await fetch("/api/studio/videos");
@@ -4072,12 +4142,25 @@ async function initStudioPage() {
             }
             const data = await res.json();
             const videos = Array.isArray(data) ? data : [];
+            renderStudioStats(videos);
+            renderViewsChart(videos);
             renderStudioList(videos);
             startPollingIfNeeded(videos);
         } catch {
             studioVideoList.innerHTML = `<p class="studio-error">영상을 불러오는 중 오류가 발생했습니다.</p>`;
         }
     }
+
+    // 탭 전환
+    document.querySelectorAll(".studio-tab-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll(".studio-tab-btn").forEach(b => b.classList.remove("is-active"));
+            document.querySelectorAll(".studio-tab-panel").forEach(p => p.classList.remove("is-active"));
+            btn.classList.add("is-active");
+            const panel = document.getElementById(`studioTab${btn.dataset.tab.charAt(0).toUpperCase() + btn.dataset.tab.slice(1)}`);
+            if (panel) panel.classList.add("is-active");
+        });
+    });
 
     studioVideoList.innerHTML = `<p class="studio-loading">불러오는 중...</p>`;
     await loadAndRender();
