@@ -7,6 +7,10 @@ import jakarta.persistence.*;
         name = "video_likes",
         uniqueConstraints = {
                 @UniqueConstraint(columnNames = {"videoId", "userId"})
+        },
+        indexes = {
+                @Index(name = "idx_video_likes_video_id", columnList = "videoId"),
+                @Index(name = "idx_video_likes_user_id", columnList = "userId")
         }
 )
 public class VideoLike {

@@ -12,8 +12,7 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -61,7 +60,7 @@ public class HistoryController {
         }
 
         long now = System.currentTimeMillis();
-        long cooldownMs = 24 * 60 * 60 * 1000L; // 24시간
+        long cooldownMs = 24 * 60 * 60 * 1000L;
 
         Optional<VideoHistory> existing = videoHistoryRepository.findByVideoIdAndUserId(id, loginUserId);
         boolean isNew = existing.isEmpty();
@@ -88,23 +87,47 @@ public class HistoryController {
             return ResponseEntity.status(401).body(List.of());
         }
 
-        List<VideoController.VideoItem> result = videoHistoryRepository.findByUserIdOrderByWatchedAtDesc(loginUserId)
+        List<Long> videoIds = videoHistoryRepository.findByUserIdOrderByWatchedAtDesc(loginUserId)
                 .stream()
                 .map(VideoHistory::getVideoId)
-                .map(videoRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .filter(video -> !"비공개".equals(video.getVisibility()) || loginUserId.equals(video.getOwnerId()))
-                .map(video -> VideoController.VideoItem.from(
-                        video,
-                        videoLikeRepository.countByVideoId(video.getId()),
-                        commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
-                        videoLikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId),
-                        videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
-                ))
+                .collect(Collectors.toList());
+
+        if (videoIds.isEmpty()) return ResponseEntity.ok(List.of());
+
+        Map<Long, Video> videoMap = videoRepository.findAllById(videoIds).stream()
+                .collect(Collectors.toMap(Video::getId, v -> v));
+
+        List<Video> videos = videoIds.stream()
+                .map(videoMap::get)
+                .filter(v -> v != null)
+                .filter(v -> !"비공개".equals(v.getVisibility()) || loginUserId.equals(v.getOwnerId()))
+                .collect(Collectors.toList());
+
+        if (videos.isEmpty()) return ResponseEntity.ok(List.of());
+
+        List<Long> ids = videos.stream().map(Video::getId).collect(Collectors.toList());
+        Map<Long, Long> likeCounts = toCountMap(videoLikeRepository.countByVideoIdIn(ids));
+        Map<Long, Long> commentCounts = toCountMap(commentRepository.countByVideoIdIn(ids));
+        Set<Long> likedSet = new HashSet<>(videoLikeRepository.findLikedVideoIdsByUserId(loginUserId, ids));
+        Set<Long> savedSet = new HashSet<>(videoSaveRepository.findSavedVideoIdsByUserId(loginUserId, ids));
+
+        List<VideoController.VideoItem> result = videos.stream()
+                .map(v -> VideoController.VideoItem.from(v,
+                        likeCounts.getOrDefault(v.getId(), 0L),
+                        commentCounts.getOrDefault(v.getId(), 0L),
+                        likedSet.contains(v.getId()),
+                        savedSet.contains(v.getId())))
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(result);
+    }
+
+    private Map<Long, Long> toCountMap(List<Object[]> rows) {
+        Map<Long, Long> map = new HashMap<>();
+        for (Object[] row : rows) {
+            map.put((Long) row[0], (Long) row[1]);
+        }
+        return map;
     }
 
     private Long getLoginUserId(HttpSession session) {

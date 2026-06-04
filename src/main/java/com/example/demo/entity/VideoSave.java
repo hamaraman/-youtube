@@ -7,6 +7,10 @@ import jakarta.persistence.*;
         name = "video_saves",
         uniqueConstraints = {
                 @UniqueConstraint(columnNames = {"videoId", "userId"})
+        },
+        indexes = {
+                @Index(name = "idx_video_saves_video_id", columnList = "videoId"),
+                @Index(name = "idx_video_saves_user_id", columnList = "userId")
         }
 )
 public class VideoSave {

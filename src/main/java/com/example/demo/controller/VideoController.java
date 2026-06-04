@@ -78,16 +78,8 @@ public class VideoController {
                     : videoRepository.findAllPublic();
         }
 
-        return videos.stream()
-                .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
-                .map(video -> VideoItem.from(
-                        video,
-                        videoLikeRepository.countByVideoId(video.getId()),
-                        commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
-                        loginUserId != null && videoLikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId),
-                        loginUserId != null && videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
-                ))
-                .collect(Collectors.toList());
+        videos.sort((a, b) -> Long.compare(b.getId(), a.getId()));
+        return toVideoItems(videos, loginUserId);
     }
 
     @GetMapping("/users/{id}/channel")
@@ -129,15 +121,7 @@ public class VideoController {
         }
 
         Page<Video> videoPage = videoRepository.findByOwnerIdsPageable(ownerIds, PageRequest.of(page, size));
-        List<VideoItem> items = videoPage.getContent().stream()
-                .map(v -> VideoItem.from(
-                        v,
-                        videoLikeRepository.countByVideoId(v.getId()),
-                        commentRepository.countByVideoIdAndParentIdIsNull(v.getId()),
-                        videoLikeRepository.existsByVideoIdAndUserId(v.getId(), loginUserId),
-                        videoSaveRepository.existsByVideoIdAndUserId(v.getId(), loginUserId)
-                ))
-                .collect(Collectors.toList());
+        List<VideoItem> items = toVideoItems(videoPage.getContent(), loginUserId);
 
         Map<String, Object> result = new HashMap<>();
         result.put("videos", items);
@@ -179,15 +163,7 @@ public class VideoController {
             videoPage = videoRepository.findAllPublicPageable(pageable);
         }
 
-        List<VideoItem> items = videoPage.getContent().stream()
-                .map(v -> VideoItem.from(
-                        v,
-                        videoLikeRepository.countByVideoId(v.getId()),
-                        commentRepository.countByVideoIdAndParentIdIsNull(v.getId()),
-                        loginUserId != null && videoLikeRepository.existsByVideoIdAndUserId(v.getId(), loginUserId),
-                        loginUserId != null && videoSaveRepository.existsByVideoIdAndUserId(v.getId(), loginUserId)
-                ))
-                .collect(Collectors.toList());
+        List<VideoItem> items = toVideoItems(videoPage.getContent(), loginUserId);
 
         Map<String, Object> result = new HashMap<>();
         result.put("videos", items);
@@ -233,20 +209,8 @@ public class VideoController {
             return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
         }
 
-        List<VideoItem> result = videoRepository.findAll()
-                .stream()
-                .filter(video -> loginUserId.equals(video.getOwnerId()))
-                .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
-                .map(video -> VideoItem.from(
-                        video,
-                        videoLikeRepository.countByVideoId(video.getId()),
-                        commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
-                        videoLikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId),
-                        videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
-                ))
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(result);
+        List<Video> videos = videoRepository.findByOwnerIdOrderByIdDesc(loginUserId);
+        return ResponseEntity.ok(toVideoItems(videos, loginUserId));
     }
 
     @GetMapping("/my-videos")
@@ -256,20 +220,8 @@ public class VideoController {
             return ResponseEntity.status(401).body(List.of());
         }
 
-        List<VideoItem> result = videoRepository.findAll()
-                .stream()
-                .filter(video -> loginUserId.equals(video.getOwnerId()))
-                .sorted((a, b) -> Long.compare(b.getId(), a.getId()))
-                .map(video -> VideoItem.from(
-                        video,
-                        videoLikeRepository.countByVideoId(video.getId()),
-                        commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
-                        videoLikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId),
-                        videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
-                ))
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(result);
+        List<Video> videos = videoRepository.findByOwnerIdOrderByIdDesc(loginUserId);
+        return ResponseEntity.ok(toVideoItems(videos, loginUserId));
     }
 
     @PutMapping("/videos/{id}")
@@ -378,25 +330,24 @@ public class VideoController {
             return ResponseEntity.status(401).body(List.of());
         }
 
-        List<VideoLike> likes = videoLikeRepository.findByUserIdOrderByIdDesc(loginUserId);
-
-        boolean isAdminLiked = adminChecker.isAdmin(session, loginUserResolver);
-        List<VideoItem> result = likes.stream()
+        List<Long> videoIds = videoLikeRepository.findByUserIdOrderByIdDesc(loginUserId)
+                .stream()
                 .map(VideoLike::getVideoId)
-                .map(videoRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .filter(video -> isAdminLiked || !"비공개".equals(video.getVisibility()) || loginUserId.equals(video.getOwnerId()))
-                .map(video -> VideoItem.from(
-                        video,
-                        videoLikeRepository.countByVideoId(video.getId()),
-                        commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
-                        true,
-                        videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
-                ))
                 .collect(Collectors.toList());
 
-        return ResponseEntity.ok(result);
+        if (videoIds.isEmpty()) return ResponseEntity.ok(List.of());
+
+        boolean isAdminLiked = adminChecker.isAdmin(session, loginUserResolver);
+        Map<Long, Video> videoMap = videoRepository.findAllById(videoIds).stream()
+                .collect(Collectors.toMap(Video::getId, v -> v));
+
+        List<Video> videos = videoIds.stream()
+                .map(videoMap::get)
+                .filter(v -> v != null)
+                .filter(v -> isAdminLiked || !"비공개".equals(v.getVisibility()) || loginUserId.equals(v.getOwnerId()))
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(toVideoItems(videos, loginUserId));
     }
 
     @GetMapping("/my-saved-videos")
@@ -406,25 +357,55 @@ public class VideoController {
             return ResponseEntity.status(401).body(List.of());
         }
 
-        List<VideoSave> saves = videoSaveRepository.findByUserIdOrderByIdDesc(loginUserId);
-
-        boolean isAdminSaved = adminChecker.isAdmin(session, loginUserResolver);
-        List<VideoItem> result = saves.stream()
+        List<Long> videoIds = videoSaveRepository.findByUserIdOrderByIdDesc(loginUserId)
+                .stream()
                 .map(VideoSave::getVideoId)
-                .map(videoRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .filter(video -> isAdminSaved || !"비공개".equals(video.getVisibility()) || loginUserId.equals(video.getOwnerId()))
-                .map(video -> VideoItem.from(
-                        video,
-                        videoLikeRepository.countByVideoId(video.getId()),
-                        commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
-                        videoLikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId),
-                        true
-                ))
                 .collect(Collectors.toList());
 
-        return ResponseEntity.ok(result);
+        if (videoIds.isEmpty()) return ResponseEntity.ok(List.of());
+
+        boolean isAdminSaved = adminChecker.isAdmin(session, loginUserResolver);
+        Map<Long, Video> videoMap = videoRepository.findAllById(videoIds).stream()
+                .collect(Collectors.toMap(Video::getId, v -> v));
+
+        List<Video> videos = videoIds.stream()
+                .map(videoMap::get)
+                .filter(v -> v != null)
+                .filter(v -> isAdminSaved || !"비공개".equals(v.getVisibility()) || loginUserId.equals(v.getOwnerId()))
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(toVideoItems(videos, loginUserId));
+    }
+
+    // N+1 방지: 영상 목록 전체에 대해 4번의 배치 쿼리로 통계를 한 번에 조회
+    List<VideoItem> toVideoItems(List<Video> videos, Long loginUserId) {
+        if (videos.isEmpty()) return Collections.emptyList();
+        List<Long> ids = videos.stream().map(Video::getId).collect(Collectors.toList());
+
+        Map<Long, Long> likeCounts = toCountMap(videoLikeRepository.countByVideoIdIn(ids));
+        Map<Long, Long> commentCounts = toCountMap(commentRepository.countByVideoIdIn(ids));
+        Set<Long> likedSet = loginUserId != null
+                ? new HashSet<>(videoLikeRepository.findLikedVideoIdsByUserId(loginUserId, ids))
+                : Collections.emptySet();
+        Set<Long> savedSet = loginUserId != null
+                ? new HashSet<>(videoSaveRepository.findSavedVideoIdsByUserId(loginUserId, ids))
+                : Collections.emptySet();
+
+        return videos.stream()
+                .map(v -> VideoItem.from(v,
+                        likeCounts.getOrDefault(v.getId(), 0L),
+                        commentCounts.getOrDefault(v.getId(), 0L),
+                        likedSet.contains(v.getId()),
+                        savedSet.contains(v.getId())))
+                .collect(Collectors.toList());
+    }
+
+    private Map<Long, Long> toCountMap(List<Object[]> rows) {
+        Map<Long, Long> map = new HashMap<>();
+        for (Object[] row : rows) {
+            map.put((Long) row[0], (Long) row[1]);
+        }
+        return map;
     }
 
     private Long getLoginUserId(HttpSession session) {

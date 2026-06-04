@@ -5,7 +5,11 @@ import java.time.LocalDateTime;
 import java.time.Duration;
 
 @Entity
-@Table(name = "comments")
+@Table(name = "comments",
+       indexes = {
+               @Index(name = "idx_comments_video_id", columnList = "videoId"),
+               @Index(name = "idx_comments_parent_id", columnList = "parent_id")
+       })
 public class Comment {
 
     @Id

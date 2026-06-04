@@ -13,8 +13,7 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -40,24 +39,37 @@ public class CommentController {
     @GetMapping("/videos/{id}/comments")
     public ResponseEntity<?> getComments(@PathVariable Long id, HttpSession session) {
         Optional<Video> optionalVideo = videoRepository.findById(id);
-
         if (optionalVideo.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
         final Long finalLoginUserId = loginUserResolver.getUserId(session);
 
-        List<CommentItem> comments = commentRepository.findByVideoIdAndParentIdIsNullOrderByIdDesc(id)
-                .stream()
+        List<Comment> parentComments = commentRepository.findByVideoIdAndParentIdIsNullOrderByIdDesc(id);
+        if (parentComments.isEmpty()) return ResponseEntity.ok(List.of());
+
+        List<Long> parentIds = parentComments.stream().map(Comment::getId).collect(Collectors.toList());
+        List<Comment> allReplies = commentRepository.findByParentIdInOrderByIdAsc(parentIds);
+        Map<Long, List<Comment>> repliesByParent = allReplies.stream()
+                .collect(Collectors.groupingBy(Comment::getParentId));
+
+        List<Long> allCommentIds = new ArrayList<>(parentIds);
+        allReplies.stream().map(Comment::getId).forEach(allCommentIds::add);
+
+        Map<Long, Long> likeCounts = toCountMap(commentLikeRepository.countByCommentIdIn(allCommentIds));
+        Set<Long> likedCommentIds = finalLoginUserId != null
+                ? new HashSet<>(commentLikeRepository.findLikedCommentIdsByUserId(finalLoginUserId, allCommentIds))
+                : Collections.emptySet();
+
+        List<CommentItem> comments = parentComments.stream()
                 .map(comment -> {
                     CommentItem item = CommentItem.from(comment, finalLoginUserId,
-                            commentLikeRepository.countByCommentId(comment.getId()),
-                            finalLoginUserId != null && commentLikeRepository.existsByCommentIdAndUserId(comment.getId(), finalLoginUserId));
-                    item.replies = commentRepository.findByParentIdOrderByIdAsc(comment.getId())
-                            .stream()
+                            likeCounts.getOrDefault(comment.getId(), 0L),
+                            likedCommentIds.contains(comment.getId()));
+                    item.replies = repliesByParent.getOrDefault(comment.getId(), List.of()).stream()
                             .map(r -> CommentItem.from(r, finalLoginUserId,
-                                    commentLikeRepository.countByCommentId(r.getId()),
-                                    finalLoginUserId != null && commentLikeRepository.existsByCommentIdAndUserId(r.getId(), finalLoginUserId)))
+                                    likeCounts.getOrDefault(r.getId(), 0L),
+                                    likedCommentIds.contains(r.getId())))
                             .collect(Collectors.toList());
                     return item;
                 })
@@ -258,6 +270,14 @@ public class CommentController {
         return ResponseEntity.ok(new SimpleResponse(true, "댓글이 삭제되었습니다."));
     }
 
+    private Map<Long, Long> toCountMap(List<Object[]> rows) {
+        Map<Long, Long> map = new HashMap<>();
+        for (Object[] row : rows) {
+            map.put((Long) row[0], (Long) row[1]);
+        }
+        return map;
+    }
+
     public static class CommentItem {
         private Long id;
         private Long videoId;
@@ -269,7 +289,7 @@ public class CommentController {
         private boolean isMine;
         private long likeCount;
         private boolean isLiked;
-        public List<CommentItem> replies = new java.util.ArrayList<>();
+        public List<CommentItem> replies = new ArrayList<>();
 
         public static CommentItem from(Comment comment, Long loginUserId, long likeCount, boolean isLiked) {
             CommentItem item = new CommentItem();
@@ -286,38 +306,14 @@ public class CommentController {
             return item;
         }
 
-        public Long getId() {
-            return id;
-        }
-
-        public Long getVideoId() {
-            return videoId;
-        }
-
-        public Long getUserId() {
-            return userId;
-        }
-
-        public Long getParentId() {
-            return parentId;
-        }
-
-        public List<CommentItem> getReplies() {
-            return replies;
-        }
-
-        public String getAuthor() {
-            return author;
-        }
-
-        public String getText() {
-            return text;
-        }
-
-        public String getTime() {
-            return time;
-        }
-
+        public Long getId() { return id; }
+        public Long getVideoId() { return videoId; }
+        public Long getUserId() { return userId; }
+        public Long getParentId() { return parentId; }
+        public List<CommentItem> getReplies() { return replies; }
+        public String getAuthor() { return author; }
+        public String getText() { return text; }
+        public String getTime() { return time; }
         public boolean isMine() { return isMine; }
         public long getLikeCount() { return likeCount; }
         public boolean isLiked() { return isLiked; }
@@ -332,13 +328,8 @@ public class CommentController {
             this.message = message;
         }
 
-        public boolean isSuccess() {
-            return success;
-        }
-
-        public String getMessage() {
-            return message;
-        }
+        public boolean isSuccess() { return success; }
+        public String getMessage() { return message; }
     }
 
     public static class CommentCreateResponse {
@@ -350,12 +341,7 @@ public class CommentController {
             this.comment = comment;
         }
 
-        public boolean isSuccess() {
-            return success;
-        }
-
-        public CommentItem getComment() {
-            return comment;
-        }
+        public boolean isSuccess() { return success; }
+        public CommentItem getComment() { return comment; }
     }
 }

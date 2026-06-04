@@ -5,7 +5,12 @@ import java.time.LocalDateTime;
 import java.time.Duration;
 
 @Entity
-@Table(name = "videos")
+@Table(name = "videos",
+       indexes = {
+               @Index(name = "idx_videos_owner_id", columnList = "ownerId"),
+               @Index(name = "idx_videos_visibility", columnList = "visibility"),
+               @Index(name = "idx_videos_category", columnList = "category")
+       })
 public class Video {
 
     @Id
