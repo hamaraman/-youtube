@@ -7910,6 +7910,79 @@ function ensureHistoryPatchStyle() {
                     grid-template-columns: 1fr !important;
                 }
             }
+
+            /* ── 라이트 모드 오버라이드 ── */
+            html[data-theme="light"] body.channel-home-style {
+                background: #f9f9f9 !important;
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] body.channel-home-style .topbar,
+            html[data-theme="light"] body.channel-home-style #topbar {
+                background: #ffffff !important;
+                border-bottom-color: #e5e5e5 !important;
+            }
+            html[data-theme="light"] body.channel-home-style .sidebar,
+            html[data-theme="light"] body.channel-home-style #sidebar {
+                background: #f9f9f9 !important;
+                border-right-color: #e5e5e5 !important;
+            }
+            html[data-theme="light"] body.channel-home-style .sidebar-item {
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] body.channel-home-style .sidebar-item:hover,
+            html[data-theme="light"] body.channel-home-style .sidebar-item.active {
+                background: #e5e5e5 !important;
+            }
+            html[data-theme="light"] body.channel-home-style .sidebar-label {
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] body.channel-home-style .main,
+            html[data-theme="light"] body.channel-home-style main,
+            html[data-theme="light"] body.channel-home-style #main {
+                background: #f9f9f9 !important;
+            }
+            html[data-theme="light"] .channel-unified-header {
+                border-bottom-color: #e5e5e5 !important;
+            }
+            html[data-theme="light"] .channel-unified-title {
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] .channel-unified-kicker,
+            html[data-theme="light"] .channel-unified-sub {
+                color: #606060 !important;
+            }
+            html[data-theme="light"] .channel-unified-card {
+                background: #ffffff !important;
+                border-color: #e5e5e5 !important;
+            }
+            html[data-theme="light"] .channel-unified-card .text h3,
+            html[data-theme="light"] .channel-unified-card .video-title {
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] .channel-unified-card .channel-name,
+            html[data-theme="light"] .channel-unified-card .video-info,
+            html[data-theme="light"] .channel-unified-category {
+                color: #606060 !important;
+            }
+            html[data-theme="light"] .channel-unified-btn {
+                background: #f2f2f2 !important;
+                border-color: #cccccc !important;
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] .channel-unified-btn:hover {
+                background: #e5e5e5 !important;
+            }
+            html[data-theme="light"] .channel-unified-empty {
+                background: #f9f9f9 !important;
+                border-color: #e5e5e5 !important;
+                color: #606060 !important;
+            }
+            html[data-theme="light"] .channel-unified-empty h2 {
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] .channel-unified-empty p {
+                color: #606060 !important;
+            }
         `;
 
         document.head.appendChild(style);
@@ -9531,6 +9604,40 @@ function ensureHistoryPatchStyle() {
                 body.${PATCH_ID}.sidebar-unified-expanded .user-channel-content {
                     margin-left: 0 !important;
                 }
+            }
+
+            /* ── 라이트 모드 오버라이드 ── */
+            html[data-theme="light"] body.${PATCH_ID} .sidebar,
+            html[data-theme="light"] body.${PATCH_ID} #sidebar {
+                background: #f9f9f9 !important;
+                border-right-color: #e5e5e5 !important;
+            }
+
+            html[data-theme="light"] body.${PATCH_ID} .sidebar-item,
+            html[data-theme="light"] body.${PATCH_ID} #sidebar .sidebar-item {
+                color: #0f0f0f !important;
+            }
+
+            html[data-theme="light"] body.${PATCH_ID} .sidebar-item:hover,
+            html[data-theme="light"] body.${PATCH_ID} .sidebar-item.active,
+            html[data-theme="light"] body.${PATCH_ID} #sidebar .sidebar-item:hover,
+            html[data-theme="light"] body.${PATCH_ID} #sidebar .sidebar-item.active {
+                background: #e5e5e5 !important;
+            }
+
+            html[data-theme="light"] body.${PATCH_ID} .sidebar-label,
+            html[data-theme="light"] body.${PATCH_ID} #sidebar .sidebar-label {
+                color: #0f0f0f !important;
+            }
+
+            html[data-theme="light"] body.${PATCH_ID} .sidebar-icon svg,
+            html[data-theme="light"] body.${PATCH_ID} #sidebar .sidebar-icon svg {
+                fill: #0f0f0f;
+            }
+
+            html[data-theme="light"] body.${PATCH_ID} .sidebar-divider,
+            html[data-theme="light"] body.${PATCH_ID} #sidebar .sidebar-divider {
+                background: #e5e5e5 !important;
             }
         `;
 
