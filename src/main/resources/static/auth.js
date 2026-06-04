@@ -154,6 +154,28 @@ function injectAuthStyles() {
         }
         html[data-theme="light"] .mum-item:hover { background: rgba(0,0,0,0.04); }
         html[data-theme="light"] .mum-logout { color: #cc3333; }
+
+        html[data-theme="light"] .auth-topbar-btn {
+            border-color: #cccccc !important;
+            background: #f2f2f2 !important;
+            color: #0f0f0f !important;
+        }
+        html[data-theme="light"] .auth-topbar-btn:hover {
+            background: #e5e5e5 !important;
+        }
+        html[data-theme="light"] .auth-topbar-btn.primary {
+            background: #0f0f0f !important;
+            color: #ffffff !important;
+            border-color: #0f0f0f !important;
+        }
+        html[data-theme="light"] .auth-topbar-btn.logout {
+            background: #fff0f0 !important;
+            border-color: #ffaaaa !important;
+            color: #cc3333 !important;
+        }
+        html[data-theme="light"] .auth-topbar-user {
+            border-color: rgba(0,0,0,0.1) !important;
+        }
     `;
     document.head.appendChild(style);
 }

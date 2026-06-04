@@ -6896,6 +6896,91 @@ function ensureHistoryPatchStyle() {
                     grid-template-columns: 1fr !important;
                 }
             }
+
+            /* ── 라이트 모드 오버라이드 ── */
+            html[data-theme="light"] body.library-home-style-unified {
+                background: #f9f9f9 !important;
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .topbar,
+            html[data-theme="light"] body.library-home-style-unified #topbar {
+                background: #ffffff !important;
+                border-bottom-color: #e5e5e5 !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .icon-btn {
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .icon-btn:hover {
+                background: #e8e8e8 !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .logo-wrap,
+            html[data-theme="light"] body.library-home-style-unified .logo-text {
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .search-form input {
+                background: #ffffff !important;
+                border-color: #cccccc !important;
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .search-btn {
+                background: #f2f2f2 !important;
+                border-color: #cccccc !important;
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .sidebar,
+            html[data-theme="light"] body.library-home-style-unified #sidebar {
+                background: #f9f9f9 !important;
+                border-right-color: #e5e5e5 !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .sidebar-item {
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .sidebar-item:hover,
+            html[data-theme="light"] body.library-home-style-unified .sidebar-item.active {
+                background: #e8e8e8 !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .main,
+            html[data-theme="light"] body.library-home-style-unified main,
+            html[data-theme="light"] body.library-home-style-unified #main {
+                background: #f9f9f9 !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .text h3,
+            html[data-theme="light"] body.library-home-style-unified .video-title,
+            html[data-theme="light"] body.library-home-style-unified .history-title,
+            html[data-theme="light"] body.library-home-style-unified .library-page-unified-title,
+            html[data-theme="light"] body.library-home-style-unified .local-list-empty h2,
+            html[data-theme="light"] body.library-home-style-unified .history-force-empty h2,
+            html[data-theme="light"] body.library-home-style-unified .history-patch-empty h2 {
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .channel-name,
+            html[data-theme="light"] body.library-home-style-unified .video-info,
+            html[data-theme="light"] body.library-home-style-unified .history-channel,
+            html[data-theme="light"] body.library-home-style-unified .history-meta,
+            html[data-theme="light"] body.library-home-style-unified .library-page-unified-kicker,
+            html[data-theme="light"] body.library-home-style-unified .library-page-unified-count,
+            html[data-theme="light"] body.library-home-style-unified .local-list-empty,
+            html[data-theme="light"] body.library-home-style-unified .local-list-empty p {
+                color: #606060 !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .thumbnail-wrap,
+            html[data-theme="light"] body.library-home-style-unified .history-thumbnail-wrap {
+                background: #e5e5e5 !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .saved-remove-btn,
+            html[data-theme="light"] body.library-home-style-unified .liked-remove-btn,
+            html[data-theme="light"] body.library-home-style-unified .history-force-clear,
+            html[data-theme="light"] body.library-home-style-unified .history-patch-clear {
+                background: #f2f2f2 !important;
+                border-color: #cccccc !important;
+                color: #0f0f0f !important;
+            }
+            html[data-theme="light"] body.library-home-style-unified .saved-remove-btn:hover,
+            html[data-theme="light"] body.library-home-style-unified .liked-remove-btn:hover,
+            html[data-theme="light"] body.library-home-style-unified .history-force-clear:hover,
+            html[data-theme="light"] body.library-home-style-unified .history-patch-clear:hover {
+                background: #e5e5e5 !important;
+            }
         `;
 
         document.head.appendChild(style);
