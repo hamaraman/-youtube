@@ -3780,3 +3780,81 @@ html[data-theme="light"] .watch-description-toggle {
 html[data-theme="light"] body.upload-clean-layout {
     background: #f9f9f9 !important;
 }
+
+/* ── Studio page — header & upload btn ──────────────────────── */
+html[data-theme="light"] .studio-header h1 {
+    color: #0f0f0f;
+}
+
+html[data-theme="light"] .studio-upload-btn {
+    background: #0f0f0f !important;
+    color: #ffffff !important;
+}
+
+html[data-theme="light"] .studio-upload-btn:hover {
+    background: #272727 !important;
+}
+
+/* ── Studio analytics extra panels (sa-) ────────────────────── */
+html[data-theme="light"] .sa-panel {
+    background: #ffffff !important;
+    border-color: #e5e5e5 !important;
+}
+
+html[data-theme="light"] .sa-panel-title {
+    color: #909090 !important;
+}
+
+html[data-theme="light"] .sa-rank-row {
+    border-bottom-color: #f0f0f0 !important;
+}
+
+html[data-theme="light"] .sa-rank-title {
+    color: #0f0f0f !important;
+}
+
+html[data-theme="light"] .sa-rank-views {
+    color: #606060 !important;
+}
+
+html[data-theme="light"] .sa-bar-meta span {
+    color: #606060 !important;
+}
+
+html[data-theme="light"] .sa-bar-meta strong {
+    color: #0f0f0f !important;
+}
+
+html[data-theme="light"] .sa-bar-track {
+    background: #e8e8e8 !important;
+}
+
+html[data-theme="light"] .sa-engagement-item {
+    border-right-color: #e5e5e5 !important;
+    border-bottom-color: #e5e5e5 !important;
+}
+
+html[data-theme="light"] .sa-engagement-label {
+    color: #909090 !important;
+}
+
+html[data-theme="light"] .sa-engagement-value {
+    color: #0f0f0f !important;
+}
+
+html[data-theme="light"] .sa-empty {
+    color: #aaa !important;
+}
+
+/* ── Studio stats-grid SVG chart (bar chart) ────────────────── */
+html[data-theme="light"] .studio-chart-wrap svg rect {
+    fill: #3ea6ff !important;
+}
+
+html[data-theme="light"] .studio-chart-wrap svg line {
+    stroke: #e5e5e5 !important;
+}
+
+html[data-theme="light"] .studio-chart-wrap svg text {
+    fill: #606060 !important;
+}
