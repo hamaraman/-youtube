@@ -25,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
@@ -51,8 +52,14 @@ public class VideoUploadController {
     private final SubscriptionRepository subscriptionRepository;
     private final NotificationRepository notificationRepository;
 
-    // 동시에 처리할 최대 영상 수 (CPU 과부하 방지)
     private static final Semaphore BATCH_SEMAPHORE = new Semaphore(2);
+
+    private static final Set<String> ALLOWED_VIDEO_EXTS =
+            Set.of(".mp4", ".mov", ".avi", ".mkv", ".webm", ".wmv", ".flv");
+    private static final Set<String> ALLOWED_IMAGE_EXTS =
+            Set.of(".jpg", ".jpeg", ".png", ".gif", ".webp");
+    private static final long MAX_VIDEO_BYTES  = 2_000L * 1024 * 1024; // 2 GB
+    private static final long MAX_IMAGE_BYTES  =    20L * 1024 * 1024; // 20 MB
 
     public VideoUploadController(VideoRepository videoRepository, LoginUserResolver loginUserResolver,
                                  AdminChecker adminChecker, S3StorageService storageService,
@@ -96,6 +103,11 @@ public class VideoUploadController {
             String videoUrl = "";
             String videoUuid = null;
             if (videoFile != null && !videoFile.isEmpty()) {
+                String videoExt = extensionOf(videoFile.getOriginalFilename()).toLowerCase();
+                if (!ALLOWED_VIDEO_EXTS.contains(videoExt))
+                    return badRequest("허용되지 않는 영상 형식입니다. (mp4, mov, avi, mkv, webm, wmv, flv)");
+                if (videoFile.getSize() > MAX_VIDEO_BYTES)
+                    return badRequest("영상 파일 크기는 2GB를 초과할 수 없습니다.");
                 videoUuid = saveVideoFileSync(videoFile, videoDir);
                 if (storageService.isConfigured()) {
                     Path mp4Path = Paths.get(videoDir).toAbsolutePath().resolve(videoUuid + ".mp4");
@@ -110,6 +122,11 @@ public class VideoUploadController {
             // Step 2: save thumbnail
             String finalThumbnailUrl;
             if (thumbnailFile != null && !thumbnailFile.isEmpty()) {
+                String thumbExt = extensionOf(thumbnailFile.getOriginalFilename()).toLowerCase();
+                if (!ALLOWED_IMAGE_EXTS.contains(thumbExt))
+                    return badRequest("허용되지 않는 썸네일 형식입니다. (jpg, jpeg, png, gif, webp)");
+                if (thumbnailFile.getSize() > MAX_IMAGE_BYTES)
+                    return badRequest("썸네일 파일 크기는 20MB를 초과할 수 없습니다.");
                 if (storageService.isConfigured()) {
                     finalThumbnailUrl = uploadThumbnailToS3(thumbnailFile);
                 } else {

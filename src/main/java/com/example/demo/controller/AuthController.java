@@ -1,12 +1,14 @@
 package com.example.demo.controller;
 
 import com.example.demo.config.JwtUtil;
+import com.example.demo.config.LoginAttemptService;
 import com.example.demo.config.PasswordResetTokenStore;
 import com.example.demo.config.UserSessionRegistry;
 import com.example.demo.dto.SignupRequest;
 import com.example.demo.entity.User;
 import com.example.demo.repository.SubscriptionRepository;
 import com.example.demo.repository.UserRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +34,7 @@ public class AuthController {
     private final PasswordResetTokenStore resetTokenStore;
     private final SubscriptionRepository subscriptionRepository;
     private final JavaMailSender mailSender;
+    private final LoginAttemptService loginAttemptService;
 
     @Value("${app.base-url}")
     private String baseUrl;
@@ -43,7 +46,8 @@ public class AuthController {
                           UserSessionRegistry sessionRegistry, JwtUtil jwtUtil,
                           PasswordResetTokenStore resetTokenStore,
                           SubscriptionRepository subscriptionRepository,
-                          JavaMailSender mailSender) {
+                          JavaMailSender mailSender,
+                          LoginAttemptService loginAttemptService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.sessionRegistry = sessionRegistry;
@@ -51,6 +55,7 @@ public class AuthController {
         this.resetTokenStore = resetTokenStore;
         this.subscriptionRepository = subscriptionRepository;
         this.mailSender = mailSender;
+        this.loginAttemptService = loginAttemptService;
     }
 
     @PostMapping("/signup")
@@ -69,8 +74,8 @@ public class AuthController {
                 return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디는 4~20자의 영문, 숫자, 밑줄만 사용할 수 있습니다."));
             }
 
-            if (password.length() < 4) {
-                return ResponseEntity.badRequest().body(new SimpleResponse(false, "비밀번호는 최소 4자 이상이어야 합니다."));
+            if (password.length() < 8) {
+                return ResponseEntity.badRequest().body(new SimpleResponse(false, "비밀번호는 최소 8자 이상이어야 합니다."));
             }
 
             if (userRepository.existsByUsername(username)) {
@@ -99,8 +104,17 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpSession session) {
+    public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpSession session,
+                                   HttpServletRequest httpRequest) {
         try {
+            String ip = getClientIp(httpRequest);
+
+            if (loginAttemptService.isBlocked(ip)) {
+                long remaining = loginAttemptService.blockRemainingSeconds(ip);
+                return ResponseEntity.status(429).body(new SimpleResponse(false,
+                        "로그인 시도 횟수를 초과했습니다. " + remaining + "초 후에 다시 시도해주세요."));
+            }
+
             String username = request.getUsername() == null ? "" : request.getUsername().trim();
             String password = request.getPassword() == null ? "" : request.getPassword().trim();
 
@@ -111,6 +125,7 @@ public class AuthController {
             Optional<User> optionalUser = userRepository.findByUsername(username);
 
             if (optionalUser.isEmpty()) {
+                loginAttemptService.recordFailure(ip);
                 return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디 또는 비밀번호가 올바르지 않습니다."));
             }
 
@@ -134,8 +149,11 @@ public class AuthController {
             }
 
             if (!passwordMatched) {
+                loginAttemptService.recordFailure(ip);
                 return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디 또는 비밀번호가 올바르지 않습니다."));
             }
+
+            loginAttemptService.recordSuccess(ip);
 
             SessionUser sessionUser = new SessionUser(
                     user.getId(),
@@ -160,6 +178,14 @@ public class AuthController {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body(new SimpleResponse(false, "로그인 중 오류가 발생했습니다."));
         }
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip != null && !ip.isBlank()) return ip.split(",")[0].trim();
+        ip = request.getHeader("X-Real-IP");
+        if (ip != null && !ip.isBlank()) return ip.trim();
+        return request.getRemoteAddr();
     }
 
     @GetMapping("/me")
@@ -230,7 +256,7 @@ public class AuthController {
             return ResponseEntity.badRequest().body(new SimpleResponse(false, "잘못된 요청입니다."));
         }
 
-        if (newPassword.length() < 4) {
+        if (newPassword.length() < 8) {
             return ResponseEntity.badRequest().body(new SimpleResponse(false, "비밀번호는 최소 4자 이상이어야 합니다."));
         }
 
