@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>梨꾨꼸 - MyTube</title>
+    <title>채널 - MyTube</title>
     <link rel="preconnect" href="https://fonts.googleapis.com"/>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet"/>
@@ -15,7 +15,7 @@
         .sidebar.is-collapsed { width: 72px; padding-left: 8px; padding-right: 8px; }
         .sidebar-section { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-bottom: 1px solid #222; }
         .sidebar-section:last-child { border-bottom: none; }
-        .sidebar-link { display: flex; align-items: center; gap: 16px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #f1f1f1; transition: background 0.18s; }
+        .sidebar-link { display: flex; align-items: center; gap: 16px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: #f1f1f1; transition: background 0.18s; text-decoration: none; font-size: 14px; }
         .sidebar-link:hover { background: #222; }
         .sidebar-icon { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
         .sidebar-icon svg { width: 22px; height: 22px; fill: currentColor; }
@@ -27,13 +27,11 @@
         .menu-btn svg { width: 24px; height: 24px; fill: currentColor; }
         .mobile-sidebar-backdrop { display: none; }
 
-        /* channel view */
         .user-channel-content { flex: 1; min-width: 0; }
         .user-banner {
             width: 100%;
             height: 180px;
             object-fit: cover;
-            background: linear-gradient(135deg, #1a1a2e, #16213e);
             display: block;
         }
         .user-banner-placeholder {
@@ -86,26 +84,41 @@
         .user-subscribe-btn:hover { background: #e0e0e0; }
         .user-subscribe-btn.subscribed { background: #272727; color: #aaa; border: 1px solid #444; }
         .user-subscribe-btn.subscribed:hover { background: #333; }
-        .user-videos-section { padding: 24px; }
-        .user-videos-title { font-size: 18px; font-weight: 700; color: #fff; margin: 0 0 16px; }
+
+        .user-channel-body { padding: 0 24px 40px; }
+
+        .scroll-loader { display: flex; gap: 6px; justify-content: center; padding: 24px 0; }
+
+        /* Light mode */
+        html[data-theme="light"] .user-avatar { border-color: #fff; }
+        html[data-theme="light"] .user-profile-row { border-bottom-color: #e0e0e0; }
+        html[data-theme="light"] .user-channel-name { color: #0f0f0f; }
+        html[data-theme="light"] .user-meta { color: #606060; }
+        html[data-theme="light"] .user-bio { color: #0f0f0f; }
+        html[data-theme="light"] .sidebar { background: #f9f9f9; border-right-color: #e0e0e0; }
+        html[data-theme="light"] .sidebar-link { color: #0f0f0f; }
+        html[data-theme="light"] .sidebar-link:hover { background: #e5e5e5; }
 
         @media (max-width: 900px) {
-            .sidebar { position: fixed; top: 56px; left: 0; width: 240px; height: calc(100vh - 56px); z-index: 120; transform: translateX(-100%); }
+            .sidebar { position: fixed; top: 56px; left: 0; width: 240px; height: calc(100vh - 56px); z-index: 120; transform: translateX(-100%); box-shadow: 12px 0 30px rgba(0,0,0,0.35); }
             .sidebar.is-open { transform: translateX(0); }
             .sidebar.is-collapsed { width: 240px; padding-left: 10px; padding-right: 10px; }
             .sidebar.is-collapsed .sidebar-link { justify-content: flex-start; padding: 0 12px; min-height: 40px; flex-direction: row; gap: 16px; }
             .sidebar.is-collapsed .sidebar-label { font-size: 14px; }
+            .mobile-sidebar-backdrop { display: block; position: fixed; inset: 56px 0 0 0; background: rgba(0,0,0,0.45); z-index: 110; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+            .mobile-sidebar-backdrop.is-open { opacity: 1; pointer-events: auto; }
             .user-profile-row { flex-wrap: wrap; gap: 12px; }
+            .user-channel-body { padding: 0 16px 32px; }
         }
     </style>
 </head>
 <body data-page="user">
 <header class="topbar">
     <div class="topbar-left">
-        <button type="button" class="menu-btn" id="menuToggle" aria-label="硫붾돱 ?닿린">
+        <button type="button" class="menu-btn" id="menuToggle" aria-label="메뉴 열기">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3V6Zm0 5h18v2H3v-2Zm0 5h18v2H3v-2Z"></path></svg>
         </button>
-        <a href="index.html" class="logo-wrap" aria-label="MyTube ??>
+        <a href="index.html" class="logo-wrap" aria-label="MyTube 홈">
             <span class="logo-badge">
                 <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
                     <rect x="4" y="7" width="16" height="10" rx="2" stroke="white" stroke-width="1.4"/>
@@ -120,35 +133,28 @@
         </a>
     </div>
     <div class="topbar-center">
-        <form class="search-form" id="userSearchForm">
-            <input type="text" placeholder="寃?? aria-label="寃??/>
-            <button type="submit" class="search-btn" aria-label="寃??踰꾪듉">
+        <form class="search-form">
+            <input type="text" placeholder="검색" aria-label="검색"/>
+            <button type="submit" class="search-btn" aria-label="검색 버튼">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4a6 6 0 1 0 3.87 10.58l4.27 4.27 1.41-1.41-4.27-4.27A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"></path></svg>
             </button>
         </form>
     </div>
     <div class="topbar-right">
-        <a href="upload.html" class="icon-btn" aria-label="?낅줈??>
+        <a href="upload.html" class="icon-btn" aria-label="업로드">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6h2v5h5v2h-5v5h-2v-5H6v-2h5V6Z"></path></svg>
         </a>
         <div class="notif-wrap" id="notifWrap">
-            <button class="icon-btn notif-btn" id="notifBtn" aria-label="?뚮┝">
+            <button class="icon-btn notif-btn" id="notifBtn" aria-label="알림">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6v-5a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2Z"/></svg>
                 <span class="notif-badge" id="notifBadge" style="display:none"></span>
             </button>
             <div class="notif-dropdown" id="notifDropdown" style="display:none">
-                <div class="notif-header" id="notifMainHeader"><span>?뚮┝</span><button class="notif-read-all" id="notifReadAll">紐⑤몢 ?쎌쓬</button></div>
+                <div class="notif-header"><span>알림</span><button class="notif-read-all" id="notifReadAll">모두 읽음</button></div>
                 <div class="notif-list" id="notifList"></div>
-                <div class="notif-comment-view" id="notifCommentView" style="display:none">
-                    <div class="notif-comment-nav">
-                        <button class="notif-back-btn" id="notifBackBtn">???ㅻ줈</button>
-                        <a class="notif-go-video" id="notifGoVideo" href="#">?곸긽?쇰줈 ?대룞 ??/a>
-                    </div>
-                    <div class="notif-comment-list" id="notifCommentList"></div>
-                </div>
             </div>
         </div>
-        <a href="channel.html" class="profile" aria-label="??梨꾨꼸">T</a>
+        <a href="channel.html" class="profile" aria-label="내 채널">T</a>
     </div>
 </header>
 
@@ -159,31 +165,31 @@
         <nav class="sidebar-section">
             <a href="index.html" class="sidebar-link">
                 <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20h-5v-5h-6v5H4v-9.5Z"></path></svg></span>
-                <span class="sidebar-label">??/span>
+                <span class="sidebar-label">홈</span>
             </a>
         </nav>
         <nav class="sidebar-section">
             <a href="saved.html" class="sidebar-link">
                 <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H7a2 2 0 0 0-2 2v16l7-4 7 4V5a2 2 0 0 0-2-2Z"></path></svg></span>
-                <span class="sidebar-label">??ν븳 ?곸긽</span>
+                <span class="sidebar-label">저장한 영상</span>
             </a>
             <a href="liked.html" class="sidebar-link">
                 <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 21-1.45-1.32C5.4 15.05 2 11.97 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3C19.58 3 22 5.42 22 8.5c0 3.47-3.4 6.55-8.55 11.18L12 21Z"></path></svg></span>
-                <span class="sidebar-label">醫뗭븘?뷀븳 ?곸긽</span>
+                <span class="sidebar-label">좋아요한 영상</span>
             </a>
             <a href="history.html" class="sidebar-link">
                 <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3a9 9 0 1 0 8.95 10H20a7 7 0 1 1-2.05-4.95L15 11h7V4l-2.62 2.62A8.96 8.96 0 0 0 13 3Zm-1 5h2v5l4 2-.9 1.8-5.1-2.55V8Z"></path></svg></span>
-                <span class="sidebar-label">?쒖껌 湲곕줉</span>
+                <span class="sidebar-label">시청 기록</span>
             </a>
         </nav>
         <nav class="sidebar-section">
             <a href="channel.html" class="sidebar-link">
                 <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z"></path></svg></span>
-                <span class="sidebar-label">??梨꾨꼸</span>
+                <span class="sidebar-label">내 채널</span>
             </a>
             <a href="upload.html" class="sidebar-link">
                 <span class="sidebar-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6h2v5h5v2h-5v5h-2v-5H6v-2h5V6Z"></path></svg></span>
-                <span class="sidebar-label">?낅줈??/span>
+                <span class="sidebar-label">업로드</span>
             </a>
         </nav>
     </aside>
@@ -193,31 +199,64 @@
         <div class="user-profile-row">
             <div class="user-avatar" id="userAvatar"></div>
             <div class="user-info">
-                <h1 class="user-channel-name" id="userChannelName">濡쒕뵫 以?..</h1>
+                <h1 class="user-channel-name" id="userChannelName">채널 로딩 중...</h1>
                 <p class="user-meta" id="userMeta"></p>
                 <p class="user-bio" id="userBio" style="display:none"></p>
             </div>
-            <button class="user-subscribe-btn" id="userSubscribeBtn" style="display:none">援щ룆</button>
+            <button class="user-subscribe-btn" id="userSubscribeBtn" style="display:none">구독</button>
         </div>
-        <div class="user-videos-section">
-            <h2 class="user-videos-title">?곸긽</h2>
-            <section class="video-grid" id="userVideoGrid"></section>
-            <div class="scroll-loader" id="userScrollLoader" style="display:none">
-                <span class="scroll-loader-dot"></span>
-                <span class="scroll-loader-dot"></span>
-                <span class="scroll-loader-dot"></span>
+
+        <div class="user-channel-body">
+            <div class="ch-tabs-bar" id="userTabsBar">
+                <button class="ch-tab-btn is-active" data-tab="videos">영상</button>
+                <button class="ch-tab-btn" data-tab="playlists">재생목록</button>
+                <button class="ch-tab-btn" data-tab="about">정보</button>
             </div>
-            <div id="userScrollSentinel" style="height:1px"></div>
-            <p id="userVideoEmpty" style="display:none;color:#9aa0a6;padding:24px 0;">?щ┛ ?곸긽???놁뼱??</p>
+
+            <div class="ch-tab-panel is-active" id="userTabVideos">
+                <section class="video-grid" id="userVideoGrid" style="margin-top:16px;"></section>
+                <div class="scroll-loader" id="userScrollLoader" style="display:none">
+                    <span class="scroll-loader-dot"></span>
+                    <span class="scroll-loader-dot"></span>
+                    <span class="scroll-loader-dot"></span>
+                </div>
+                <div id="userScrollSentinel" style="height:1px"></div>
+                <p id="userVideoEmpty" style="display:none;color:#9aa0a6;padding:40px 0;text-align:center;">아직 업로드한 영상이 없습니다.</p>
+            </div>
+
+            <div class="ch-tab-panel" id="userTabPlaylists">
+                <div class="ch-pl-grid" id="userPlaylistGrid"></div>
+                <p class="ch-tab-empty" id="userPlaylistEmpty" hidden>아직 만든 재생목록이 없습니다.</p>
+            </div>
+
+            <div class="ch-tab-panel" id="userTabAbout">
+                <div class="ch-about-section" id="userAboutSection"></div>
+            </div>
         </div>
     </div>
 </div>
 
 <script src="auth.js?v=12"></script>
 <script src="script.js?v=11"></script>
+<script>
+    (function () {
+        const sidebar = document.getElementById("sidebar");
+        const menuToggle = document.getElementById("menuToggle");
+        const backdrop = document.getElementById("sidebarBackdrop");
+        if (!sidebar || !menuToggle || !backdrop) return;
+        menuToggle.addEventListener("click", () => {
+            if (window.innerWidth <= 900) {
+                sidebar.classList.toggle("is-open");
+                backdrop.classList.toggle("is-open");
+            } else {
+                sidebar.classList.toggle("is-collapsed");
+            }
+        });
+        backdrop.addEventListener("click", () => {
+            sidebar.classList.remove("is-open");
+            backdrop.classList.remove("is-open");
+        });
+    })();
+</script>
 </body>
 </html>
-
-
-
-

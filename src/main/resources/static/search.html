@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MyTube - 검색</title>
+    <script src="theme.js"></script>
+    <link rel="stylesheet" href="style.css?v=4" />
+
+    <style>
+        .search-shell {
+            display: flex;
+            min-height: calc(100vh - 56px);
+        }
+
+        .sidebar {
+            width: 240px;
+            background: #0f0f0f;
+            border-right: 1px solid #222;
+            padding: 12px 10px;
+            position: sticky;
+            top: 56px;
+            height: calc(100vh - 56px);
+            overflow-y: auto;
+            flex-shrink: 0;
+            transition: width 0.22s ease, transform 0.22s ease;
+        }
+
+        .sidebar.is-collapsed {
+            width: 72px;
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+
+        .sidebar-section {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 8px 0;
+            border-bottom: 1px solid #222;
+        }
+
+        .sidebar-section:last-child {
+            border-bottom: none;
+        }
+
+        .sidebar-link {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 8px 12px;
+            border-radius: 10px;
+            color: #f1f1f1;
+            text-decoration: none;
+            font-size: 14px;
+            transition: background 0.15s;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .sidebar-link:hover { background: #272727; }
+        .sidebar-link.is-active { background: #272727; font-weight: 600; }
+
+        .sidebar.is-collapsed .sidebar-label { display: none; }
+        .sidebar.is-collapsed .sidebar-link { padding: 10px; gap: 0; justify-content: center; }
+
+        .sidebar-icon {
+            flex-shrink: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sidebar-icon svg { width: 22px; height: 22px; fill: currentColor; }
+
+        .main.search-content {
+            flex: 1;
+            min-width: 0;
+            padding: 16px 24px 40px;
+            max-width: 1400px;
+        }
+
+        .search-header {
+            padding: 8px 0 16px;
+            border-bottom: 1px solid #272727;
+            margin-bottom: 16px;
+        }
+
+        .search-keyword-label {
+            font-size: 20px;
+            font-weight: 400;
+            color: #f1f1f1;
+        }
+
+        .search-keyword-label span {
+            font-weight: 600;
+        }
+
+        .search-result-count {
+            font-size: 13px;
+            color: #aaa;
+            margin-top: 4px;
+        }
+
+        .search-empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 80px 20px;
+            text-align: center;
+            gap: 16px;
+        }
+
+        .search-empty-icon svg {
+            width: 72px;
+            height: 72px;
+            fill: #555;
+        }
+
+        .search-empty-title {
+            font-size: 20px;
+            font-weight: 500;
+            color: #f1f1f1;
+            margin: 0;
+        }
+
+        .search-empty-text {
+            font-size: 14px;
+            color: #aaa;
+            margin: 0;
+        }
+
+        .search-empty-btn {
+            display: inline-flex;
+            align-items: center;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            background: #272727;
+            color: #f1f1f1;
+            transition: background 0.15s;
+        }
+
+        .search-empty-btn:hover { background: #383838; }
+        .search-empty-btn.primary { background: #3ea6ff; color: #0f0f0f; }
+        .search-empty-btn.primary:hover { background: #65b8ff; }
+
+        /* Light mode */
+        html[data-theme="light"] .sidebar {
+            background: #f9f9f9;
+            border-right-color: #e0e0e0;
+        }
+        html[data-theme="light"] .sidebar-link { color: #0f0f0f; }
+        html[data-theme="light"] .sidebar-link:hover,
+        html[data-theme="light"] .sidebar-link.is-active { background: #e5e5e5; }
+        html[data-theme="light"] .search-header { border-bottom-color: #e0e0e0; }
+        html[data-theme="light"] .search-keyword-label { color: #0f0f0f; }
+        html[data-theme="light"] .search-result-count { color: #606060; }
+        html[data-theme="light"] .search-empty-icon svg { fill: #aaa; }
+        html[data-theme="light"] .search-empty-title { color: #0f0f0f; }
+        html[data-theme="light"] .search-empty-text { color: #606060; }
+        html[data-theme="light"] .search-empty-btn { background: #e5e5e5; color: #0f0f0f; }
+        html[data-theme="light"] .search-empty-btn:hover { background: #d0d0d0; }
+
+        @media (max-width: 900px) {
+            .sidebar {
+                position: fixed;
+                left: -260px;
+                top: 56px;
+                height: calc(100vh - 56px);
+                z-index: 200;
+                transition: left 0.22s ease;
+                width: 240px !important;
+            }
+            .sidebar.is-open { left: 0; }
+            .sidebar.is-collapsed { width: 240px; padding: 12px 10px; }
+            .sidebar.is-collapsed .sidebar-label { display: inline; }
+            .sidebar.is-collapsed .sidebar-link { padding: 8px 12px; gap: 20px; justify-content: flex-start; }
+        }
+    </style>
+</head>
+<body data-page="search">
+<header class="topbar">
+    <div class="topbar-left">
+        <button type="button" class="menu-btn" id="menuToggle" aria-label="메뉴 열기">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 6h18v2H3V6Zm0 5h18v2H3v-2Zm0 5h18v2H3v-2Z"></path>
+            </svg>
+        </button>
+
+        <a href="index.html" class="logo-wrap" aria-label="MyTube 홈">
+            <span class="logo-badge">
+                <svg viewBox="0 0 24 24" aria-hidden="true" fill="none">
+                    <rect x="4" y="7" width="16" height="10" rx="2" stroke="white" stroke-width="1.4"/>
+                    <rect x="2" y="9.5" width="2" height="2" rx="0.5" fill="white"/>
+                    <rect x="2" y="12.5" width="2" height="2" rx="0.5" fill="white"/>
+                    <rect x="20" y="9.5" width="2" height="2" rx="0.5" fill="white"/>
+                    <rect x="20" y="12.5" width="2" height="2" rx="0.5" fill="white"/>
+                    <path d="M10.5 10l4 2-4 2v-4z" fill="white"/>
+                </svg>
+            </span>
+            <span class="logo-text">MY</span>
+        </a>
+    </div>
+
+    <div class="topbar-center">
+        <form class="search-form" id="searchPageForm">
+            <input
+                type="text"
+                id="searchPageInput"
+                placeholder="검색"
+                aria-label="검색"
+            />
+            <button type="submit" class="search-btn" aria-label="검색 버튼">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M10 4a6 6 0 1 0 3.87 10.58l4.27 4.27 1.41-1.41-4.27-4.27A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"></path>
+                </svg>
+            </button>
+        </form>
+    </div>
+
+    <div class="topbar-right">
+        <a href="upload.html" class="icon-btn" aria-label="업로드">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M11 6h2v5h5v2h-5v5h-2v-5H6v-2h5V6Z"></path>
+            </svg>
+        </a>
+        <div class="notif-wrap" id="notifWrap">
+            <button class="icon-btn notif-btn" id="notifBtn" aria-label="알림">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6v-5a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2Z"/></svg>
+                <span class="notif-badge" id="notifBadge" style="display:none"></span>
+            </button>
+            <div class="notif-dropdown" id="notifDropdown" style="display:none">
+                <div class="notif-header"><span>알림</span><button class="notif-read-all" id="notifReadAll">모두 읽음</button></div>
+                <div class="notif-list" id="notifList"></div>
+            </div>
+        </div>
+        <a href="channel.html" class="profile" aria-label="내 채널">T</a>
+    </div>
+</header>
+
+<div class="mobile-sidebar-backdrop" id="sidebarBackdrop"></div>
+
+<div class="search-shell">
+    <aside class="sidebar is-collapsed" id="sidebar">
+        <nav class="sidebar-section">
+            <a href="index.html" class="sidebar-link">
+                <span class="sidebar-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 10.5 12 4l8 6.5V20h-5v-5h-6v5H4v-9.5Z"></path>
+                    </svg>
+                </span>
+                <span class="sidebar-label">홈</span>
+            </a>
+        </nav>
+
+        <nav class="sidebar-section">
+            <a href="saved.html" class="sidebar-link">
+                <span class="sidebar-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M17 3H7a2 2 0 0 0-2 2v16l7-4 7 4V5a2 2 0 0 0-2-2Z"></path>
+                    </svg>
+                </span>
+                <span class="sidebar-label">저장한 영상</span>
+            </a>
+
+            <a href="liked.html" class="sidebar-link">
+                <span class="sidebar-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="m12 21-1.45-1.32C5.4 15.05 2 11.97 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09A6 6 0 0 1 16.5 3C19.58 3 22 5.42 22 8.5c0 3.47-3.4 6.55-8.55 11.18L12 21Z"></path>
+                    </svg>
+                </span>
+                <span class="sidebar-label">좋아요한 영상</span>
+            </a>
+            <a href="history.html" class="sidebar-link">
+                <span class="sidebar-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8Zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7Z"></path>
+                    </svg>
+                </span>
+                <span class="sidebar-label">시청 기록</span>
+            </a>
+        </nav>
+
+        <nav class="sidebar-section">
+            <a href="channel.html" class="sidebar-link">
+                <span class="sidebar-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z"></path>
+                    </svg>
+                </span>
+                <span class="sidebar-label">내 채널</span>
+            </a>
+
+            <a href="studio.html" class="sidebar-link">
+                <span class="sidebar-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/>
+                    </svg>
+                </span>
+                <span class="sidebar-label">내 스튜디오</span>
+            </a>
+
+            <a href="upload.html" class="sidebar-link">
+                <span class="sidebar-icon">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M11 6h2v5h5v2h-5v5h-2v-5H6v-2h5V6Z"></path>
+                    </svg>
+                </span>
+                <span class="sidebar-label">업로드</span>
+            </a>
+        </nav>
+    </aside>
+
+    <main class="main search-content">
+        <div class="search-header" id="searchHeader">
+            <p class="search-keyword-label" id="searchKeywordLabel"></p>
+            <p class="search-result-count" id="searchResultCount"></p>
+        </div>
+
+        <section class="channel-results" id="channelResults" style="display:none">
+            <h3 class="channel-results-title">채널</h3>
+            <div class="channel-results-list" id="channelResultsList"></div>
+        </section>
+
+        <section class="video-grid" id="videoGrid"></section>
+
+        <div class="scroll-loader" id="scrollLoader" style="display:none">
+            <span class="scroll-loader-dot"></span>
+            <span class="scroll-loader-dot"></span>
+            <span class="scroll-loader-dot"></span>
+        </div>
+        <div id="scrollSentinel" style="height:1px"></div>
+
+        <section class="search-empty-state" id="searchEmptyState" hidden>
+            <div class="search-empty-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M10 4a6 6 0 1 0 3.87 10.58l4.27 4.27 1.41-1.41-4.27-4.27A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"></path>
+                </svg>
+            </div>
+            <h3 class="search-empty-title" id="searchEmptyTitle">검색 결과가 없습니다</h3>
+            <p class="search-empty-text" id="searchEmptyText">다른 검색어로 다시 시도해봐.</p>
+            <div style="display:flex;gap:8px;margin-top:4px">
+                <a href="index.html" class="search-empty-btn primary">홈으로 가기</a>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script src="auth.js?v=12"></script>
+<script src="script.js?v=11"></script>
+<script>
+    (function () {
+        const sidebar = document.getElementById("sidebar");
+        const menuToggle = document.getElementById("menuToggle");
+        const backdrop = document.getElementById("sidebarBackdrop");
+
+        if (!sidebar || !menuToggle || !backdrop) return;
+
+        function isMobile() {
+            return window.innerWidth <= 900;
+        }
+
+        function closeMobileSidebar() {
+            sidebar.classList.remove("is-open");
+            backdrop.classList.remove("is-open");
+        }
+
+        function toggleDesktopSidebar() {
+            sidebar.classList.toggle("is-collapsed");
+        }
+
+        menuToggle.addEventListener("click", () => {
+            if (isMobile()) {
+                sidebar.classList.toggle("is-open");
+                backdrop.classList.toggle("is-open");
+            } else {
+                toggleDesktopSidebar();
+            }
+        });
+
+        backdrop.addEventListener("click", closeMobileSidebar);
+    })();
+</script>
+</body>
+</html>

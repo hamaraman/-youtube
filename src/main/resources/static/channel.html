@@ -502,13 +502,29 @@
                 </div>
             </div>
 
-            <div id="channelVideoGrid" class="channel-video-grid"></div>
+            <div class="ch-tabs-bar" id="channelTabsBar">
+                <button class="ch-tab-btn is-active" data-tab="videos">영상</button>
+                <button class="ch-tab-btn" data-tab="playlists">재생목록</button>
+                <button class="ch-tab-btn" data-tab="about">정보</button>
+            </div>
 
-            <section class="channel-empty-notice" id="channelEmptyState" hidden>
-                <h3>아직 업로드한 영상이 없습니다</h3>
-                <p>첫 영상을 업로드해서 채널을 채워보자.</p>
-                <a href="upload.html" class="channel-hero-btn primary">영상 업로드</a>
-            </section>
+            <div class="ch-tab-panel is-active" id="tabVideos">
+                <div id="channelVideoGrid" class="channel-video-grid" style="margin-top:16px;"></div>
+                <section class="channel-empty-notice" id="channelEmptyState" hidden>
+                    <h3>아직 업로드한 영상이 없습니다</h3>
+                    <p>첫 영상을 업로드해서 채널을 채워보자.</p>
+                    <a href="upload.html" class="channel-hero-btn primary">영상 업로드</a>
+                </section>
+            </div>
+
+            <div class="ch-tab-panel" id="tabPlaylists">
+                <div class="ch-pl-grid" id="channelPlaylistGrid"></div>
+                <p class="ch-tab-empty" id="channelPlaylistEmpty" hidden>아직 만든 재생목록이 없습니다.</p>
+            </div>
+
+            <div class="ch-tab-panel" id="tabAbout">
+                <div class="ch-about-section" id="channelAboutSection"></div>
+            </div>
         </section>
     </main>
 </div>

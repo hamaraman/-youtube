@@ -1595,33 +1595,34 @@ async function initUserPage() {
     const userId = params.get("id");
     if (!userId) { window.location.href = "index.html"; return; }
 
-    const bannerWrap   = document.getElementById("userBannerWrap");
-    const avatarEl     = document.getElementById("userAvatar");
-    const nameEl       = document.getElementById("userChannelName");
-    const metaEl       = document.getElementById("userMeta");
-    const bioEl        = document.getElementById("userBio");
-    const subBtn       = document.getElementById("userSubscribeBtn");
-    const grid         = document.getElementById("userVideoGrid");
-    const loader       = document.getElementById("userScrollLoader");
-    const sentinel     = document.getElementById("userScrollSentinel");
-    const emptyEl      = document.getElementById("userVideoEmpty");
+    const bannerWrap = document.getElementById("userBannerWrap");
+    const avatarEl   = document.getElementById("userAvatar");
+    const nameEl     = document.getElementById("userChannelName");
+    const metaEl     = document.getElementById("userMeta");
+    const bioEl      = document.getElementById("userBio");
+    const subBtn     = document.getElementById("userSubscribeBtn");
+    const grid       = document.getElementById("userVideoGrid");
+    const loader     = document.getElementById("userScrollLoader");
+    const sentinel   = document.getElementById("userScrollSentinel");
+    const emptyEl    = document.getElementById("userVideoEmpty");
+
+    let channelInfo = {};
 
     // 프로필 로드
     try {
         const res = await fetch(`/api/users/${userId}/channel`);
         if (!res.ok) { window.location.href = "index.html"; return; }
         const ch = await res.json();
+        channelInfo = ch;
 
         document.title = `${ch.channelName} - MyTube`;
 
-        // 배너
         if (ch.bannerImage) {
             bannerWrap.innerHTML = `<img class="user-banner" src="${escapeHtml(ch.bannerImage)}" alt="배너">`;
         } else {
             bannerWrap.innerHTML = `<div class="user-banner-placeholder"></div>`;
         }
 
-        // 아바타
         if (ch.profileImage) {
             avatarEl.innerHTML = `<img src="${escapeHtml(ch.profileImage)}" alt="${escapeHtml(ch.channelName)}">`;
         } else {
@@ -1632,24 +1633,51 @@ async function initUserPage() {
         metaEl.textContent = `구독자 ${formatCount(ch.subscriberCount)}명 · 영상 ${ch.videoCount}개`;
         if (ch.bio) { bioEl.textContent = ch.bio; bioEl.style.display = "block"; }
 
-        // 구독 버튼 (본인 채널이면 숨김)
         if (!ch.isMe) {
             subBtn.style.display = "block";
             subBtn.textContent = ch.subscribed ? "구독 중" : "구독";
             subBtn.classList.toggle("subscribed", ch.subscribed);
-            let subscribed = ch.subscribed;
-
             subBtn.addEventListener("click", async () => {
                 const r = await fetch(`/api/users/${userId}/subscribe`, { method: "POST" });
                 if (!r.ok) return;
                 const data = await r.json();
-                subscribed = data.subscribed;
-                subBtn.textContent = subscribed ? "구독 중" : "구독";
-                subBtn.classList.toggle("subscribed", subscribed);
+                subBtn.textContent = data.subscribed ? "구독 중" : "구독";
+                subBtn.classList.toggle("subscribed", data.subscribed);
                 metaEl.textContent = `구독자 ${formatCount(data.subscriberCount)}명 · 영상 ${ch.videoCount}개`;
             });
         }
     } catch { window.location.href = "index.html"; return; }
+
+    // 탭
+    const tabPanels = {
+        videos: document.getElementById("userTabVideos"),
+        playlists: document.getElementById("userTabPlaylists"),
+        about: document.getElementById("userTabAbout"),
+    };
+    let playlistsLoaded = false;
+
+    function showTab(name) {
+        Object.values(tabPanels).forEach(p => p?.classList.remove("is-active"));
+        tabPanels[name]?.classList.add("is-active");
+        if (name === "playlists" && !playlistsLoaded) {
+            playlistsLoaded = true;
+            loadUserPlaylists();
+        }
+        if (name === "about") {
+            renderAboutSection("userAboutSection", channelInfo);
+        }
+    }
+
+    initTabBar("userTabsBar", showTab);
+
+    async function loadUserPlaylists() {
+        try {
+            const res = await fetch(`/api/playlists/user/${userId}`);
+            if (!res.ok) return;
+            const list = await res.json();
+            renderPlaylistGrid("userPlaylistGrid", "userPlaylistEmpty", list);
+        } catch {}
+    }
 
     // 영상 무한 스크롤
     let currentPage = 0, isLoading = false, hasMore = true;
@@ -2075,6 +2103,8 @@ function initNotifications() {
 }
 
 function initGlobalTopSearch() {
+    if (page === "search") return;
+
     const searchForms = document.querySelectorAll(".search-form");
     if (!searchForms.length) return;
 
@@ -2084,7 +2114,7 @@ function initGlobalTopSearch() {
 
             const input = form.querySelector('input[type="text"]');
             const keyword = input?.value.trim() || "";
-            const targetUrl = new URL("index.html", window.location.href);
+            const targetUrl = new URL("search.html", window.location.href);
 
             if (keyword) {
                 targetUrl.searchParams.set("q", keyword);
@@ -2604,11 +2634,195 @@ function initUploadPage() {
     setStep(1);
 }
 
+async function initSearchPage() {
+    const videoGrid = document.getElementById("videoGrid");
+    const channelResults = document.getElementById("channelResults");
+    const channelResultsList = document.getElementById("channelResultsList");
+    const scrollLoader = document.getElementById("scrollLoader");
+    const scrollSentinel = document.getElementById("scrollSentinel");
+    const searchEmptyState = document.getElementById("searchEmptyState");
+    const searchEmptyTitle = document.getElementById("searchEmptyTitle");
+    const searchEmptyText = document.getElementById("searchEmptyText");
+    const searchKeywordLabel = document.getElementById("searchKeywordLabel");
+    const searchResultCount = document.getElementById("searchResultCount");
+    const searchPageInput = document.getElementById("searchPageInput");
+    const searchPageForm = document.getElementById("searchPageForm");
+
+    if (!videoGrid) return;
+
+    const url = new URL(window.location.href);
+    let currentKeyword = url.searchParams.get("q") || "";
+    let currentPage = 0;
+    let isLoading = false;
+    let hasMore = true;
+    let totalVideoCount = 0;
+
+    if (searchPageInput) searchPageInput.value = currentKeyword;
+    updateHeader();
+
+    function updateHeader() {
+        if (searchKeywordLabel) {
+            if (currentKeyword.trim()) {
+                searchKeywordLabel.innerHTML = `<span>${escapeHtml(currentKeyword)}</span> 검색 결과`;
+            } else {
+                searchKeywordLabel.textContent = "검색어를 입력해주세요";
+            }
+        }
+    }
+
+    function showLoader(show) {
+        if (scrollLoader) scrollLoader.style.display = show ? "flex" : "none";
+    }
+
+    async function loadChannels(keyword) {
+        if (!channelResults || !channelResultsList) return;
+        if (!keyword.trim()) {
+            channelResults.style.display = "none";
+            channelResultsList.innerHTML = "";
+            return;
+        }
+        try {
+            const res = await fetch(`/api/users/search?keyword=${encodeURIComponent(keyword.trim())}`);
+            if (!res.ok) return;
+            const channels = await res.json();
+            if (!channels.length) {
+                channelResults.style.display = "none";
+                return;
+            }
+            channelResults.style.display = "block";
+            channelResultsList.innerHTML = channels.map(ch => {
+                const name = ch.channelName || ch.username;
+                const initial = String(name).charAt(0).toUpperCase();
+                const avatar = ch.profileImage
+                    ? `<img src="${escapeHtml(ch.profileImage)}" alt="${escapeHtml(name)}" class="ch-card-avatar-img">`
+                    : `<span class="ch-card-avatar-text">${escapeHtml(initial)}</span>`;
+                const subCount = formatCount(ch.subscriberCount || 0);
+                const vidCount = ch.videoCount || 0;
+                return `
+                <div class="ch-card" data-channel-id="${ch.id}">
+                    <a href="user.html?id=${ch.id}" class="ch-card-link">
+                        <div class="ch-card-avatar">${avatar}</div>
+                        <div class="ch-card-info">
+                            <span class="ch-card-name">${escapeHtml(name)}</span>
+                            <span class="ch-card-meta">구독자 ${subCount}명 · 영상 ${vidCount}개</span>
+                        </div>
+                    </a>
+                    <button class="ch-card-sub-btn${ch.subscribed ? " is-subscribed" : ""}"
+                            data-ch-id="${ch.id}" data-subscribed="${ch.subscribed}">
+                        ${ch.subscribed ? "구독 중" : "구독"}
+                    </button>
+                </div>`;
+            }).join("");
+
+            channelResultsList.querySelectorAll(".ch-card-sub-btn").forEach(btn => {
+                btn.addEventListener("click", async () => {
+                    const chId = btn.dataset.chId;
+                    const res = await fetch(`/api/users/${chId}/subscribe`, { method: "POST" });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    btn.dataset.subscribed = data.subscribed ? "true" : "false";
+                    btn.classList.toggle("is-subscribed", data.subscribed);
+                    btn.textContent = data.subscribed ? "구독 중" : "구독";
+                });
+            });
+        } catch {}
+    }
+
+    async function loadPage() {
+        if (isLoading || !hasMore) return;
+        isLoading = true;
+        showLoader(true);
+
+        try {
+            const params = new URLSearchParams({ page: currentPage, size: 12 });
+            if (currentKeyword.trim()) params.set("keyword", currentKeyword.trim());
+
+            const res = await fetch(`/api/videos/feed?${params}`);
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+
+            if (currentPage === 0) {
+                videoGrid.innerHTML = "";
+                totalVideoCount = 0;
+            }
+
+            if (data.videos.length > 0) {
+                videoGrid.insertAdjacentHTML("beforeend", data.videos.map(createVideoCard).join(""));
+                totalVideoCount += data.videos.length;
+            }
+
+            hasMore = data.hasMore;
+            currentPage++;
+
+            if (!hasMore && currentPage > 0) {
+                if (searchResultCount) {
+                    searchResultCount.textContent = totalVideoCount > 0
+                        ? `영상 ${totalVideoCount}개`
+                        : "";
+                }
+                if (searchEmptyState) {
+                    searchEmptyState.hidden = totalVideoCount > 0;
+                    if (totalVideoCount === 0) {
+                        if (searchEmptyTitle) searchEmptyTitle.textContent = currentKeyword.trim()
+                            ? "검색 결과가 없습니다"
+                            : "검색어를 입력하면 영상을 찾을 수 있어요";
+                        if (searchEmptyText) searchEmptyText.textContent = currentKeyword.trim()
+                            ? "다른 검색어로 다시 시도해봐."
+                            : "";
+                    }
+                }
+            }
+        } catch {
+            hasMore = false;
+        } finally {
+            isLoading = false;
+            showLoader(false);
+        }
+    }
+
+    function resetAndLoad() {
+        currentPage = 0;
+        hasMore = true;
+        isLoading = false;
+        totalVideoCount = 0;
+        videoGrid.innerHTML = "";
+        if (searchEmptyState) searchEmptyState.hidden = true;
+        if (searchResultCount) searchResultCount.textContent = "";
+        updateHeader();
+        loadChannels(currentKeyword);
+        loadPage();
+    }
+
+    if (scrollSentinel) {
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) loadPage();
+        }, { rootMargin: "300px" });
+        observer.observe(scrollSentinel);
+    }
+
+    searchPageForm?.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const newKeyword = searchPageInput?.value.trim() || "";
+        const nextUrl = new URL(window.location.href);
+        if (newKeyword) nextUrl.searchParams.set("q", newKeyword);
+        else nextUrl.searchParams.delete("q");
+        window.history.pushState({}, "", nextUrl);
+        currentKeyword = newKeyword;
+        resetAndLoad();
+    });
+
+    window.addEventListener("popstate", () => {
+        currentKeyword = new URL(window.location.href).searchParams.get("q") || "";
+        if (searchPageInput) searchPageInput.value = currentKeyword;
+        resetAndLoad();
+    });
+
+    await Promise.all([loadChannels(currentKeyword), loadPage()]);
+}
+
 async function initHomePage() {
     const videoGrid = document.getElementById("videoGrid");
     const categoryBar = document.getElementById("categoryBar");
-    const homeSearchInput = document.getElementById("homeSearchInput");
-    const homeSearchForm = document.getElementById("homeSearchForm");
     const homeEmptyState = document.getElementById("homeEmptyState");
     const scrollLoader = document.getElementById("scrollLoader");
     const scrollSentinel = document.getElementById("scrollSentinel");
@@ -2617,24 +2831,14 @@ async function initHomePage() {
 
     if (!videoGrid) return;
 
-    const url = new URL(window.location.href);
-    let currentKeyword = url.searchParams.get("q") || "";
+    let currentKeyword = "";
     let selectedCategory = "";
     let currentPage = 0;
     let isLoading = false;
     let hasMore = true;
 
-    if (homeSearchInput) homeSearchInput.value = currentKeyword;
-
     function showLoader(show) {
         if (scrollLoader) scrollLoader.style.display = show ? "flex" : "none";
-    }
-
-    function updateSearchUrl(keyword) {
-        const nextUrl = new URL(window.location.href);
-        if (keyword.trim()) nextUrl.searchParams.set("q", keyword.trim());
-        else nextUrl.searchParams.delete("q");
-        window.history.pushState({}, "", nextUrl);
     }
 
     async function loadCategories() {
@@ -2780,21 +2984,8 @@ async function initHomePage() {
         observer.observe(scrollSentinel);
     }
 
-    homeSearchForm?.addEventListener("submit", (e) => {
-        e.preventDefault();
-        currentKeyword = homeSearchInput?.value || "";
-        updateSearchUrl(currentKeyword);
-        resetAndLoad();
-    });
-
-    window.addEventListener("popstate", () => {
-        currentKeyword = new URL(window.location.href).searchParams.get("q") || "";
-        if (homeSearchInput) homeSearchInput.value = currentKeyword;
-        resetAndLoad();
-    });
-
     await loadCategories();
-    await Promise.all([loadChannels(currentKeyword), loadPage()]);
+    await loadPage();
 }
 
 async function initSavedPage() {
@@ -3643,6 +3834,58 @@ async function initEditPage() {
     );
 }
 
+function initTabBar(barId, onSwitch) {
+    const bar = document.getElementById(barId);
+    if (!bar) return;
+    bar.querySelectorAll(".ch-tab-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            bar.querySelectorAll(".ch-tab-btn").forEach(b => b.classList.remove("is-active"));
+            btn.classList.add("is-active");
+            onSwitch(btn.dataset.tab);
+        });
+    });
+}
+
+function renderPlaylistGrid(containerId, emptyId, playlists) {
+    const grid = document.getElementById(containerId);
+    const empty = document.getElementById(emptyId);
+    if (!grid) return;
+    if (!playlists.length) {
+        if (empty) empty.hidden = false;
+        grid.innerHTML = "";
+        return;
+    }
+    if (empty) empty.hidden = true;
+    grid.innerHTML = playlists.map(p => `
+        <a href="playlist.html?id=${p.id}" class="ch-pl-card" style="text-decoration:none;">
+            <div class="ch-pl-thumb">
+                ${p.thumbnail
+                    ? `<img src="${escapeHtml(p.thumbnail)}" alt="${escapeHtml(p.name)}">`
+                    : `<div class="ch-pl-thumb-empty"><svg viewBox="0 0 24 24" style="width:40px;height:40px;fill:#555"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z"/></svg></div>`}
+                <span class="ch-pl-count">${p.videoCount}개</span>
+            </div>
+            <div class="ch-pl-info">
+                <div class="ch-pl-name">${escapeHtml(p.name)}</div>
+                <div class="ch-pl-meta">영상 ${p.videoCount}개</div>
+            </div>
+        </a>`).join("");
+}
+
+function renderAboutSection(containerId, info) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const rows = [];
+    if (info.bio) rows.push({ label: "소개", value: info.bio });
+    rows.push({ label: "구독자", value: `${formatCount(info.subscriberCount || 0)}명` });
+    rows.push({ label: "영상 수", value: `${info.videoCount || 0}개` });
+    if (info.joinDate) rows.push({ label: "가입일", value: info.joinDate });
+    el.innerHTML = rows.map(r => `
+        <div class="ch-about-row">
+            <span class="ch-about-label">${escapeHtml(r.label)}</span>
+            <span class="ch-about-value">${escapeHtml(r.value)}</span>
+        </div>`).join("");
+}
+
 async function initChannelPage() {
     const channelVideoGrid = document.getElementById("channelVideoGrid");
     const channelEmptyState = document.getElementById("channelEmptyState");
@@ -3652,20 +3895,57 @@ async function initChannelPage() {
     const heroDesc = document.querySelector(".channel-hero-text p");
     const avatarLg = document.querySelector(".channel-avatar-lg");
 
+    let channelInfo = { subscriberCount: 0, videoCount: 0, bio: "" };
+
     if (authMe.loggedIn && authMe.user) {
-        const displayName = authMe.user.nickname || authMe.user.username || "내";
+        const displayName = authMe.user.channelName || authMe.user.nickname || authMe.user.username || "내";
         if (heroTitle) heroTitle.textContent = `${displayName} 채널`;
-        if (heroDesc) {
-            heroDesc.textContent = "내가 업로드한 영상입니다.";
-            heroDesc.style.display = "";
-        }
+        if (heroDesc) { heroDesc.style.display = "none"; }
         if (avatarLg) avatarLg.textContent = String(displayName).charAt(0).toUpperCase();
+
+        channelInfo = {
+            subscriberCount: authMe.user.subscriberCount || 0,
+            videoCount: 0,
+            bio: authMe.user.bio || "",
+        };
+    }
+
+    let playlistsLoaded = false;
+
+    const tabPanels = {
+        videos: document.getElementById("tabVideos"),
+        playlists: document.getElementById("tabPlaylists"),
+        about: document.getElementById("tabAbout"),
+    };
+
+    function showTab(name) {
+        Object.values(tabPanels).forEach(p => p?.classList.remove("is-active"));
+        tabPanels[name]?.classList.add("is-active");
+        if (name === "playlists" && !playlistsLoaded) {
+            playlistsLoaded = true;
+            loadMyPlaylists();
+        }
+        if (name === "about") {
+            renderAboutSection("channelAboutSection", channelInfo);
+        }
+    }
+
+    initTabBar("channelTabsBar", showTab);
+
+    async function loadMyPlaylists() {
+        try {
+            const res = await fetch("/api/playlists/me");
+            if (!res.ok) return;
+            const list = await res.json();
+            renderPlaylistGrid("channelPlaylistGrid", "channelPlaylistEmpty", list);
+        } catch {}
     }
 
     if (!channelVideoGrid) return;
 
     try {
         const videos = await fetchMyVideos();
+        channelInfo.videoCount = videos ? videos.length : 0;
         if (!videos || videos.length === 0) {
             if (channelEmptyState) channelEmptyState.hidden = false;
             return;
@@ -4053,6 +4333,7 @@ const page = document.body.dataset.page;
 
     if (page === "upload") initUploadPage();
     if (page === "home") initHomePage();
+    if (page === "search") initSearchPage();
     if (page === "saved") initSavedPage();
     if (page === "liked") initLikedPage();
     if (page === "watch") await initWatchPage();

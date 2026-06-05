@@ -35,6 +35,25 @@ public class PlaylistController {
         this.loginUserResolver = loginUserResolver;
     }
 
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<?> getUserPlaylists(@PathVariable Long userId) {
+        List<Playlist> playlists = playlistRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        List<Map<String, Object>> result = playlists.stream().map(p -> {
+            long count = playlistVideoRepository.countByPlaylistId(p.getId());
+            String thumb = playlistVideoRepository.findByPlaylistIdOrderByAddedAtDesc(p.getId())
+                    .stream().findFirst()
+                    .flatMap(pv -> videoRepository.findById(pv.getVideoId()))
+                    .map(Video::getThumbnail).orElse(null);
+            return Map.<String, Object>of(
+                    "id", p.getId(),
+                    "name", p.getName(),
+                    "videoCount", count,
+                    "thumbnail", thumb != null ? thumb : ""
+            );
+        }).collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/me")
     public ResponseEntity<?> getMyPlaylists(HttpSession session) {
         Long userId = loginUserResolver.getUserId(session);

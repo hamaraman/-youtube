@@ -2549,6 +2549,180 @@ body,
     transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
+/* ── Channel Tabs ────────────────────────────────────────────── */
+.ch-tabs-bar {
+    display: flex;
+    border-bottom: 1px solid #272727;
+    margin-bottom: 0;
+    gap: 0;
+    position: sticky;
+    top: 56px;
+    background: #0f0f0f;
+    z-index: 10;
+}
+
+.ch-tab-btn {
+    position: relative;
+    height: 48px;
+    padding: 0 20px;
+    background: transparent;
+    border: none;
+    color: #aaa;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.15s;
+    white-space: nowrap;
+}
+
+.ch-tab-btn:hover { color: #f1f1f1; }
+
+.ch-tab-btn.is-active {
+    color: #f1f1f1;
+}
+
+.ch-tab-btn.is-active::after {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #f1f1f1;
+    border-radius: 2px 2px 0 0;
+}
+
+.ch-tab-panel { display: none; }
+.ch-tab-panel.is-active { display: block; }
+
+/* Playlist grid on channel page */
+.ch-pl-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    padding: 20px 0;
+}
+
+.ch-pl-card {
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    background: #181818;
+    transition: background 0.15s;
+}
+
+.ch-pl-card:hover { background: #222; }
+
+.ch-pl-thumb {
+    position: relative;
+    aspect-ratio: 16/9;
+    background: #272727;
+    overflow: hidden;
+}
+
+.ch-pl-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.ch-pl-thumb-empty {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    color: #555;
+}
+
+.ch-pl-count {
+    position: absolute;
+    bottom: 6px;
+    right: 8px;
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.ch-pl-info {
+    padding: 10px 12px;
+}
+
+.ch-pl-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #f1f1f1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ch-pl-meta {
+    font-size: 12px;
+    color: #aaa;
+    margin-top: 4px;
+}
+
+/* About tab */
+.ch-about-section {
+    padding: 24px 0;
+    max-width: 680px;
+}
+
+.ch-about-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px solid #272727;
+}
+
+.ch-about-row:last-child { border-bottom: none; }
+
+.ch-about-label {
+    font-size: 14px;
+    color: #aaa;
+    min-width: 80px;
+    flex-shrink: 0;
+}
+
+.ch-about-value {
+    font-size: 14px;
+    color: #f1f1f1;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.ch-tab-empty {
+    padding: 60px 0;
+    text-align: center;
+    color: #aaa;
+    font-size: 14px;
+}
+
+/* Light mode overrides */
+html[data-theme="light"] .ch-tabs-bar {
+    background: #fff;
+    border-bottom-color: #e0e0e0;
+}
+html[data-theme="light"] .ch-tab-btn { color: #606060; }
+html[data-theme="light"] .ch-tab-btn:hover { color: #0f0f0f; }
+html[data-theme="light"] .ch-tab-btn.is-active { color: #0f0f0f; }
+html[data-theme="light"] .ch-tab-btn.is-active::after { background: #0f0f0f; }
+html[data-theme="light"] .ch-pl-card { background: #f2f2f2; }
+html[data-theme="light"] .ch-pl-card:hover { background: #e5e5e5; }
+html[data-theme="light"] .ch-pl-thumb { background: #e0e0e0; }
+html[data-theme="light"] .ch-pl-name { color: #0f0f0f; }
+html[data-theme="light"] .ch-pl-meta { color: #606060; }
+html[data-theme="light"] .ch-about-row { border-bottom-color: #e0e0e0; }
+html[data-theme="light"] .ch-about-label { color: #606060; }
+html[data-theme="light"] .ch-about-value { color: #0f0f0f; }
+
 /* ── Light Mode ──────────────────────────────────────────────── */
 html[data-theme="light"],
 html[data-theme="light"] body {
