@@ -3857,9 +3857,16 @@ async function initStudioPage() {
         const totalViews = videos.reduce((s, v) => s + Number(v.viewCount || 0), 0);
         const totalLikes = videos.reduce((s, v) => s + Number(v.likeCount || 0), 0);
         const totalComments = videos.reduce((s, v) => s + Number(v.commentCount || 0), 0);
+        let subscriberVal = "0";
+        if (authMe.user?.subscriberCount !== undefined) {
+            subscriberVal = formatCount(Number(authMe.user.subscriberCount));
+        } else if (authMe.user?.subscribers) {
+            subscriberVal = String(authMe.user.subscribers).replace(/구독자/g, "").trim();
+        }
         const items = [
             { label: "총 조회수", value: formatCount(totalViews) },
             { label: "영상 수",   value: videos.length },
+            { label: "구독자",    value: subscriberVal },
             { label: "총 좋아요", value: formatCount(totalLikes) },
             { label: "총 댓글",  value: formatCount(totalComments) },
         ];
@@ -3868,6 +3875,83 @@ async function initStudioPage() {
                 <span class="studio-stat-label">${s.label}</span>
                 <span class="studio-stat-value">${s.value}</span>
             </div>`).join("");
+    }
+
+    function renderAnalyticsExtra(videos) {
+        const el = document.getElementById("studioAnalyticsExtra");
+        if (!el) return;
+
+        const totalViews = videos.reduce((s, v) => s + Number(v.viewCount || 0), 0);
+        const totalLikes = videos.reduce((s, v) => s + Number(v.likeCount || 0), 0);
+        const totalComments = videos.reduce((s, v) => s + Number(v.commentCount || 0), 0);
+        const engagementRate = totalViews > 0
+            ? (((totalLikes + totalComments) / totalViews) * 100).toFixed(1)
+            : "0.0";
+
+        const top5 = [...videos]
+            .sort((a, b) => Number(b.viewCount || 0) - Number(a.viewCount || 0))
+            .slice(0, 5);
+
+        const catMap = new Map();
+        videos.forEach(v => {
+            const cat = v.category || "미분류";
+            catMap.set(cat, (catMap.get(cat) || 0) + Number(v.viewCount || 0));
+        });
+        const categories = Array.from(catMap.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+        const maxCat = Math.max(...categories.map(c => c[1]), 1);
+
+        const videoRowsHtml = top5.length === 0
+            ? `<p class="sa-empty">영상이 없습니다.</p>`
+            : top5.map((v, i) => `
+                <div class="sa-rank-row">
+                    <span class="sa-rank-num">${i + 1}</span>
+                    <span class="sa-rank-title">${escapeHtml(v.title || "제목 없음")}</span>
+                    <span class="sa-rank-views">${formatCount(Number(v.viewCount || 0))}회</span>
+                </div>`).join("");
+
+        const catRowsHtml = categories.length === 0
+            ? `<p class="sa-empty">데이터가 없습니다.</p>`
+            : categories.map(([label, value]) => {
+                const w = Math.max(4, (value / maxCat) * 100);
+                return `
+                <div class="sa-bar-row">
+                    <div class="sa-bar-meta">
+                        <span>${escapeHtml(label)}</span>
+                        <strong>${formatCount(value)}</strong>
+                    </div>
+                    <div class="sa-bar-track">
+                        <div class="sa-bar-fill" style="width:${w}%"></div>
+                    </div>
+                </div>`;
+            }).join("");
+
+        el.innerHTML = `
+            <div class="sa-grid">
+                <section class="sa-panel">
+                    <p class="sa-panel-title">조회수 TOP 5</p>
+                    ${videoRowsHtml}
+                </section>
+                <section class="sa-panel">
+                    <p class="sa-panel-title">카테고리별 조회수</p>
+                    ${catRowsHtml}
+                </section>
+            </div>
+            <section class="sa-panel sa-engagement">
+                <div class="sa-engagement-item">
+                    <span class="sa-engagement-label">참여율</span>
+                    <strong class="sa-engagement-value">${engagementRate}%</strong>
+                </div>
+                <div class="sa-engagement-item">
+                    <span class="sa-engagement-label">좋아요</span>
+                    <strong class="sa-engagement-value">${formatCount(totalLikes)}</strong>
+                </div>
+                <div class="sa-engagement-item">
+                    <span class="sa-engagement-label">댓글</span>
+                    <strong class="sa-engagement-value">${formatCount(totalComments)}</strong>
+                </div>
+            </section>`;
     }
 
     function renderViewsChart(videos) {
@@ -3932,6 +4016,7 @@ async function initStudioPage() {
             const videos = Array.isArray(data) ? data : [];
             renderStudioStats(videos);
             renderViewsChart(videos);
+            renderAnalyticsExtra(videos);
             uploadedVideosCache = normalizeVideos(videos);
             renderFilteredList();
         } catch {
@@ -8348,10 +8433,8 @@ function ensureHistoryPatchStyle() {
     }
 
     async function renderCreatorDashboard() {
-        if (pageName() !== "channel") {
-            removeHistoryDashboards();
-            return;
-        }
+        removeHistoryDashboards();
+        return;
 
         ensureStyle();
         removeHistoryDashboards();
