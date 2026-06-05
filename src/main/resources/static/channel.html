@@ -261,339 +261,33 @@
             font-weight: 700;
         }
 
-        .studio-stats {
+        .channel-video-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 14px;
-            margin-bottom: 24px;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
+            margin-top: 8px;
         }
 
-        .studio-stat-card {
-            background: #181818;
-            border: 1px solid #272727;
-            border-radius: 18px;
-            padding: 18px;
-        }
-
-        .studio-stat-label {
-            margin: 0 0 8px;
-            color: #aaa;
-            font-size: 13px;
-        }
-
-        .studio-stat-value {
-            margin: 0;
-            font-size: 28px;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-        }
-
-        .studio-toolbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 14px;
-            margin-bottom: 18px;
-            flex-wrap: wrap;
-        }
-
-        .studio-toolbar-left,
-        .studio-toolbar-right {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .studio-search {
-            width: 320px;
-            max-width: 100%;
-            height: 42px;
-            border-radius: 999px;
-            border: 1px solid #303030;
-            background: #121212;
-            color: #fff;
-            padding: 0 16px;
-            outline: none;
-        }
-
-        .studio-filter-group {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .studio-filter-btn {
-            height: 38px;
-            padding: 0 14px;
-            border-radius: 999px;
-            border: 1px solid #303030;
-            background: #202020;
-            color: #fff;
-            cursor: pointer;
-            font-size: 13px;
-        }
-
-        .studio-filter-btn.is-active {
-            background: #fff;
-            color: #111;
-            border-color: #fff;
-            font-weight: 700;
-        }
-
-        .studio-sort {
-            height: 40px;
-            border-radius: 999px;
-            border: 1px solid #303030;
-            background: #121212;
-            color: #fff;
-            padding: 0 14px;
-            outline: none;
-        }
-
-        .studio-table {
-            background: #181818;
+        .channel-empty-notice {
+            margin-top: 40px;
+            padding: 40px 24px;
             border: 1px solid #272727;
             border-radius: 20px;
-            overflow: hidden;
-        }
-
-        .studio-head,
-        .studio-row {
-            display: grid;
-            grid-template-columns: minmax(280px, 2.3fr) 110px 90px 90px 90px 90px 170px;
-            gap: 14px;
-            align-items: center;
-            padding: 16px 18px;
-        }
-
-        .studio-head {
-            background: #202020;
-            color: #aaa;
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-        }
-
-        .studio-row {
-            border-top: 1px solid #242424;
-            transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
-        }
-
-        .studio-row:hover {
-            background: #202020;
-            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-        }
-
-        .studio-row:hover .studio-video-title {
-            color: #fff;
-        }
-
-        .studio-row:hover .studio-thumb {
-            transform: translateY(-1px);
-            border-color: #3a3a3a;
-        }
-
-        .studio-row:hover .studio-action-btn {
-            background: #2a2a2a;
-        }
-
-        .studio-video-cell {
-            display: flex;
-            gap: 14px;
-            min-width: 0;
-        }
-
-        .studio-thumb {
-            width: 168px;
-            aspect-ratio: 16 / 9;
-            border-radius: 12px;
-            overflow: hidden;
-            position: relative;
-            flex-shrink: 0;
-            background: #111;
-            border: 1px solid transparent;
-            transition: transform 0.18s ease, border-color 0.18s ease;
-        }
-
-        .studio-thumb img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
-
-        .studio-duration {
-            position: absolute;
-            right: 8px;
-            bottom: 8px;
-            background: rgba(0, 0, 0, 0.85);
-            color: #fff;
-            font-size: 12px;
-            padding: 2px 6px;
-            border-radius: 6px;
-        }
-
-        .studio-video-info {
-            min-width: 0;
-        }
-
-        .studio-video-title {
-            margin: 0 0 8px;
-            font-size: 16px;
-            line-height: 1.4;
-            word-break: break-word;
-            transition: color 0.18s ease;
-        }
-
-        .studio-video-meta,
-        .studio-video-desc {
-            margin: 0;
-            color: #aaa;
-            font-size: 13px;
-            line-height: 1.55;
-        }
-
-        .studio-video-desc {
-            margin-top: 6px;
-        }
-
-        .studio-cell-text,
-        .studio-number {
-            font-size: 14px;
-            color: #f1f1f1;
-        }
-
-        .studio-status-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 30px;
-            padding: 0 12px;
-            border-radius: 999px;
-            background: #222;
-            border: 1px solid #303030;
-            font-size: 13px;
-        }
-
-        .studio-actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .studio-action-btn {
-            height: 34px;
-            padding: 0 12px;
-            border-radius: 999px;
-            border: 1px solid #303030;
-            background: #202020;
-            color: #fff;
-            font-size: 13px;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            text-decoration: none;
-            transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
-        }
-
-        .studio-action-btn:hover {
-            border-color: #3b3b3b;
-            transform: translateY(-1px);
-        }
-
-        .studio-action-btn.delete {
-            background: #2a1616;
-            border-color: #4c2424;
-            color: #ffb4b4;
-        }
-
-        .studio-action-btn.delete:hover {
-            background: #3a1c1c;
-            border-color: #6a2e2e;
-        }
-
-        .channel-empty-state {
-            margin-top: 22px;
-            padding: 46px 24px;
-            border: 1px solid #272727;
-            border-radius: 22px;
-            background: linear-gradient(180deg, #181818, #151515);
+            background: #181818;
             text-align: center;
+            color: #aaa;
         }
 
-        .channel-empty-icon {
-            width: 74px;
-            height: 74px;
-            margin: 0 auto 18px;
-            border-radius: 50%;
-            background: #202020;
-            border: 1px solid #2e2e2e;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .channel-empty-icon svg {
-            width: 34px;
-            height: 34px;
-            fill: #9aa0a6;
-        }
-
-        .channel-empty-title {
+        .channel-empty-notice h3 {
             margin: 0 0 10px;
-            font-size: 22px;
+            font-size: 20px;
             color: #fff;
         }
 
-        .channel-empty-text {
-            margin: 0;
-            color: #9aa0a6;
-            font-size: 15px;
-            line-height: 1.75;
-        }
-
-        .channel-empty-actions {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-top: 22px;
-        }
-
-        .channel-empty-btn {
-            min-width: 120px;
-            height: 40px;
-            padding: 0 16px;
-            border-radius: 999px;
-            border: 1px solid #303030;
-            background: #202020;
-            color: #fff;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            text-decoration: none;
+        .channel-empty-notice p {
+            margin: 0 0 20px;
             font-size: 14px;
-        }
-
-        .channel-empty-btn.primary {
-            background: #fff;
-            color: #111;
-            border-color: #fff;
-            font-weight: 700;
-        }
-
-        @media (max-width: 1200px) {
-            .studio-stats {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
-            .studio-head,
-            .studio-row {
-                grid-template-columns: minmax(260px, 2fr) 100px 80px 80px 80px 90px 170px;
-            }
+            line-height: 1.6;
         }
 
         @media (max-width: 900px) {
@@ -656,18 +350,6 @@
                 padding: 20px 16px 28px;
             }
 
-            .studio-stats {
-                grid-template-columns: 1fr;
-            }
-
-            .studio-table {
-                overflow-x: auto;
-            }
-
-            .studio-head,
-            .studio-row {
-                min-width: 1080px;
-            }
         }
     </style>
 </head>
@@ -820,90 +502,19 @@
                 </div>
             </div>
 
-            <section class="studio-stats">
-                <article class="studio-stat-card">
-                    <p class="studio-stat-label">총 영상</p>
-                    <p class="studio-stat-value" id="studioVideoCount">0</p>
-                </article>
-                <article class="studio-stat-card">
-                    <p class="studio-stat-label">총 조회수</p>
-                    <p class="studio-stat-value" id="studioTotalViews">0</p>
-                </article>
-                <article class="studio-stat-card">
-                    <p class="studio-stat-label">총 좋아요</p>
-                    <p class="studio-stat-value" id="studioTotalLikes">0</p>
-                </article>
-                <article class="studio-stat-card">
-                    <p class="studio-stat-label">총 댓글</p>
-                    <p class="studio-stat-value" id="studioTotalComments">0</p>
-                </article>
-            </section>
+            <div id="channelVideoGrid" class="channel-video-grid"></div>
 
-            <section class="studio-toolbar">
-                <div class="studio-toolbar-left">
-                    <input
-                        type="text"
-                        id="channelSearchInput"
-                        class="studio-search"
-                        placeholder="영상 검색"
-                        aria-label="영상 검색"
-                    />
-
-                    <div class="studio-filter-group" id="channelVisibilityFilter">
-                        <button type="button" class="studio-filter-btn is-active" data-filter="전체">전체</button>
-                        <button type="button" class="studio-filter-btn" data-filter="공개">공개</button>
-                        <button type="button" class="studio-filter-btn" data-filter="비공개">비공개</button>
-                        <button type="button" class="studio-filter-btn" data-filter="일부 공개">일부 공개</button>
-                    </div>
-                </div>
-
-                <div class="studio-toolbar-right">
-                    <select id="channelSortSelect" class="studio-sort" aria-label="정렬">
-                        <option value="latest">최신순</option>
-                        <option value="oldest">오래된순</option>
-                        <option value="views">조회수순</option>
-                        <option value="likes">좋아요순</option>
-                        <option value="comments">댓글순</option>
-                        <option value="title">제목순</option>
-                    </select>
-                </div>
-            </section>
-
-            <section class="studio-table">
-                <div class="studio-head">
-                    <div>영상</div>
-                    <div>카테고리</div>
-                    <div>조회수</div>
-                    <div>좋아요</div>
-                    <div>댓글</div>
-                    <div>상태</div>
-                    <div>관리</div>
-                </div>
-
-                <div id="channelManageList"></div>
-            </section>
-
-            <section class="channel-empty-state" id="channelEmptyState" hidden>
-                <div class="channel-empty-icon">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M17 10.5V6a2 2 0 0 0-2-2H5A2 2 0 0 0 3 6v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4.5l4 4v-11l-4 4Z"></path>
-                    </svg>
-                </div>
-                <h3 class="channel-empty-title" id="channelEmptyTitle">아직 업로드한 영상이 없습니다</h3>
-                <p class="channel-empty-text" id="channelEmptyText">
-                    첫 영상을 업로드해서 채널을 채워보자.
-                </p>
-                <div class="channel-empty-actions">
-                    <a href="upload.html" class="channel-empty-btn primary">영상 업로드</a>
-                    <a href="index.html" class="channel-empty-btn">홈으로 가기</a>
-                </div>
+            <section class="channel-empty-notice" id="channelEmptyState" hidden>
+                <h3>아직 업로드한 영상이 없습니다</h3>
+                <p>첫 영상을 업로드해서 채널을 채워보자.</p>
+                <a href="upload.html" class="channel-hero-btn primary">영상 업로드</a>
             </section>
         </section>
     </main>
 </div>
 
 <script src="auth.js?v=12"></script>
-<script src="script.js?v=11"></script>
+<script src="script.js?v=12"></script>
 <script>
     (function () {
         const sidebar = document.getElementById("sidebar");

@@ -3658,32 +3658,8 @@ async function initEditPage() {
 }
 
 async function initChannelPage() {
-    const channelManageList = document.getElementById("channelManageList");
+    const channelVideoGrid = document.getElementById("channelVideoGrid");
     const channelEmptyState = document.getElementById("channelEmptyState");
-    const channelEmptyTitle = document.getElementById("channelEmptyTitle");
-    const channelEmptyText = document.getElementById("channelEmptyText");
-    const studioTable = document.querySelector(".studio-table");
-    const studioVideoCount = document.getElementById("studioVideoCount");
-    const studioTotalViews = document.getElementById("studioTotalViews");
-    const studioTotalLikes = document.getElementById("studioTotalLikes");
-    const studioTotalComments = document.getElementById("studioTotalComments");
-    const channelSearchInput = document.getElementById("channelSearchInput");
-    const channelVisibilityFilter = document.getElementById("channelVisibilityFilter");
-    const channelSortSelect = document.getElementById("channelSortSelect");
-
-    if (
-        !channelManageList ||
-        !channelEmptyState ||
-        !channelEmptyTitle ||
-        !channelEmptyText ||
-        !studioTable ||
-        !studioVideoCount ||
-        !channelSearchInput ||
-        !channelVisibilityFilter ||
-        !channelSortSelect
-    ) {
-        return;
-    }
 
     const authMe = getAuthMe();
     const heroTitle = document.querySelector(".channel-hero-text h1");
@@ -3693,15 +3669,57 @@ async function initChannelPage() {
     if (authMe.loggedIn && authMe.user) {
         const displayName = authMe.user.nickname || authMe.user.username || "내";
         if (heroTitle) heroTitle.textContent = `${displayName} 채널`;
-        if (heroDesc) heroDesc.textContent = "내가 업로드한 영상을 관리하고 상태를 확인해보자.";
+        if (heroDesc) {
+            heroDesc.textContent = "내가 업로드한 영상입니다.";
+            heroDesc.style.display = "";
+        }
         if (avatarLg) avatarLg.textContent = String(displayName).charAt(0).toUpperCase();
     }
+
+    if (!channelVideoGrid) return;
+
+    try {
+        const videos = await fetchMyVideos();
+        if (!videos || videos.length === 0) {
+            if (channelEmptyState) channelEmptyState.hidden = false;
+            return;
+        }
+        channelVideoGrid.innerHTML = videos.map(v => createVideoCard(v)).join("");
+    } catch {
+        if (channelEmptyState) channelEmptyState.hidden = false;
+    }
+}
+
+async function initStudioPage() {
+    const channelManageList = document.getElementById("channelManageList");
+    if (!channelManageList) return;
+
+    if (!requireAuthRedirect()) return;
+
+    const authMe = getAuthMe();
+    const headerAvatar = document.getElementById("studioHeaderAvatar");
+    if (headerAvatar && authMe.loggedIn && authMe.user) {
+        const displayName = authMe.user.channelName || authMe.user.nickname || authMe.user.username || "?";
+        if (authMe.user.profileImage) {
+            headerAvatar.innerHTML = `<img src="${escapeHtml(authMe.user.profileImage)}" style="width:32px;height:32px;object-fit:cover;border-radius:50%;" onerror="this.parentElement.textContent='${escapeHtml(displayName[0])}'" alt="">`;
+        } else {
+            headerAvatar.textContent = displayName[0].toUpperCase();
+        }
+    }
+
+    const studioManageTable = document.getElementById("studioManageTable");
+    const channelEmptyState = document.getElementById("channelEmptyState");
+    const channelEmptyTitle = document.getElementById("channelEmptyTitle");
+    const channelEmptyText = document.getElementById("channelEmptyText");
+    const channelSearchInput = document.getElementById("channelSearchInput");
+    const channelVisibilityFilter = document.getElementById("channelVisibilityFilter");
+    const channelSortSelect = document.getElementById("channelSortSelect");
 
     let uploadedVideosCache = [];
     let currentFilter = "전체";
 
     function normalizeVideos(videos) {
-        return videos.map((video) => ({
+        return videos.map(video => ({
             ...video,
             title: video.title || "제목 없음",
             description: video.description || "",
@@ -3716,37 +3734,23 @@ async function initChannelPage() {
         }));
     }
 
-    function updateStats(videos) {
-        const totalViews = videos.reduce((sum, video) => sum + loadViewCount(video), 0);
-        const totalLikes = videos.reduce((sum, video) => sum + Number(video.likeCount || 0), 0);
-        const totalComments = videos.reduce((sum, video) => sum + Number(video.commentCount || 0), 0);
-
-        studioVideoCount.textContent = String(videos.length);
-        if (studioTotalViews) studioTotalViews.textContent = formatCount(totalViews);
-        if (studioTotalLikes) studioTotalLikes.textContent = formatCount(totalLikes);
-        if (studioTotalComments) studioTotalComments.textContent = formatCount(totalComments);
-    }
-
     function getFilteredVideos(videos) {
+        if (!channelSearchInput) return videos;
         const keyword = channelSearchInput.value.trim().toLowerCase();
-
-        return videos.filter((video) => {
-            const matchesKeyword =
-                keyword === "" ||
+        return videos.filter(video => {
+            const matchesKeyword = keyword === "" ||
                 video.title.toLowerCase().includes(keyword) ||
                 video.description.toLowerCase().includes(keyword) ||
                 video.category.toLowerCase().includes(keyword);
-
             const matchesVisibility = currentFilter === "전체" || video.visibility === currentFilter;
-
             return matchesKeyword && matchesVisibility;
         });
     }
 
     function getSortedVideos(videos) {
+        if (!channelSortSelect) return videos;
         const sortType = channelSortSelect.value;
         const copied = [...videos];
-
         copied.sort((a, b) => {
             if (sortType === "latest") return Number(b.id) - Number(a.id);
             if (sortType === "oldest") return Number(a.id) - Number(b.id);
@@ -3756,24 +3760,18 @@ async function initChannelPage() {
             if (sortType === "title") return a.title.localeCompare(b.title, "ko");
             return 0;
         });
-
         return copied;
     }
 
     function bindCopyButtons(currentVideos) {
-        const copyButtons = channelManageList.querySelectorAll("[data-copy-id]");
-
-        copyButtons.forEach((button) => {
+        channelManageList.querySelectorAll("[data-copy-id]").forEach(button => {
             button.addEventListener("click", async () => {
                 const id = Number(button.dataset.copyId);
-                const target = currentVideos.find((video) => video.id === id);
+                const target = currentVideos.find(v => v.id === id);
                 if (!target) return;
-
                 const shareUrl = getShareUrl(id);
-
                 try {
                     const copied = await copyTextToClipboard(shareUrl);
-
                     if (copied) {
                         showToast(`"${target.title}" 링크가 복사되었습니다.`);
                     } else {
@@ -3787,22 +3785,18 @@ async function initChannelPage() {
     }
 
     function bindDeleteButtons(currentVideos) {
-        const deleteButtons = channelManageList.querySelectorAll("[data-delete-id]");
-
-        deleteButtons.forEach((button) => {
+        channelManageList.querySelectorAll("[data-delete-id]").forEach(button => {
             button.addEventListener("click", async () => {
                 const id = Number(button.dataset.deleteId);
-                const target = currentVideos.find((video) => video.id === id);
+                const target = currentVideos.find(v => v.id === id);
                 if (!target) return;
-
                 const ok = await confirmAction(`"${target.title}" 영상을 삭제할까요?\n삭제 후에는 되돌릴 수 없습니다.`);
                 if (!ok) return;
-
                 try {
                     await deleteVideoById(id);
                     localStorage.removeItem(getViewCountKey(id));
                     showToast("영상이 삭제되었습니다.");
-                    await renderChannelPage();
+                    await loadAndRender();
                 } catch (error) {
                     alert(error.message || "삭제 중 오류가 발생했어.");
                 }
@@ -3810,253 +3804,51 @@ async function initChannelPage() {
         });
     }
 
-    function updateChannelEmptyState(filteredVideos) {
-        const keyword = channelSearchInput.value.trim();
+    function updateEmptyState(filteredVideos) {
+        const keyword = channelSearchInput ? channelSearchInput.value.trim() : "";
         const hasKeyword = keyword !== "";
         const isFiltered = hasKeyword || currentFilter !== "전체";
         const hasAnyVideos = uploadedVideosCache.length > 0;
 
         if (!hasAnyVideos) {
-            studioTable.hidden = true;
-            channelEmptyState.hidden = false;
-            channelEmptyTitle.textContent = "아직 업로드한 영상이 없습니다";
-            channelEmptyText.textContent = "첫 영상을 업로드해서 내 채널을 채워보자.";
+            if (studioManageTable) studioManageTable.hidden = true;
+            if (channelEmptyState) channelEmptyState.hidden = false;
+            if (channelEmptyTitle) channelEmptyTitle.textContent = "아직 업로드한 영상이 없습니다";
+            if (channelEmptyText) channelEmptyText.textContent = "첫 영상을 업로드해서 내 채널을 채워보자.";
             return;
         }
 
         if (filteredVideos.length === 0 && isFiltered) {
-            studioTable.hidden = true;
-            channelEmptyState.hidden = false;
-
+            if (studioManageTable) studioManageTable.hidden = true;
+            if (channelEmptyState) channelEmptyState.hidden = false;
             if (hasKeyword && currentFilter !== "전체") {
-                channelEmptyTitle.textContent = "조건에 맞는 영상이 없습니다";
-                channelEmptyText.textContent = `"${keyword}" 검색과 "${currentFilter}" 필터에 맞는 영상이 없어. 다른 조건으로 다시 찾아봐.`;
+                if (channelEmptyTitle) channelEmptyTitle.textContent = "조건에 맞는 영상이 없습니다";
+                if (channelEmptyText) channelEmptyText.textContent = `"${keyword}" 검색과 "${currentFilter}" 필터에 맞는 영상이 없어.`;
             } else if (hasKeyword) {
-                channelEmptyTitle.textContent = "검색 결과가 없습니다";
-                channelEmptyText.textContent = `"${keyword}"와 일치하는 영상이 없어. 다른 검색어로 다시 시도해봐.`;
+                if (channelEmptyTitle) channelEmptyTitle.textContent = "검색 결과가 없습니다";
+                if (channelEmptyText) channelEmptyText.textContent = `"${keyword}"와 일치하는 영상이 없어.`;
             } else {
-                channelEmptyTitle.textContent = "필터 결과가 없습니다";
-                channelEmptyText.textContent = `현재 "${currentFilter}" 상태의 영상이 없어. 다른 필터를 선택해봐.`;
+                if (channelEmptyTitle) channelEmptyTitle.textContent = "필터 결과가 없습니다";
+                if (channelEmptyText) channelEmptyText.textContent = `현재 "${currentFilter}" 상태의 영상이 없어.`;
             }
-
             return;
         }
 
-        studioTable.hidden = false;
-        channelEmptyState.hidden = true;
+        if (studioManageTable) studioManageTable.hidden = false;
+        if (channelEmptyState) channelEmptyState.hidden = true;
     }
 
     function renderFilteredList() {
         const filteredVideos = getFilteredVideos(uploadedVideosCache);
         const sortedVideos = getSortedVideos(filteredVideos);
-
-        updateChannelEmptyState(sortedVideos);
-
+        updateEmptyState(sortedVideos);
         if (sortedVideos.length === 0) {
             channelManageList.innerHTML = "";
             return;
         }
-
         channelManageList.innerHTML = sortedVideos.map(createManageCard).join("");
         bindCopyButtons(sortedVideos);
         bindDeleteButtons(sortedVideos);
-    }
-
-    async function renderChannelPage() {
-        const uploadedVideos = await fetchMyVideos();
-        uploadedVideosCache = normalizeVideos(uploadedVideos);
-
-        updateStats(uploadedVideosCache);
-        renderFilteredList();
-    }
-
-    channelSearchInput.addEventListener("input", renderFilteredList);
-    channelSortSelect.addEventListener("change", renderFilteredList);
-
-    const filterButtons = channelVisibilityFilter.querySelectorAll("[data-filter]");
-    filterButtons.forEach((button) => {
-        button.addEventListener("click", () => {
-            currentFilter = button.dataset.filter;
-
-            filterButtons.forEach((btn) => {
-                btn.classList.toggle("is-active", btn === button);
-            });
-
-            renderFilteredList();
-        });
-    });
-
-    await renderChannelPage();
-
-    window.addEventListener("focus", async () => {
-        await renderChannelPage();
-    });
-}
-
-async function initStudioPage() {
-    const studioVideoList = document.getElementById("studioVideoList");
-    if (!studioVideoList) return;
-
-    if (!requireAuthRedirect()) return;
-
-    // 헤더 아바타 초기화
-    const authMe = getAuthMe();
-    const headerAvatar = document.getElementById("studioHeaderAvatar");
-    if (headerAvatar && authMe.loggedIn && authMe.user) {
-        const displayName = authMe.user.channelName || authMe.user.nickname || authMe.user.username || "?";
-        if (authMe.user.profileImage) {
-            headerAvatar.innerHTML = `<img src="${escapeHtml(authMe.user.profileImage)}" style="width:32px;height:32px;object-fit:cover;border-radius:50%;" onerror="this.parentElement.textContent='${escapeHtml(displayName[0])}'" alt="">`;
-        } else {
-            headerAvatar.textContent = displayName[0].toUpperCase();
-        }
-    }
-
-    let pollingTimer = null;
-
-    function getConversionStatus(video) {
-        const urls = [video.videoUrl1080, video.videoUrl720, video.videoUrl480, video.videoUrl360];
-        const completedCount = urls.filter(u => u && u.trim() !== "").length;
-        const hasOriginal = video.videoUrl && video.videoUrl.trim() !== "";
-        const allDone = completedCount === 4;
-        const converting = hasOriginal && !allDone;
-        return { completedCount, allDone, converting, hasOriginal };
-    }
-
-    function createStudioCard(video) {
-        const { completedCount, allDone, converting } = getConversionStatus(video);
-        const visibilityClass = video.visibility === "비공개" ? "studio-badge--private" : "studio-badge--public";
-        const visibilityLabel = video.visibility || "공개";
-        const progress = Math.round((completedCount / 4) * 100);
-
-        const resLabels = [
-            { key: "videoUrl1080", label: "1080p" },
-            { key: "videoUrl720",  label: "720p"  },
-            { key: "videoUrl480",  label: "480p"  },
-            { key: "videoUrl360",  label: "360p"  },
-        ];
-
-        const resBadgesHtml = resLabels
-            .filter(r => video[r.key] && video[r.key].trim() !== "")
-            .map(r => `<span class="studio-res-badge">${r.label}</span>`)
-            .join("");
-
-        let conversionHtml = "";
-        if (allDone) {
-            conversionHtml = `
-                <div class="studio-conv-status studio-conv-done">
-                    <span class="studio-conv-icon">&#10003;</span> 변환 완료
-                    <div class="studio-res-badges">${resBadgesHtml}</div>
-                </div>`;
-        } else if (converting) {
-            conversionHtml = `
-                <div class="studio-conv-status studio-conv-pending">
-                    <div class="studio-conv-label">해상도 변환 중... (${completedCount}/4)</div>
-                    <div class="studio-progress-bar-wrap">
-                        <div class="studio-progress-bar" style="width:${progress}%"></div>
-                    </div>
-                    ${resBadgesHtml ? `<div class="studio-res-badges">${resBadgesHtml}</div>` : ""}
-                </div>`;
-        } else if (!video.videoUrl || video.videoUrl.trim() === "") {
-            conversionHtml = `<div class="studio-conv-status studio-conv-pending">변환 대기 중...</div>`;
-        }
-
-        return `
-        <article class="studio-card" data-id="${video.id}">
-            <a href="watch.html?v=${video.id}" class="studio-card-thumb">
-                <img src="${escapeHtml(video.thumbnail || DEFAULT_THUMBNAIL)}" alt="${escapeHtml(video.title || "")}" />
-                ${video.duration ? `<span class="studio-card-duration">${escapeHtml(video.duration)}</span>` : ""}
-            </a>
-            <div class="studio-card-body">
-                <div class="studio-card-top">
-                    <h3 class="studio-card-title">
-                        <a href="watch.html?v=${video.id}">${escapeHtml(video.title || "제목 없음")}</a>
-                    </h3>
-                    <span class="studio-badge ${visibilityClass}">${escapeHtml(visibilityLabel)}</span>
-                </div>
-                <p class="studio-card-meta">${escapeHtml(video.date || "")} &middot; 조회수 ${formatCount(Number(video.viewCount || 0))}회</p>
-                ${conversionHtml}
-            </div>
-            <div class="studio-card-actions">
-                <a href="watch.html?v=${video.id}" class="studio-action-btn">영상 보기</a>
-                <a href="edit.html?v=${video.id}" class="studio-action-btn">수정</a>
-                <button type="button" class="studio-action-btn studio-action-btn--delete" data-delete-id="${video.id}">삭제</button>
-            </div>
-        </article>`;
-    }
-
-    function renderStudioList(videos) {
-        if (!videos || videos.length === 0) {
-            studioVideoList.innerHTML = `
-                <div class="studio-empty">
-                    <div class="studio-empty-icon">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M17 10.5V6a2 2 0 0 0-2-2H5A2 2 0 0 0 3 6v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4.5l4 4v-11l-4 4Z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="studio-empty-title">아직 업로드한 영상이 없습니다</h3>
-                    <p class="studio-empty-text">첫 영상을 업로드해서 스튜디오를 채워보자.</p>
-                    <a href="upload.html" class="studio-upload-btn">영상 업로드</a>
-                </div>`;
-            return;
-        }
-
-        studioVideoList.innerHTML = videos.map(createStudioCard).join("");
-
-        studioVideoList.querySelectorAll("[data-delete-id]").forEach(btn => {
-            btn.addEventListener("click", async () => {
-                const id = Number(btn.dataset.deleteId);
-                const target = videos.find(v => v.id === id);
-                if (!target) return;
-
-                const ok = await confirmAction(`"${target.title}" 영상을 삭제할까요?\n삭제 후에는 되돌릴 수 없습니다.`);
-                if (!ok) return;
-
-                try {
-                    await deleteVideoById(id);
-                    showToast("영상이 삭제되었습니다.");
-                    await loadAndRender();
-                } catch (err) {
-                    alert(err.message || "삭제 중 오류가 발생했어.");
-                }
-            });
-        });
-    }
-
-    function startPollingIfNeeded(videos) {
-        if (pollingTimer) {
-            clearInterval(pollingTimer);
-            pollingTimer = null;
-        }
-
-        const hasConverting = videos.some(v => {
-            const { allDone, hasOriginal } = getConversionStatus(v);
-            return hasOriginal && !allDone;
-        });
-
-        if (!hasConverting) return;
-
-        pollingTimer = setInterval(async () => {
-            try {
-                const res = await fetch("/api/studio/videos");
-                if (!res.ok) return;
-                const data = await res.json();
-                if (!Array.isArray(data)) return;
-
-                renderStudioList(data);
-
-                const stillConverting = data.some(v => {
-                    const { allDone, hasOriginal } = getConversionStatus(v);
-                    return hasOriginal && !allDone;
-                });
-
-                if (!stillConverting) {
-                    clearInterval(pollingTimer);
-                    pollingTimer = null;
-                }
-            } catch {
-                // 폴링 중 오류 무시
-            }
-        }, 3000);
     }
 
     function renderStudioStats(videos) {
@@ -4088,7 +3880,6 @@ async function initStudioPage() {
             chartEl.innerHTML = `<p class="studio-chart-empty">업로드된 영상이 없어 차트를 표시할 수 없습니다.</p>`;
             return;
         }
-
         const maxViews = Math.max(...top.map(v => Number(v.viewCount || 0)), 1);
         const W = 560, H = 200;
         const padL = 52, padR = 16, padT = 12, padB = 50;
@@ -4096,7 +3887,6 @@ async function initStudioPage() {
         const chartH = H - padT - padB;
         const barGap = 10;
         const barW = Math.floor((chartW - barGap * (top.length - 1)) / top.length);
-
         let grid = "";
         for (let i = 0; i <= 4; i++) {
             const val = Math.round(maxViews * i / 4);
@@ -4104,7 +3894,6 @@ async function initStudioPage() {
             grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#222" stroke-width="1"/>
             <text x="${padL - 6}" y="${y + 4}" text-anchor="end" fill="#666" font-size="10">${formatCount(val)}</text>`;
         }
-
         let bars = "";
         top.forEach((v, i) => {
             const views = Number(v.viewCount || 0);
@@ -4119,7 +3908,6 @@ async function initStudioPage() {
             <text x="${x + barW / 2}" y="${padT + chartH + 14}" text-anchor="middle" fill="#999" font-size="10">${escapeHtml(label)}</text>
             ${views > 0 ? `<text x="${x + barW / 2}" y="${y - 4}" text-anchor="middle" fill="#bbb" font-size="9">${formatCount(views)}</text>` : ""}`;
         });
-
         chartEl.innerHTML = `
         <svg viewBox="0 0 ${W} ${H}" style="width:100%;overflow:visible">
             ${grid}
@@ -4137,21 +3925,34 @@ async function initStudioPage() {
                 return;
             }
             if (!res.ok) {
-                studioVideoList.innerHTML = `<p class="studio-error">영상을 불러오는 중 오류가 발생했습니다.</p>`;
+                channelManageList.innerHTML = `<p class="studio-error">영상을 불러오는 중 오류가 발생했습니다.</p>`;
                 return;
             }
             const data = await res.json();
             const videos = Array.isArray(data) ? data : [];
             renderStudioStats(videos);
             renderViewsChart(videos);
-            renderStudioList(videos);
-            startPollingIfNeeded(videos);
+            uploadedVideosCache = normalizeVideos(videos);
+            renderFilteredList();
         } catch {
-            studioVideoList.innerHTML = `<p class="studio-error">영상을 불러오는 중 오류가 발생했습니다.</p>`;
+            channelManageList.innerHTML = `<p class="studio-error">영상을 불러오는 중 오류가 발생했습니다.</p>`;
         }
     }
 
-    // 탭 전환
+    if (channelSearchInput) channelSearchInput.addEventListener("input", renderFilteredList);
+    if (channelSortSelect) channelSortSelect.addEventListener("change", renderFilteredList);
+
+    if (channelVisibilityFilter) {
+        const filterButtons = channelVisibilityFilter.querySelectorAll("[data-filter]");
+        filterButtons.forEach(button => {
+            button.addEventListener("click", () => {
+                currentFilter = button.dataset.filter;
+                filterButtons.forEach(btn => btn.classList.toggle("is-active", btn === button));
+                renderFilteredList();
+            });
+        });
+    }
+
     document.querySelectorAll(".studio-tab-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             document.querySelectorAll(".studio-tab-btn").forEach(b => b.classList.remove("is-active"));
@@ -4162,7 +3963,7 @@ async function initStudioPage() {
         });
     });
 
-    studioVideoList.innerHTML = `<p class="studio-loading">불러오는 중...</p>`;
+    channelManageList.innerHTML = `<p class="studio-loading">불러오는 중...</p>`;
     await loadAndRender();
 }
 
