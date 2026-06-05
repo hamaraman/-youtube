@@ -37,8 +37,10 @@
             .mobile-sidebar-backdrop.is-visible { display: block; }
         }
 
-        .playlist-content { flex: 1; padding: 24px 32px; max-width: 960px; }
-        .playlist-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+        .playlist-content { flex: 1; min-width: 0; padding: 24px 32px; }
+        .playlist-header { display: flex; align-items: center; justify-content: space-between; margin: 0 auto 24px; max-width: 960px; }
+        .pl-list { max-width: 960px; margin-left: auto; margin-right: auto; }
+        .pl-detail { max-width: 960px; margin-left: auto; margin-right: auto; }
         .playlist-header h2 { font-size: 22px; font-weight: 700; }
         .create-playlist-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px; border-radius: 999px; background: #ff0000; color: #fff; border: none; cursor: pointer; font-size: 14px; font-weight: 600; }
         .create-playlist-btn:hover { background: #cc0000; }
