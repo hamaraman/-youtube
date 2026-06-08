@@ -1050,87 +1050,51 @@ function navigateTo(url, ms) {
     setTimeout(() => { window.location.href = url; }, t);
 }
 
-function initMiniPlayer() {
+function initResumeBar() {
     const state = getMpState();
-    if (!state || !state.active || !state.videoUrl) return;
+    if (!state || !state.videoId) return;
+
     const params = new URLSearchParams(window.location.search);
     const vid = params.get('v') || params.get('id') || params.get('videoId');
     if (vid && String(vid) === String(state.videoId)) return;
-    if (document.getElementById('miniPlayer')) return;
+    if (document.getElementById('resumeBar')) return;
 
-    const I_PLAY  = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
-    const I_PAUSE = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+    const t = Math.floor(state.currentTime || 0);
+    const duration = state.duration || 0;
+    const progress = duration > 0 ? Math.min(100, (t / duration) * 100).toFixed(1) : 0;
+    const mins = Math.floor(t / 60);
+    const secs = t % 60;
+    const timeStr = mins > 0 ? `${mins}분 ${secs}초` : `${secs}초`;
 
-    const mp = document.createElement('div');
-    mp.id = 'miniPlayer';
-    mp.className = 'mini-player';
-    mp.innerHTML = `
-        <div class="mp-video-wrap" id="mpVideoWrap">
-            <video class="mp-video" src="${escapeHtml(state.videoUrl)}" playsinline></video>
+    const bar = document.createElement('div');
+    bar.id = 'resumeBar';
+    bar.className = 'resume-bar';
+    bar.innerHTML = `
+        <div class="resume-bar-thumb-wrap">
+            <img class="resume-bar-thumb" src="${escapeHtml(state.thumbnail || '')}" alt="" />
+            ${duration > 0 ? `<div class="resume-bar-thumb-progress" style="width:${progress}%"></div>` : ''}
         </div>
-        <div class="mp-bottom">
-            <div class="mp-info">
-                <div class="mp-title">${escapeHtml(state.title || '')}</div>
-                <div class="mp-channel">${escapeHtml(state.channel || '')}</div>
-            </div>
-            <button class="mp-btn" id="mpPlayBtn" title="재생/일시정지">${state.playing ? I_PAUSE : I_PLAY}</button>
-            <button class="mp-btn" id="mpExpandBtn" title="영상으로 이동">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
-            </button>
-            <button class="mp-btn" id="mpCloseBtn" title="닫기">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-            </button>
-        </div>`;
-    document.body.appendChild(mp);
+        <div class="resume-bar-info">
+            <div class="resume-bar-title">${escapeHtml(state.title || '')}</div>
+            <div class="resume-bar-meta">${escapeHtml(state.channel || '')} · ${timeStr} 지점</div>
+            ${duration > 0 ? `<div class="resume-bar-track"><div class="resume-bar-fill" style="width:${progress}%"></div></div>` : ''}
+        </div>
+        <button class="resume-bar-play" id="resumeBarPlay" type="button">이어보기</button>
+        <button class="resume-bar-close" id="resumeBarClose" type="button" aria-label="닫기">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+    `;
+    document.body.appendChild(bar);
+    requestAnimationFrame(() => bar.classList.add('show'));
 
-    const video = mp.querySelector('.mp-video');
-    const playBtn = document.getElementById('mpPlayBtn');
-
-    video.addEventListener('loadedmetadata', () => {
-        video.currentTime = state.currentTime || 0;
-        if (state.playing) video.play().catch(() => {});
+    bar.querySelector('#resumeBarPlay').addEventListener('click', () => {
+        window.location.href = `watch.html?v=${state.videoId}&t=${t}`;
     });
-    video.addEventListener('play',  () => { playBtn.innerHTML = I_PAUSE; });
-    video.addEventListener('pause', () => { playBtn.innerHTML = I_PLAY; });
-    video.addEventListener('timeupdate', () => {
-        const s = getMpState();
-        if (s) setMpState({ ...s, currentTime: video.currentTime, playing: !video.paused });
-    });
-    video.addEventListener('ended', () => { clearMpState(); mp.remove(); });
-
-    playBtn.addEventListener('click', () => video.paused ? video.play() : video.pause());
-
-    function goToWatch() {
-        const t = video.currentTime;
-        const s = getMpState();
-        if (s) setMpState({ ...s, currentTime: t, playing: !video.paused, active: true });
-        navigateTo(`watch.html?v=${state.videoId}&t=${Math.floor(t)}&autoplay=1`, 80);
-    }
-    document.getElementById('mpExpandBtn').addEventListener('click', goToWatch);
-    document.getElementById('mpVideoWrap').addEventListener('click', goToWatch);
-
-    document.getElementById('mpCloseBtn').addEventListener('click', () => {
+    bar.querySelector('#resumeBarClose').addEventListener('click', () => {
         clearMpState();
-        mp.classList.add('is-closing');
-        mp.addEventListener('animationend', () => mp.remove(), { once: true });
+        bar.classList.remove('show');
+        bar.addEventListener('transitionend', () => bar.remove(), { once: true });
     });
-
-    // 드래그
-    let dragging = false, ox = 0, oy = 0;
-    mp.querySelector('.mp-bottom').addEventListener('mousedown', (e) => {
-        if (e.target.closest('.mp-btn')) return;
-        dragging = true;
-        const r = mp.getBoundingClientRect();
-        ox = e.clientX - r.left; oy = e.clientY - r.top;
-        e.preventDefault();
-    });
-    document.addEventListener('mousemove', (e) => {
-        if (!dragging) return;
-        mp.style.right = 'auto'; mp.style.bottom = 'auto';
-        mp.style.left = Math.max(0, Math.min(window.innerWidth - mp.offsetWidth, e.clientX - ox)) + 'px';
-        mp.style.top  = Math.max(0, Math.min(window.innerHeight - mp.offsetHeight, e.clientY - oy)) + 'px';
-    });
-    document.addEventListener('mouseup', () => { dragging = false; });
 }
 
 function initMiniPlayerWatcher(videoData) {
@@ -1148,6 +1112,7 @@ function initMiniPlayerWatcher(videoData) {
         thumbnail: videoData.thumbnail,
         channel: videoData.channel,
         currentTime: video.currentTime,
+        duration: video.duration || 0,
         playing: playing
     });
 
@@ -1160,36 +1125,13 @@ function initMiniPlayerWatcher(videoData) {
     video.addEventListener('pause', () => saveState(false));
     video.addEventListener('ended', () => { clearInterval(saveInterval); clearMpState(); });
 
-    // 미니 플레이어 버튼: 상태 저장 후 이전 페이지로
+    // 이어보기 버튼: 상태 저장 후 이전 페이지로 (이어보기 바로 이어짐)
     miniBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
         saveState(!video.paused);
         const prev = document.referrer;
         const dest = (prev && !prev.includes('watch.html')) ? prev : 'index.html';
-
-        // FLIP 역방향: 플레이어가 우측 하단 미니 위치로 줄어들며 페이지 전환
-        const watchPlayer = document.getElementById("customPlayer");
-        if (watchPlayer) {
-            const rect = watchPlayer.getBoundingClientRect();
-            const mW = 320, mH = Math.round(320 * 9 / 16);
-            const sx = mW / rect.width;
-            const sy = mH / rect.height;
-            const dx = (window.innerWidth  - 24 - mW / 2) - (rect.left + rect.width  / 2);
-            const dy = (window.innerHeight - 24 - mH / 2) - (rect.top  + rect.height / 2);
-
-            watchPlayer.style.cssText += `
-                transform-origin: center center;
-                transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.35s;
-                transform: translate(${dx}px, ${dy}px) scale(${sx}, ${sy});
-                border-radius: 12px;
-                overflow: hidden;
-                z-index: 1000;
-                pointer-events: none;
-            `;
-            setTimeout(() => navigateTo(dest, 80), 280);
-        } else {
-            navigateTo(dest);
-        }
+        navigateTo(dest);
     });
 }
 // ──────────────────────────────────────────────────────────
@@ -4454,7 +4396,7 @@ const page = document.body.dataset.page;
 
     consumePendingToast();
     initGlobalTopSearch();
-    initMiniPlayer();
+    initResumeBar();
     initNotifications();
     initSubscriptionSidebar();
 
