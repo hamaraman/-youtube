@@ -38,6 +38,9 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     @Query("SELECT v FROM Video v WHERE v.visibility IS NULL OR v.visibility != '비공개' ORDER BY v.id DESC")
     Page<Video> findAllPublicPageable(Pageable pageable);
 
+    @Query("SELECT v FROM Video v WHERE v.visibility IS NULL OR v.visibility != '비공개' ORDER BY v.viewCount DESC, v.id DESC")
+    Page<Video> findAllPublicPageableOrderByViewCount(Pageable pageable);
+
     @Query("SELECT v FROM Video v WHERE (v.visibility IS NULL OR v.visibility != '비공개') AND v.category = :category ORDER BY v.id DESC")
     Page<Video> findAllPublicByCategoryPageable(@Param("category") String category, Pageable pageable);
 

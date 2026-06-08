@@ -2892,6 +2892,7 @@ async function initHomePage() {
 
     let currentKeyword = "";
     let selectedCategory = "";
+    let sortMode = "";
     let currentPage = 0;
     let isLoading = false;
     let hasMore = true;
@@ -2911,15 +2912,31 @@ async function initHomePage() {
 
     function buildCategoryBar(categories) {
         if (!categoryBar) return;
+
+        const popularChip = `<button class="category-chip${sortMode === "popular" ? " is-active" : ""}" data-sort="popular">🔥 인기</button>`;
         const chips = [{ label: "전체", value: "" }, ...categories.map((c) => ({ label: c, value: c }))];
-        categoryBar.innerHTML = chips.map((chip) => `
-            <button class="category-chip${chip.value === selectedCategory ? " is-active" : ""}"
+        const categoryChips = chips.map((chip) => `
+            <button class="category-chip${sortMode !== "popular" && chip.value === selectedCategory ? " is-active" : ""}"
                     data-category="${chip.value}">
                 ${chip.label}
             </button>
         `).join("");
-        categoryBar.querySelectorAll(".category-chip").forEach((btn) => {
+
+        categoryBar.innerHTML = popularChip + categoryChips;
+
+        categoryBar.querySelectorAll(".category-chip[data-sort='popular']").forEach((btn) => {
             btn.addEventListener("click", () => {
+                sortMode = "popular";
+                selectedCategory = "";
+                categoryBar.querySelectorAll(".category-chip").forEach((b) => b.classList.remove("is-active"));
+                btn.classList.add("is-active");
+                resetAndLoad();
+            });
+        });
+
+        categoryBar.querySelectorAll(".category-chip[data-category]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                sortMode = "";
                 selectedCategory = btn.dataset.category;
                 categoryBar.querySelectorAll(".category-chip").forEach((b) => b.classList.remove("is-active"));
                 btn.classList.add("is-active");
@@ -2935,8 +2952,12 @@ async function initHomePage() {
 
         try {
             const params = new URLSearchParams({ page: currentPage, size: 12 });
-            if (currentKeyword.trim()) params.set("keyword", currentKeyword.trim());
-            if (selectedCategory) params.set("category", selectedCategory);
+            if (sortMode === "popular") {
+                params.set("sort", "popular");
+            } else {
+                if (currentKeyword.trim()) params.set("keyword", currentKeyword.trim());
+                if (selectedCategory) params.set("category", selectedCategory);
+            }
 
             const res = await fetch(`/api/videos/feed?${params}`);
             if (!res.ok) throw new Error();
@@ -2948,7 +2969,10 @@ async function initHomePage() {
                     homeEmptyState.hidden = data.videos.length > 0;
                     const titleEl = homeEmptyState.querySelector(".home-empty-title");
                     const textEl = homeEmptyState.querySelector(".home-empty-text");
-                    if (currentKeyword.trim() || selectedCategory) {
+                    if (sortMode === "popular") {
+                        if (titleEl) titleEl.textContent = "인기 영상이 없습니다";
+                        if (textEl) textEl.textContent = "아직 조회수가 집계된 영상이 없어.";
+                    } else if (currentKeyword.trim() || selectedCategory) {
                         if (titleEl) titleEl.textContent = "검색 결과가 없습니다";
                         if (textEl) textEl.textContent = "다른 검색어나 카테고리로 다시 시도해봐.";
                     } else {
