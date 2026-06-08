@@ -256,6 +256,24 @@ async function updateVideoById(id, payload) {
     return result;
 }
 
+async function replaceVideoThumbnail(id, file) {
+    const formData = new FormData();
+    formData.append("thumbnailFile", file);
+
+    const response = await fetch(`/api/videos/${id}/thumbnail`, {
+        method: "POST",
+        body: formData
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.success) {
+        throw new Error(result.message || "썸네일 교체 실패");
+    }
+
+    return result;
+}
+
 function makeFeedVideos(uploadedVideos = []) {
     return [...uploadedVideos, ...defaultVideos];
 }
@@ -4392,6 +4410,8 @@ async function initEditPage() {
     const editTitle = document.getElementById("editTitle");
     const editDescription = document.getElementById("editDescription");
     const editThumbnail = document.getElementById("editThumbnail");
+    const editThumbnailFile = document.getElementById("editThumbnailFile");
+    const editPreviewImage = document.getElementById("editPreviewImage");
     const editEmbedUrl = document.getElementById("editEmbedUrl");
     const editChannel = document.getElementById("editChannel");
     const editAvatar = document.getElementById("editAvatar");
@@ -4411,6 +4431,21 @@ async function initEditPage() {
     document.querySelectorAll('input[name="editVisibility"]').forEach((radio) => {
         radio.checked = radio.value === (video.visibility || "공개");
     });
+
+    if (editPreviewImage && video.thumbnail) {
+        editPreviewImage.src = video.thumbnail;
+    }
+
+    let selectedThumbnailFile = null;
+    if (editThumbnailFile) {
+        editThumbnailFile.addEventListener("change", () => {
+            const file = editThumbnailFile.files && editThumbnailFile.files[0];
+            selectedThumbnailFile = file || null;
+            if (file && editPreviewImage) {
+                editPreviewImage.src = URL.createObjectURL(file);
+            }
+        });
+    }
 
     editForm.addEventListener(
         "submit",
@@ -4440,6 +4475,9 @@ async function initEditPage() {
 
             try {
                 await updateVideoById(videoId, payload);
+                if (selectedThumbnailFile) {
+                    await replaceVideoThumbnail(videoId, selectedThumbnailFile);
+                }
                 setPendingToast("영상 수정이 완료되었습니다.");
                 window.location.href = getVideoUrl(videoId);
             } catch (error) {

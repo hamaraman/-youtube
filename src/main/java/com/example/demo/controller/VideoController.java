@@ -15,18 +15,31 @@ import com.example.demo.repository.VideoLikeRepository;
 import com.example.demo.repository.VideoRepository;
 import com.example.demo.repository.VideoSaveRepository;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
 public class VideoController {
+
+    private static final Set<String> ALLOWED_IMAGE_EXTS =
+            Set.of(".jpg", ".jpeg", ".png", ".gif", ".webp");
+    private static final long MAX_IMAGE_BYTES = 20L * 1024 * 1024; // 20 MB
+
+    @Value("${file.thumbnail-dir}")
+    private String thumbnailDir;
 
     private final VideoRepository videoRepository;
     private final VideoLikeRepository videoLikeRepository;
@@ -301,6 +314,60 @@ public class VideoController {
         );
     }
 
+    @PostMapping("/videos/{id}/thumbnail")
+    public ResponseEntity<?> replaceThumbnail(
+            @PathVariable Long id,
+            @RequestParam("thumbnailFile") MultipartFile thumbnailFile,
+            HttpSession session
+    ) {
+        Long loginUserId = getLoginUserId(session);
+        if (loginUserId == null) {
+            return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
+        }
+
+        Optional<Video> optionalVideo = videoRepository.findById(id);
+        if (optionalVideo.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Video video = optionalVideo.get();
+        if (video.getOwnerId() == null || !loginUserId.equals(video.getOwnerId())) {
+            return ResponseEntity.status(403).body(new SimpleResponse(false, "본인 영상만 수정할 수 있습니다."));
+        }
+
+        if (thumbnailFile == null || thumbnailFile.isEmpty()) {
+            return ResponseEntity.badRequest().body(new SimpleResponse(false, "썸네일 파일을 선택해줘."));
+        }
+
+        String ext = extensionOf(thumbnailFile.getOriginalFilename()).toLowerCase();
+        if (!ALLOWED_IMAGE_EXTS.contains(ext)) {
+            return ResponseEntity.badRequest().body(new SimpleResponse(false, "허용되지 않는 썸네일 형식입니다. (jpg, jpeg, png, gif, webp)"));
+        }
+        if (thumbnailFile.getSize() > MAX_IMAGE_BYTES) {
+            return ResponseEntity.badRequest().body(new SimpleResponse(false, "썸네일 파일 크기는 20MB를 초과할 수 없습니다."));
+        }
+
+        try {
+            String newThumbnailUrl;
+            if (storageService.isConfigured()) {
+                newThumbnailUrl = uploadThumbnailToS3(thumbnailFile, ext);
+            } else {
+                String savedFileName = saveFile(thumbnailFile, thumbnailDir);
+                newThumbnailUrl = "/uploads/thumbnails/" + savedFileName;
+            }
+
+            String oldThumbnailUrl = video.getThumbnail();
+            video.setThumbnail(newThumbnailUrl);
+            Video saved = videoRepository.save(video);
+
+            deletePhysicalFile(oldThumbnailUrl);
+
+            return ResponseEntity.ok(Map.of("success", true, "thumbnail", saved.getThumbnail()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(new SimpleResponse(false, "썸네일 업로드 중 오류가 발생했어."));
+        }
+    }
+
     @DeleteMapping("/videos/{id}")
     public ResponseEntity<?> deleteVideo(@PathVariable Long id, HttpSession session) {
         Long loginUserId = getLoginUserId(session);
@@ -418,6 +485,45 @@ public class VideoController {
 
     private Long getLoginUserId(HttpSession session) {
         return loginUserResolver.getUserId(session);
+    }
+
+    private String saveFile(MultipartFile file, String dir) throws Exception {
+        String originalFilename = StringUtils.cleanPath(file.getOriginalFilename());
+        String extension = "";
+        int lastDotIndex = originalFilename.lastIndexOf(".");
+        if (lastDotIndex != -1) extension = originalFilename.substring(lastDotIndex);
+        String savedFileName = UUID.randomUUID() + extension;
+        Path savePath = Paths.get(dir).toAbsolutePath().resolve(savedFileName);
+        file.transferTo(savePath);
+        return savedFileName;
+    }
+
+    private String uploadThumbnailToS3(MultipartFile file, String ext) throws Exception {
+        String uuid = UUID.randomUUID().toString();
+        String key = "thumbnails/" + uuid + ext;
+        Path temp = Files.createTempFile("thumb_" + uuid, ext);
+        try {
+            file.transferTo(temp);
+            return storageService.upload(temp, key, contentTypeFor(ext));
+        } finally {
+            Files.deleteIfExists(temp);
+        }
+    }
+
+    private String contentTypeFor(String ext) {
+        return switch (ext.toLowerCase()) {
+            case ".jpg", ".jpeg" -> "image/jpeg";
+            case ".png" -> "image/png";
+            case ".gif" -> "image/gif";
+            case ".webp" -> "image/webp";
+            default -> "application/octet-stream";
+        };
+    }
+
+    private String extensionOf(String filename) {
+        if (filename == null) return "";
+        int dot = filename.lastIndexOf('.');
+        return dot >= 0 ? filename.substring(dot).toLowerCase() : "";
     }
 
     private void deletePhysicalFile(String url) {
