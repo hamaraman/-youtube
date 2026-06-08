@@ -270,7 +270,7 @@ function getEditUrl(id) {
 }
 
 function getShareUrl(videoId) {
-    return `${window.location.origin}/watch.html?v=${videoId}`;
+    return `${window.location.origin}/share/video/${videoId}`;
 }
 
 function showShareModal(videoId, getCurrentTime) {
@@ -281,7 +281,7 @@ function showShareModal(videoId, getCurrentTime) {
     function buildUrl(withTime) {
         if (!withTime) return baseUrl;
         const t = Math.floor(getCurrentTime());
-        return t > 0 ? `${baseUrl}&t=${t}` : baseUrl;
+        return t > 0 ? `${baseUrl}?t=${t}` : baseUrl;
     }
 
     const modal = document.createElement("div");
