@@ -800,6 +800,7 @@ img {
     background: #000;
     border-radius: 18px;
     line-height: 0;
+    position: relative;
 }
 
 .player-box img {
@@ -4031,4 +4032,80 @@ html[data-theme="light"] .studio-chart-wrap svg line {
 
 html[data-theme="light"] .studio-chart-wrap svg text {
     fill: #606060 !important;
+}
+
+/* ── 이어보기 토스트 ────────────────────────────────────────── */
+.resume-toast {
+    position: absolute;
+    bottom: 56px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(28, 28, 28, 0.92);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 24px;
+    padding: 8px 14px;
+    white-space: nowrap;
+    z-index: 50;
+    animation: resumeToastIn 0.25s ease;
+    backdrop-filter: blur(4px);
+}
+
+@keyframes resumeToastIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.resume-toast-text {
+    font-size: 13px;
+    color: #e8e8e8;
+}
+
+.resume-toast-btn {
+    border: none;
+    border-radius: 16px;
+    padding: 5px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.resume-toast-btn.resume-btn {
+    background: #3ea6ff;
+    color: #0f0f0f;
+}
+
+.resume-toast-btn.resume-btn:hover {
+    background: #63b8ff;
+}
+
+.resume-toast-btn.dismiss-btn {
+    background: rgba(255,255,255,0.1);
+    color: #e8e8e8;
+}
+
+.resume-toast-btn.dismiss-btn:hover {
+    background: rgba(255,255,255,0.18);
+}
+
+html[data-theme="light"] .resume-toast {
+    background: rgba(240, 240, 240, 0.95);
+    border-color: rgba(0,0,0,0.1);
+}
+
+html[data-theme="light"] .resume-toast-text {
+    color: #0f0f0f;
+}
+
+html[data-theme="light"] .resume-toast-btn.resume-btn {
+    background: #065fd4;
+    color: #fff;
+}
+
+html[data-theme="light"] .resume-toast-btn.dismiss-btn {
+    background: rgba(0,0,0,0.08);
+    color: #0f0f0f;
 }

@@ -3406,6 +3406,61 @@ async function initWatchPage() {
         }
     }
 
+    // 이어보기: 저장된 재생 위치 확인 후 토스트 표시
+    if (authMe.loggedIn && !fromMini && !(startTime > 0)) {
+        const savedPos = await fetchVideoProgress(currentVideo.id);
+        if (savedPos > 5) {
+            const playerBox = document.querySelector(".player-box");
+            if (playerBox) {
+                const mins = Math.floor(savedPos / 60);
+                const secs = Math.floor(savedPos % 60);
+                const timeStr = mins > 0 ? `${mins}분 ${secs}초` : `${secs}초`;
+
+                const toast = document.createElement("div");
+                toast.className = "resume-toast";
+                toast.innerHTML = `
+                    <span class="resume-toast-text">${timeStr}에서 이어보기</span>
+                    <button class="resume-toast-btn resume-btn" type="button">이어보기</button>
+                    <button class="resume-toast-btn dismiss-btn" type="button">처음부터</button>
+                `;
+                playerBox.appendChild(toast);
+
+                toast.querySelector(".resume-btn").addEventListener("click", () => {
+                    const pv = document.querySelector("#customPlayer video.player-video");
+                    if (pv) {
+                        const doSeek = () => { pv.currentTime = savedPos; };
+                        if (pv.readyState >= 1) doSeek();
+                        else pv.addEventListener("loadedmetadata", doSeek, { once: true });
+                    }
+                    toast.remove();
+                });
+                toast.querySelector(".dismiss-btn").addEventListener("click", () => toast.remove());
+                setTimeout(() => { if (toast.parentNode) toast.remove(); }, 6000);
+            }
+        }
+    }
+
+    // 재생 위치 자동 저장 (로그인 상태일 때)
+    if (authMe.loggedIn) {
+        const pv = document.querySelector("#customPlayer video.player-video");
+        if (pv) {
+            let lastSaved = 0;
+            const doSave = () => {
+                const pos = pv.currentTime;
+                if (pos > 1 && Math.abs(pos - lastSaved) > 3) {
+                    lastSaved = pos;
+                    saveVideoProgress(currentVideo.id, pos);
+                }
+            };
+            setInterval(doSave, 15000);
+            pv.addEventListener("pause", doSave);
+            document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "hidden") doSave();
+            });
+            window.addEventListener("beforeunload", doSave);
+        }
+    }
+
     const subscribeBtn = document.getElementById("subscribeBtn");
     const likeBtn = document.getElementById("likeBtn");
     const shareBtn = document.getElementById("shareBtn");
@@ -4513,6 +4568,25 @@ async function addVideoToHistory(videoId) {
         success: true,
         localSaved: true
     };
+}
+
+async function fetchVideoProgress(videoId) {
+    try {
+        const resp = await fetch(`/api/videos/${videoId}/progress`);
+        if (!resp.ok) return 0;
+        const data = await resp.json();
+        return Number(data.position || 0);
+    } catch {
+        return 0;
+    }
+}
+
+function saveVideoProgress(videoId, position) {
+    fetch(`/api/videos/${videoId}/progress`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ position })
+    }).catch(() => {});
 }
 
 async function fetchMyHistoryVideos() {

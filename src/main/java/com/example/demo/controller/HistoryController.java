@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.springframework.web.bind.annotation.RequestBody;
+
 @RestController
 @RequestMapping("/api")
 public class HistoryController {
@@ -78,6 +80,40 @@ public class HistoryController {
         }
 
         return ResponseEntity.ok(new SimpleResponse(true, "시청 기록 저장됨"));
+    }
+
+    @PutMapping("/videos/{id}/progress")
+    public ResponseEntity<?> saveProgress(@PathVariable Long id, @RequestBody Map<String, Double> body, HttpSession session) {
+        Long loginUserId = getLoginUserId(session);
+        if (loginUserId == null) return ResponseEntity.status(401).build();
+
+        Double position = body.get("position");
+        if (position == null || position < 0) return ResponseEntity.badRequest().build();
+
+        Optional<VideoHistory> existing = videoHistoryRepository.findByVideoIdAndUserId(id, loginUserId);
+        VideoHistory history = existing.orElseGet(() -> {
+            VideoHistory h = new VideoHistory();
+            h.setVideoId(id);
+            h.setUserId(loginUserId);
+            h.setWatchedAt(System.currentTimeMillis());
+            return h;
+        });
+        history.setLastPosition(position);
+        videoHistoryRepository.save(history);
+
+        return ResponseEntity.ok(new SimpleResponse(true, "저장됨"));
+    }
+
+    @GetMapping("/videos/{id}/progress")
+    public ResponseEntity<?> getProgress(@PathVariable Long id, HttpSession session) {
+        Long loginUserId = getLoginUserId(session);
+        if (loginUserId == null) return ResponseEntity.ok(Map.of("position", 0.0));
+
+        Optional<VideoHistory> existing = videoHistoryRepository.findByVideoIdAndUserId(id, loginUserId);
+        double position = existing
+                .map(h -> h.getLastPosition() != null ? h.getLastPosition() : 0.0)
+                .orElse(0.0);
+        return ResponseEntity.ok(Map.of("position", position));
     }
 
     @GetMapping("/my-history")

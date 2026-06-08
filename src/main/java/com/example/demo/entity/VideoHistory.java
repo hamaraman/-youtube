@@ -24,6 +24,8 @@ public class VideoHistory {
 
     private Long watchedAt;
 
+    private Double lastPosition;
+
     public VideoHistory() {
     }
 
@@ -43,6 +45,10 @@ public class VideoHistory {
         return watchedAt;
     }
 
+    public Double getLastPosition() {
+        return lastPosition;
+    }
+
     public void setId(Long id) {
         this.id = id;
     }
@@ -57,5 +63,9 @@ public class VideoHistory {
 
     public void setWatchedAt(Long watchedAt) {
         this.watchedAt = watchedAt;
+    }
+
+    public void setLastPosition(Double lastPosition) {
+        this.lastPosition = lastPosition;
     }
 }
