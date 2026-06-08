@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 @RequestMapping("/api")
 public class HistoryController {
 
+    private static final String ANON_VIEWED_SESSION_KEY = "anonViewedVideoTimestamps";
+
     private final VideoHistoryRepository videoHistoryRepository;
     private final VideoRepository videoRepository;
     private final VideoLikeRepository videoLikeRepository;
@@ -55,14 +57,30 @@ public class HistoryController {
 
         Video video = optionalVideo.get();
 
-        if (loginUserId == null) {
-            video.setViewCount(video.getViewCount() + 1);
-            videoRepository.save(video);
-            return ResponseEntity.ok(new SimpleResponse(true, "조회수 증가"));
-        }
-
         long now = System.currentTimeMillis();
         long cooldownMs = 24 * 60 * 60 * 1000L;
+
+        if (loginUserId == null) {
+            @SuppressWarnings("unchecked")
+            Map<Long, Long> viewedAt = (Map<Long, Long>) session.getAttribute(ANON_VIEWED_SESSION_KEY);
+            if (viewedAt == null) {
+                viewedAt = new HashMap<>();
+            }
+
+            Long lastViewedAt = viewedAt.get(id);
+            boolean isNew = lastViewedAt == null;
+            boolean isExpired = lastViewedAt != null && now - lastViewedAt > cooldownMs;
+
+            if (isNew || isExpired) {
+                video.setViewCount(video.getViewCount() + 1);
+                videoRepository.save(video);
+            }
+
+            viewedAt.put(id, now);
+            session.setAttribute(ANON_VIEWED_SESSION_KEY, viewedAt);
+
+            return ResponseEntity.ok(new SimpleResponse(true, "조회수 처리됨"));
+        }
 
         Optional<VideoHistory> existing = videoHistoryRepository.findByVideoIdAndUserId(id, loginUserId);
         boolean isNew = existing.isEmpty();
