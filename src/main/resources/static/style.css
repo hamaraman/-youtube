@@ -4378,10 +4378,10 @@ html[data-theme="light"] .recommend-tag {
 
 /* ── 극장 모드 ───────────────────────────────────────────── */
 body.theater-mode .watch-shell { align-items: flex-start; min-height: 0; }
-body.theater-mode .watch-shell > aside.sidebar { display: none; }
-body.theater-mode .watch-page { padding-left: 0; padding-right: 0; }
-body.theater-mode .watch-layout { grid-template-columns: 1fr; max-width: 100%; }
-body.theater-mode .watch-side-column { display: none; }
+body.theater-mode .watch-shell > aside.sidebar { display: none !important; }
+body.theater-mode .watch-page { padding-left: 0 !important; padding-right: 0 !important; }
+body.theater-mode .watch-layout { grid-template-columns: 1fr !important; max-width: 100%; gap: 0; }
+body.theater-mode .watch-side-column { position: static; padding: 0 24px; }
 body.theater-mode .watch-main-column { max-width: 100%; }
 body.theater-mode .player-box { aspect-ratio: 16/9; max-height: 80vh; border-radius: 0; }
 body.theater-mode #customPlayer,
@@ -4392,17 +4392,18 @@ body.theater-mode .watch-description-box,
 body.theater-mode .comments-section { padding-left: 24px; padding-right: 24px; }
 
 /* ── 영상 종료 오버레이 ──────────────────────────────────── */
-/* ── 영상 종료 오버레이 (우하단 미니카드) ────────────────── */
+/* ── 영상 종료 오버레이 (플레이어 중앙 미니카드) ─────────── */
 .video-end-overlay {
     position: absolute;
-    bottom: 56px;
-    right: 12px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     z-index: 50;
     animation: fadeIn 0.25s ease;
     pointer-events: auto;
 }
 
-@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; transform: translate(-50%, -42%); } to { opacity: 1; transform: translate(-50%, -50%); } }
 
 .video-end-card {
     display: flex;
