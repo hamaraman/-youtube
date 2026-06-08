@@ -4375,3 +4375,201 @@ html[data-theme="light"] .recommend-tag {
     background: rgba(6, 95, 212, 0.1);
     color: #065fd4;
 }
+
+/* ── 댓글 정렬 버튼 ─────────────────────────────────────── */
+.comments-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.comment-sort-btns {
+    display: flex;
+    gap: 6px;
+}
+
+.comment-sort-btn {
+    background: transparent;
+    border: none;
+    color: #aaa;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.comment-sort-btn:hover {
+    background: rgba(255,255,255,0.08);
+    color: #f1f1f1;
+}
+
+.comment-sort-btn.is-active {
+    background: rgba(255,255,255,0.12);
+    color: #f1f1f1;
+    font-weight: 600;
+}
+
+html[data-theme="light"] .comment-sort-btn {
+    color: #606060;
+}
+
+html[data-theme="light"] .comment-sort-btn:hover {
+    background: rgba(0,0,0,0.06);
+    color: #0f0f0f;
+}
+
+html[data-theme="light"] .comment-sort-btn.is-active {
+    background: rgba(0,0,0,0.08);
+    color: #0f0f0f;
+}
+
+/* ── 검색 자동완성 드롭다운 ─────────────────────────────── */
+.search-suggest-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #212121;
+    border: 1px solid #333;
+    border-radius: 12px;
+    list-style: none;
+    margin: 0;
+    padding: 6px 0;
+    z-index: 300;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    display: none;
+}
+
+.search-suggest-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 16px;
+    font-size: 14px;
+    color: #e0e0e0;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-suggest-item:hover,
+.search-suggest-item.is-active {
+    background: #2d2d2d;
+}
+
+.search-suggest-icon {
+    flex-shrink: 0;
+    opacity: 0.5;
+}
+
+html[data-theme="light"] .search-suggest-list {
+    background: #fff;
+    border-color: #e0e0e0;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+html[data-theme="light"] .search-suggest-item {
+    color: #0f0f0f;
+}
+
+html[data-theme="light"] .search-suggest-item:hover,
+html[data-theme="light"] .search-suggest-item.is-active {
+    background: #f2f2f2;
+}
+
+/* ── 카드 구독 버튼 ─────────────────────────────────────── */
+.channel-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.channel-row .channel-link {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.card-sub-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255,255,255,0.12);
+    border: none;
+    border-radius: 20px;
+    color: #f1f1f1;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+
+.card-sub-btn:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.card-sub-btn.is-subscribed {
+    background: rgba(255,255,255,0.08);
+    color: #aaa;
+}
+
+.card-sub-btn.is-subscribed:hover {
+    background: rgba(255,80,80,0.15);
+    color: #ff5050;
+}
+
+html[data-theme="light"] .card-sub-btn {
+    background: rgba(0,0,0,0.08);
+    color: #0f0f0f;
+}
+
+html[data-theme="light"] .card-sub-btn:hover {
+    background: rgba(0,0,0,0.14);
+}
+
+html[data-theme="light"] .card-sub-btn.is-subscribed {
+    background: rgba(0,0,0,0.05);
+    color: #606060;
+}
+
+html[data-theme="light"] .card-sub-btn.is-subscribed:hover {
+    background: rgba(255,0,0,0.1);
+    color: #c00;
+}
+
+/* ── 채널 링크 ──────────────────────────────────────────── */
+.avatar-link {
+    flex-shrink: 0;
+    display: block;
+    border-radius: 50%;
+}
+
+.channel-link {
+    display: block;
+    text-decoration: none;
+    color: #aaaaaa;
+    transition: color 0.15s;
+}
+
+.channel-link:hover {
+    color: #f1f1f1;
+    text-decoration: underline;
+}
+
+html[data-theme="light"] .channel-link {
+    color: #606060;
+}
+
+html[data-theme="light"] .channel-link:hover {
+    color: #0f0f0f;
+}

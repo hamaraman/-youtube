@@ -841,10 +841,15 @@ function createVideoCard(video) {
           </button>
         </div>
         <div class="meta">
-          <img class="avatar-image" src="${escapeHtml(video.avatar || DEFAULT_AVATAR)}" alt="${escapeHtml(video.channel)}" />
+          <a href="user.html?id=${video.ownerId}" class="avatar-link" onclick="event.stopPropagation()">
+            <img class="avatar-image" src="${escapeHtml(video.avatar || DEFAULT_AVATAR)}" alt="${escapeHtml(video.channel)}" />
+          </a>
           <div class="text">
             <h3>${escapeHtml(video.title)}</h3>
-            <p class="channel-name">${escapeHtml(video.channel)}</p>
+            <div class="channel-row">
+              <a href="user.html?id=${video.ownerId}" class="channel-name channel-link" onclick="event.stopPropagation()">${escapeHtml(video.channel)}</a>
+              <button type="button" class="card-sub-btn" data-owner-id="${video.ownerId}" onclick="event.stopPropagation()" style="display:none">구독</button>
+            </div>
             <p class="video-info">${stats} · ${escapeHtml(video.date || "방금 전")}</p>
           </div>
         </div>
@@ -871,10 +876,12 @@ function createSavedVideoCard(video) {
           <span class="duration">${escapeHtml(video.duration || "0:00")}</span>
         </div>
         <div class="meta">
-          <img class="avatar-image" src="${escapeHtml(video.avatar || DEFAULT_AVATAR)}" alt="${escapeHtml(video.channel)}" />
+          <a href="user.html?id=${video.ownerId}" class="avatar-link" onclick="event.stopPropagation()">
+            <img class="avatar-image" src="${escapeHtml(video.avatar || DEFAULT_AVATAR)}" alt="${escapeHtml(video.channel)}" />
+          </a>
           <div class="text">
             <h3>${escapeHtml(video.title)}</h3>
-            <p class="channel-name">${escapeHtml(video.channel)}</p>
+            <a href="user.html?id=${video.ownerId}" class="channel-name channel-link" onclick="event.stopPropagation()">${escapeHtml(video.channel)}</a>
             <p class="video-info">${stats} · ${escapeHtml(video.date || "방금 전")}</p>
           </div>
         </div>
@@ -904,10 +911,12 @@ function createLikedVideoCard(video) {
           <span class="duration">${escapeHtml(video.duration || "0:00")}</span>
         </div>
         <div class="meta">
-          <img class="avatar-image" src="${escapeHtml(video.avatar || DEFAULT_AVATAR)}" alt="${escapeHtml(video.channel)}" />
+          <a href="user.html?id=${video.ownerId}" class="avatar-link" onclick="event.stopPropagation()">
+            <img class="avatar-image" src="${escapeHtml(video.avatar || DEFAULT_AVATAR)}" alt="${escapeHtml(video.channel)}" />
+          </a>
           <div class="text">
             <h3>${escapeHtml(video.title)}</h3>
-            <p class="channel-name">${escapeHtml(video.channel)}</p>
+            <a href="user.html?id=${video.ownerId}" class="channel-name channel-link" onclick="event.stopPropagation()">${escapeHtml(video.channel)}</a>
             <p class="video-info">${stats} · ${escapeHtml(video.date || "방금 전")}</p>
           </div>
         </div>
@@ -2168,17 +2177,100 @@ function initGlobalTopSearch() {
     if (!searchForms.length) return;
 
     searchForms.forEach((form) => {
+        const input = form.querySelector('input[type="text"]');
+        if (!input) return;
+
+        // 자동완성 드롭다운 생성
+        const suggestBox = document.createElement("ul");
+        suggestBox.className = "search-suggest-list";
+        form.style.position = "relative";
+        form.appendChild(suggestBox);
+
+        let debounceTimer = null;
+        let activeIdx = -1;
+        let lastQuery = "";
+
+        function hideSuggest() {
+            suggestBox.style.display = "none";
+            suggestBox.innerHTML = "";
+            activeIdx = -1;
+        }
+
+        function setActive(idx) {
+            const items = suggestBox.querySelectorAll(".search-suggest-item");
+            items.forEach((el, i) => el.classList.toggle("is-active", i === idx));
+            activeIdx = idx;
+            if (idx >= 0 && idx < items.length) input.value = items[idx].dataset.query;
+        }
+
+        async function fetchSuggestions(q) {
+            try {
+                const res = await fetch(`/api/videos/feed?keyword=${encodeURIComponent(q)}&size=6`);
+                if (!res.ok) return [];
+                const data = await res.json();
+                return (data.videos || []).map(v => v.title).filter(Boolean);
+            } catch { return []; }
+        }
+
+        function renderSuggestions(titles, q) {
+            if (!titles.length) { hideSuggest(); return; }
+            suggestBox.innerHTML = titles.map(t => `
+                <li class="search-suggest-item" data-query="${escapeHtml(t)}">
+                    <svg class="search-suggest-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                        <path d="M10 4a6 6 0 1 0 3.87 10.58l4.27 4.27 1.41-1.41-4.27-4.27A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/>
+                    </svg>
+                    ${escapeHtml(t)}
+                </li>
+            `).join("");
+            suggestBox.style.display = "block";
+            suggestBox.querySelectorAll(".search-suggest-item").forEach(item => {
+                item.addEventListener("mousedown", (e) => {
+                    e.preventDefault();
+                    input.value = item.dataset.query;
+                    hideSuggest();
+                    const url = new URL("search.html", window.location.href);
+                    url.searchParams.set("q", item.dataset.query);
+                    window.location.href = url.toString();
+                });
+            });
+        }
+
+        input.addEventListener("input", () => {
+            const q = input.value.trim();
+            clearTimeout(debounceTimer);
+            activeIdx = -1;
+            if (!q) { hideSuggest(); return; }
+            lastQuery = q;
+            debounceTimer = setTimeout(async () => {
+                if (input.value.trim() !== lastQuery) return;
+                const titles = await fetchSuggestions(q);
+                if (input.value.trim() === lastQuery) renderSuggestions(titles, q);
+            }, 250);
+        });
+
+        input.addEventListener("keydown", (e) => {
+            const items = suggestBox.querySelectorAll(".search-suggest-item");
+            if (suggestBox.style.display === "none" || !items.length) return;
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setActive(Math.min(activeIdx + 1, items.length - 1));
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                if (activeIdx <= 0) { activeIdx = -1; input.value = lastQuery; items.forEach(el => el.classList.remove("is-active")); }
+                else setActive(activeIdx - 1);
+            } else if (e.key === "Escape") {
+                hideSuggest();
+            }
+        });
+
+        input.addEventListener("blur", () => setTimeout(hideSuggest, 150));
+
         form.addEventListener("submit", (event) => {
             event.preventDefault();
-
-            const input = form.querySelector('input[type="text"]');
-            const keyword = input?.value.trim() || "";
+            const keyword = input.value.trim() || "";
+            hideSuggest();
             const targetUrl = new URL("search.html", window.location.href);
-
-            if (keyword) {
-                targetUrl.searchParams.set("q", keyword);
-            }
-
+            if (keyword) targetUrl.searchParams.set("q", keyword);
             window.location.href = targetUrl.toString();
         });
     });
@@ -2890,6 +2982,21 @@ async function initHomePage() {
 
     if (!videoGrid) return;
 
+    const authMe = getAuthMe();
+    const myId = authMe?.user?.id || null;
+
+    // 구독 상태 맵 (ownerId -> boolean)
+    const subMap = new Map();
+    if (authMe?.loggedIn) {
+        try {
+            const r = await fetch("/api/users/me/subscriptions");
+            if (r.ok) {
+                const subs = await r.json();
+                subs.forEach(s => subMap.set(String(s.channelOwnerId), true));
+            }
+        } catch {}
+    }
+
     let currentKeyword = "";
     let selectedCategory = "";
     let sortMode = "";
@@ -2984,6 +3091,27 @@ async function initHomePage() {
 
             if (data.videos.length > 0) {
                 videoGrid.insertAdjacentHTML("beforeend", data.videos.map(createVideoCard).join(""));
+                if (authMe?.loggedIn && myId) {
+                    data.videos.forEach(v => {
+                        if (String(v.ownerId) === String(myId)) return;
+                        const btn = videoGrid.querySelector(`.card-sub-btn[data-owner-id="${v.ownerId}"]`);
+                        if (!btn) return;
+                        const subscribed = subMap.get(String(v.ownerId)) || false;
+                        btn.textContent = subscribed ? "구독중" : "구독";
+                        btn.classList.toggle("is-subscribed", subscribed);
+                        btn.style.display = "inline-flex";
+                        btn.addEventListener("click", async () => {
+                            const res = await fetch(`/api/users/${v.ownerId}/subscribe`, { method: "POST" });
+                            if (!res.ok) return;
+                            const result = await res.json();
+                            subMap.set(String(v.ownerId), result.subscribed);
+                            videoGrid.querySelectorAll(`.card-sub-btn[data-owner-id="${v.ownerId}"]`).forEach(b => {
+                                b.textContent = result.subscribed ? "구독중" : "구독";
+                                b.classList.toggle("is-subscribed", result.subscribed);
+                            });
+                        });
+                    });
+                }
             }
 
             hasMore = data.hasMore;
@@ -3371,6 +3499,7 @@ async function initWatchPage() {
     let commentPage = 0;
     let commentHasMore = false;
     let commentTotal = 0;
+    let commentSort = "latest";
 
     const initCommentData = await fetchCommentsByVideoId(currentVideo.id, 0);
     comments = initCommentData.comments || [];
@@ -3424,6 +3553,10 @@ async function initWatchPage() {
     <section class="comments-section">
       <div class="comments-header">
         <h2 id="commentsCount"></h2>
+        <div class="comment-sort-btns">
+          <button class="comment-sort-btn is-active" data-sort="latest" type="button">최신순</button>
+          <button class="comment-sort-btn" data-sort="top" type="button">좋아요순</button>
+        </div>
       </div>
 
       <div class="comment-form">
@@ -3592,10 +3725,33 @@ async function initWatchPage() {
         refreshComments();
     }
 
+    function getSortedComments() {
+        if (commentSort === "top") {
+            return [...comments].sort((a, b) => (Number(b.likeCount) || 0) - (Number(a.likeCount) || 0));
+        }
+        return comments;
+    }
+
     function refreshComments() {
-        renderCommentList(commentList, commentsCount, comments, commentTotal, commentHasMore, loadMoreComments);
+        const showLoadMore = commentSort === "latest" && commentHasMore;
+        renderCommentList(commentList, commentsCount, getSortedComments(), commentTotal, showLoadMore, loadMoreComments);
         bindCommentActionButtons();
     }
+
+    document.querySelectorAll(".comment-sort-btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            const sort = btn.dataset.sort;
+            if (sort === commentSort) return;
+            commentSort = sort;
+            document.querySelectorAll(".comment-sort-btn").forEach(b => b.classList.toggle("is-active", b.dataset.sort === sort));
+            if (sort === "top" && commentHasMore) {
+                const data = await fetchCommentsByVideoId(currentVideo.id, 0, 999);
+                comments = data.comments || [];
+                commentHasMore = false;
+            }
+            refreshComments();
+        });
+    });
 
     function findCommentOrReply(id) {
         for (const c of comments) {
