@@ -4393,6 +4393,76 @@ body.theater-mode .watch-meta-row,
 body.theater-mode .watch-description-box,
 body.theater-mode .comments-section { padding-left: 24px; padding-right: 24px; }
 
+/* 극장 모드 - 추천 영상 가로 캐러셀 */
+body.theater-mode .watch-side-column {
+    position: static;
+    padding: 8px 24px 0;
+    margin-top: 8px;
+}
+
+body.theater-mode .watch-recommend-header {
+    margin-bottom: 14px;
+}
+
+body.theater-mode .watch-recommend-header-default {
+    display: none;
+}
+
+body.theater-mode .watch-recommend-chipbar,
+body.theater-mode .watch-recommend-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+body.theater-mode .watch-recommend-chipbar {
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+body.theater-mode .watch-recommend-chipbar::-webkit-scrollbar {
+    display: none;
+}
+
+body.theater-mode .watch-recommend-panel {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+}
+
+body.theater-mode .watch-recommend-list {
+    flex-direction: row;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    gap: 16px;
+    padding-bottom: 8px;
+    scrollbar-width: none;
+}
+
+body.theater-mode .watch-recommend-list::-webkit-scrollbar {
+    display: none;
+}
+
+body.theater-mode .recommend-card {
+    flex-direction: column;
+    flex-shrink: 0;
+    width: 280px;
+    gap: 8px;
+    padding: 0;
+}
+
+body.theater-mode .recommend-thumb {
+    width: 100%;
+    min-width: 0;
+}
+
+body.theater-mode .recommend-info {
+    padding-top: 0;
+}
+
 /* ── 영상 종료 오버레이 ──────────────────────────────────── */
 /* ── 영상 종료 오버레이 (플레이어 중앙 미니카드) ─────────── */
 .video-end-overlay {

@@ -3789,6 +3789,41 @@ async function initWatchPage() {
         watchRecommendList.innerHTML = recommendVideos.map(createRecommendCard).join("");
     }
 
+    const watchRecommendChipbar = document.getElementById("watchRecommendChipbar");
+    const watchRecommendChannelChip = document.getElementById("watchRecommendChannelChip");
+    const watchRecommendPrev = document.getElementById("watchRecommendPrev");
+    const watchRecommendNext = document.getElementById("watchRecommendNext");
+
+    if (watchRecommendChannelChip) {
+        watchRecommendChannelChip.textContent = `${currentVideo.channel} 채널`;
+    }
+
+    if (watchRecommendChipbar && watchRecommendList) {
+        const channelVideos = allVideos.filter((video) => video.id !== currentVideo.id && video.channel === currentVideo.channel);
+
+        watchRecommendChipbar.addEventListener("click", (event) => {
+            const chip = event.target.closest(".recommend-chip");
+            if (!chip || chip.classList.contains("is-active")) return;
+
+            watchRecommendChipbar.querySelectorAll(".recommend-chip").forEach((btn) => btn.classList.remove("is-active"));
+            chip.classList.add("is-active");
+
+            const list = chip.dataset.filter === "channel" ? channelVideos : recommendVideos;
+            watchRecommendList.innerHTML = list.length
+                ? list.map(createRecommendCard).join("")
+                : `<p style="color:#aaa; padding:12px;">표시할 영상이 없습니다.</p>`;
+            watchRecommendList.scrollLeft = 0;
+        });
+    }
+
+    function scrollWatchRecommendList(direction) {
+        if (!watchRecommendList) return;
+        watchRecommendList.scrollBy({ left: Math.round(watchRecommendList.clientWidth * 0.9) * direction, behavior: "smooth" });
+    }
+
+    if (watchRecommendPrev) watchRecommendPrev.addEventListener("click", () => scrollWatchRecommendList(-1));
+    if (watchRecommendNext) watchRecommendNext.addEventListener("click", () => scrollWatchRecommendList(1));
+
     initCustomPlayer();
     initMiniPlayerWatcher(currentVideo);
 
@@ -9230,7 +9265,7 @@ async function fetchMyHistoryVideos() {
     function shouldSkipPage() {
         const page = getPageName();
 
-        return page === "upload" || page === "login" || page === "signup";
+        return page === "upload" || page === "login" || page === "signup" || page === "watch";
     }
 
     function getMenuButton() {

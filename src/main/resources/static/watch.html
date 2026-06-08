@@ -11,7 +11,7 @@
         rel="stylesheet"
     />
     <script src="theme.js"></script>
-    <link rel="stylesheet" href="style.css?v=4" />
+    <link rel="stylesheet" href="style.css?v=5" />
 
     <style>
         .watch-shell {
@@ -19,23 +19,25 @@
             min-height: calc(100vh - 56px);
         }
 
+        /* 시청 페이지는 유튜브처럼 좌측 내비게이션을 기본적으로 숨기고, 메뉴 버튼으로 여는 오버레이로 표시 */
         .sidebar {
             width: 240px;
             background: #0f0f0f;
             border-right: 1px solid #222;
             padding: 12px 10px;
-            position: sticky;
+            position: fixed;
             top: 56px;
+            left: 0;
             height: calc(100vh - 56px);
             overflow-y: auto;
-            flex-shrink: 0;
-            transition: width 0.22s ease, transform 0.22s ease;
+            z-index: 120;
+            transform: translateX(-100%);
+            box-shadow: 12px 0 30px rgba(0, 0, 0, 0.35);
+            transition: transform 0.22s ease;
         }
 
-        .sidebar.is-collapsed {
-            width: 72px;
-            padding-left: 8px;
-            padding-right: 8px;
+        .sidebar.is-open {
+            transform: translateX(0);
         }
 
         .sidebar-section {
@@ -90,21 +92,6 @@
             white-space: nowrap;
         }
 
-        .sidebar.is-collapsed .sidebar-link {
-            justify-content: center;
-            padding: 0;
-            min-height: 64px;
-            flex-direction: column;
-            gap: 6px;
-            border-radius: 12px;
-        }
-
-        .sidebar.is-collapsed .sidebar-label {
-            font-size: 11px;
-            line-height: 1.2;
-            text-align: center;
-        }
-
         .watch-content {
             flex: 1;
             min-width: 0;
@@ -140,7 +127,18 @@
         }
 
         .mobile-sidebar-backdrop {
-            display: none;
+            position: fixed;
+            inset: 56px 0 0 0;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 110;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .mobile-sidebar-backdrop.is-open {
+            opacity: 1;
+            pointer-events: auto;
         }
 
         .watch-layout {
@@ -179,6 +177,60 @@
             color: #9aa0a6;
         }
 
+        .watch-recommend-chipbar,
+        .watch-recommend-nav {
+            display: none;
+        }
+
+        .recommend-chip {
+            flex-shrink: 0;
+            height: 32px;
+            padding: 0 14px;
+            border-radius: 999px;
+            border: none;
+            background: #272727;
+            color: #f1f1f1;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s;
+        }
+
+        .recommend-chip:hover {
+            background: #3f3f3f;
+        }
+
+        .recommend-chip.is-active {
+            background: #f1f1f1;
+            color: #0f0f0f;
+            font-weight: 700;
+        }
+
+        .recommend-nav-btn {
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 999px;
+            background: #272727;
+            color: #f1f1f1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .recommend-nav-btn:hover {
+            background: #3f3f3f;
+        }
+
+        .recommend-nav-btn svg {
+            width: 22px;
+            height: 22px;
+            fill: currentColor;
+        }
+
         .watch-recommend-panel {
             background: #121212;
             border: 1px solid #232323;
@@ -187,61 +239,6 @@
         }
 
         @media (max-width: 900px) {
-            .sidebar {
-                position: fixed;
-                top: 56px;
-                left: 0;
-                width: 240px;
-                height: calc(100vh - 56px);
-                z-index: 120;
-                transform: translateX(-100%);
-                box-shadow: 12px 0 30px rgba(0, 0, 0, 0.35);
-            }
-
-            .sidebar.is-open {
-                transform: translateX(0);
-            }
-
-            .sidebar.is-collapsed {
-                width: 240px;
-                padding-left: 10px;
-                padding-right: 10px;
-            }
-
-            .sidebar.is-collapsed .sidebar-link {
-                justify-content: flex-start;
-                padding: 0 12px;
-                min-height: 40px;
-                flex-direction: row;
-                gap: 16px;
-                border-radius: 10px;
-            }
-
-            .sidebar.is-collapsed .sidebar-label {
-                font-size: 14px;
-                text-align: left;
-            }
-
-            .mobile-sidebar-backdrop {
-                display: block;
-                position: fixed;
-                inset: 56px 0 0 0;
-                background: rgba(0, 0, 0, 0.45);
-                z-index: 110;
-                opacity: 0;
-                pointer-events: none;
-                transition: opacity 0.2s ease;
-            }
-
-            .mobile-sidebar-backdrop.is-open {
-                opacity: 1;
-                pointer-events: auto;
-            }
-
-            .watch-content {
-                width: 100%;
-            }
-
             .watch-side-column {
                 position: static;
             }
@@ -306,7 +303,7 @@
 <div class="mobile-sidebar-backdrop" id="sidebarBackdrop"></div>
 
 <div class="watch-shell">
-    <aside class="sidebar is-collapsed" id="sidebar">
+    <aside class="sidebar" id="sidebar">
         <nav class="sidebar-section">
             <a href="index.html" class="sidebar-link is-active">
                 <span class="sidebar-icon">
@@ -378,9 +375,23 @@
 
             <aside class="watch-side-column">
                 <div class="watch-recommend-header">
-                    <div>
+                    <div class="watch-recommend-header-default">
                         <h3 class="watch-recommend-title">추천 영상</h3>
                         <p class="watch-recommend-sub">지금 보는 영상과 비슷한 콘텐츠</p>
+                    </div>
+
+                    <div class="watch-recommend-chipbar" id="watchRecommendChipbar">
+                        <button class="recommend-chip is-active" data-filter="all" type="button">모두</button>
+                        <button class="recommend-chip" data-filter="channel" type="button" id="watchRecommendChannelChip"></button>
+                    </div>
+
+                    <div class="watch-recommend-nav">
+                        <button class="recommend-nav-btn" id="watchRecommendPrev" type="button" aria-label="이전 영상 보기">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.71 6.71a.996.996 0 0 0-1.41 0L8.71 11.3a.996.996 0 0 0 0 1.41l4.59 4.59a.996.996 0 1 0 1.41-1.41L10.83 12l3.88-3.88c.39-.39.38-1.03 0-1.41z"></path></svg>
+                        </button>
+                        <button class="recommend-nav-btn" id="watchRecommendNext" type="button" aria-label="다음 영상 보기">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.29 6.71a.996.996 0 0 0 0 1.41L13.17 12l-3.88 3.88a.996.996 0 1 0 1.41 1.41l4.59-4.59a.996.996 0 0 0 0-1.41L10.7 6.7c-.38-.38-1.02-.38-1.41.01z"></path></svg>
+                        </button>
                     </div>
                 </div>
 
@@ -393,7 +404,7 @@
 </div>
 
 <script src="auth.js?v=12"></script>
-<script src="script.js?v=21"></script>
+<script src="script.js?v=23"></script>
 <script>
     (function () {
         const sidebar = document.getElementById("sidebar");
@@ -402,35 +413,17 @@
 
         if (!sidebar || !menuToggle || !backdrop) return;
 
-        function isMobile() {
-            return window.innerWidth <= 900;
-        }
-
-        function closeMobileSidebar() {
+        function closeSidebar() {
             sidebar.classList.remove("is-open");
             backdrop.classList.remove("is-open");
         }
 
-        function toggleDesktopSidebar() {
-            sidebar.classList.toggle("is-collapsed");
-        }
-
         menuToggle.addEventListener("click", () => {
-            if (isMobile()) {
-                sidebar.classList.toggle("is-open");
-                backdrop.classList.toggle("is-open");
-            } else {
-                toggleDesktopSidebar();
-            }
+            sidebar.classList.toggle("is-open");
+            backdrop.classList.toggle("is-open");
         });
 
-        backdrop.addEventListener("click", closeMobileSidebar);
-
-        window.addEventListener("resize", () => {
-            if (!isMobile()) {
-                closeMobileSidebar();
-            }
-        });
+        backdrop.addEventListener("click", closeSidebar);
     })();
 </script>
 </body>
