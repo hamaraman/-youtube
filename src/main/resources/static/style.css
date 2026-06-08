@@ -4788,3 +4788,151 @@ html[data-theme="light"] .channel-link {
 html[data-theme="light"] .channel-link:hover {
     color: #0f0f0f;
 }
+
+/* ── 스켈레톤 로딩 ───────────────────────────────────────── */
+@keyframes skeleton-shimmer {
+    0%   { background-position: -600px 0; }
+    100% { background-position: 600px 0; }
+}
+
+.skeleton-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.skeleton-thumb {
+    width: 100%;
+    aspect-ratio: 16/9;
+    border-radius: 10px;
+    background: linear-gradient(90deg, #222 25%, #333 50%, #222 75%);
+    background-size: 600px 100%;
+    animation: skeleton-shimmer 1.4s infinite linear;
+}
+
+.skeleton-meta {
+    display: flex;
+    gap: 12px;
+}
+
+.skeleton-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: linear-gradient(90deg, #222 25%, #333 50%, #222 75%);
+    background-size: 600px 100%;
+    animation: skeleton-shimmer 1.4s infinite linear;
+}
+
+.skeleton-lines {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 2px;
+}
+
+.skeleton-line {
+    height: 14px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #222 25%, #333 50%, #222 75%);
+    background-size: 600px 100%;
+    animation: skeleton-shimmer 1.4s infinite linear;
+}
+
+.skeleton-line.short { width: 60%; }
+.skeleton-line.shorter { width: 40%; height: 12px; }
+
+html[data-theme="light"] .skeleton-thumb,
+html[data-theme="light"] .skeleton-avatar,
+html[data-theme="light"] .skeleton-line {
+    background: linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%);
+    background-size: 600px 100%;
+}
+
+/* ── 영상 카드 시청 진행 바 ──────────────────────────────── */
+.card-progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: #f00;
+    border-radius: 0 0 2px 2px;
+    pointer-events: none;
+    transition: width 0.3s ease;
+}
+
+/* ── 공유 모달 SNS 버튼 ──────────────────────────────────── */
+.share-sns-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.share-sns-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1px solid #3a3a3a;
+    background: #1e1e1e;
+    color: #f1f1f1;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.18s, border-color 0.18s;
+    white-space: nowrap;
+}
+
+.share-sns-btn:hover { background: #2a2a2a; border-color: #555; }
+
+.share-sns-btn.twitter { border-color: #1d9bf0; }
+.share-sns-btn.twitter:hover { background: rgba(29,155,240,0.12); }
+
+.share-sns-btn.native { border-color: #55a; }
+.share-sns-btn.native:hover { background: rgba(100,100,200,0.12); }
+
+html[data-theme="light"] .share-sns-btn { background: #f5f5f5; border-color: #ccc; color: #0f0f0f; }
+html[data-theme="light"] .share-sns-btn:hover { background: #ebebeb; }
+
+/* ── 댓글 글자 수 카운터 ─────────────────────────────────── */
+.comment-char-counter {
+    font-size: 12px;
+    color: #7a7a7a;
+    align-self: center;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.comment-char-counter.near-limit { color: #f8b400; }
+.comment-char-counter.at-limit   { color: #f44; }
+
+html[data-theme="light"] .comment-char-counter { color: #999; }
+
+/* ── 플레이어 스킵 버튼 ──────────────────────────────────── */
+.cp-skip-zone {
+    position: absolute;
+    top: 0;
+    width: 24%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,.6);
+    gap: 6px;
+}
+
+.cp-skip-zone.left-zone  { left: 0; }
+.cp-skip-zone.right-zone { right: 0; }
+.cp-skip-zone.flash { opacity: 1; }
+
+.cp-skip-zone svg { filter: drop-shadow(0 1px 3px rgba(0,0,0,.5)); }

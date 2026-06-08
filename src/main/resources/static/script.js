@@ -286,6 +286,7 @@ function showShareModal(videoId, getCurrentTime) {
     const modal = document.createElement("div");
     modal.id = "shareModal";
     modal.className = "share-modal-backdrop";
+    const hasNativeShare = typeof navigator.share === "function";
     modal.innerHTML = `
         <div class="share-modal" role="dialog" aria-modal="true" aria-label="공유">
             <div class="share-modal-header">
@@ -302,6 +303,16 @@ function showShareModal(videoId, getCurrentTime) {
                 <input type="checkbox" id="shareTimestampCheck" />
                 <span id="shareTimestampLabel">현재 시간부터 시작</span>
             </label>
+            <div class="share-sns-row">
+                <button class="share-sns-btn twitter" id="shareTwitterBtn" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.73-8.835L2.018 2.25H8.056l4.261 5.632 5.927-5.632Zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    X(Twitter)
+                </button>
+                ${hasNativeShare ? `<button class="share-sns-btn native" id="shareNativeBtn" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
+                    공유
+                </button>` : ""}
+            </div>
         </div>
     `;
     document.body.appendChild(modal);
@@ -340,6 +351,18 @@ function showShareModal(videoId, getCurrentTime) {
         } catch {
             prompt("이 링크를 복사해줘.", url);
         }
+    });
+
+    modal.querySelector("#shareTwitterBtn")?.addEventListener("click", () => {
+        const url = input.value;
+        const twitterUrl = `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}`;
+        window.open(twitterUrl, "_blank", "noopener,noreferrer");
+    });
+
+    modal.querySelector("#shareNativeBtn")?.addEventListener("click", async () => {
+        try {
+            await navigator.share({ url: input.value });
+        } catch {}
     });
 
     function closeModal() {
@@ -820,6 +843,37 @@ function getRecommendedVideos(baseVideo, allVideos, limit = 12) {
         .slice(0, limit);
 }
 
+function createSkeletonCards(count = 8) {
+    const card = `
+    <article class="card skeleton-card">
+      <div class="skeleton-thumb"></div>
+      <div class="skeleton-meta">
+        <div class="skeleton-avatar"></div>
+        <div class="skeleton-lines">
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line short"></div>
+          <div class="skeleton-line shorter"></div>
+        </div>
+      </div>
+    </article>`;
+    return Array.from({ length: count }, () => card).join("");
+}
+
+function getVideoProgress(videoId) {
+    try {
+        const state = getMpState();
+        if (state && String(state.videoId) === String(videoId) && state.duration > 0) {
+            return Math.min(100, (state.currentTime / state.duration) * 100);
+        }
+        const map = JSON.parse(localStorage.getItem("mt-video-progress") || "{}");
+        const entry = map[String(videoId)];
+        if (entry && entry.duration > 0) {
+            return Math.min(100, (entry.currentTime / entry.duration) * 100);
+        }
+    } catch {}
+    return 0;
+}
+
 function createVideoCard(video) {
     const viewCount = loadViewCount(video);
     const likeCount = Number(video.likeCount || 0);
@@ -830,12 +884,16 @@ function createVideoCard(video) {
         commentCount > 0 ? `💬 ${formatCount(commentCount)}` : null,
     ].filter(Boolean).join(" · ");
 
+    const progress = getVideoProgress(video.id);
+    const progressBar = progress > 1 ? `<div class="card-progress-bar" style="width:${progress.toFixed(1)}%"></div>` : "";
+
     return `
     <article class="card">
       <a href="${getVideoUrl(video.id)}" class="card-link">
         <div class="thumbnail-wrap">
           <img class="thumbnail-image" src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" />
           <span class="duration">${escapeHtml(video.duration || "0:00")}</span>
+          ${progressBar}
           <button type="button" class="card-pl-btn" data-video-id="${video.id}" title="재생목록에 추가" aria-label="재생목록에 추가">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 5h12v2H3V5zm0 4h12v2H3V9zm0 4h8v2H3v-2zm13 3v-6l5 3-5 3z"/></svg>
           </button>
@@ -1027,6 +1085,14 @@ function createPlayerMarkup(video, resolutionOptions) {
         return `<div class="custom-player" id="customPlayer">
           <video class="player-video" preload="metadata" src="${escapeHtml(video.videoUrl)}"></video>
           ${thumbHtml}
+          <div class="cp-skip-zone left-zone" id="cpSkipLeft">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+            <span>10초</span>
+          </div>
+          <div class="cp-skip-zone right-zone" id="cpSkipRight">
+            <span>10초</span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm2.5-6 6-4.5v9L8.5 12zM16 6h2v12h-2z"/></svg>
+          </div>
           <div class="cp-controls">
             <div class="cp-progress-wrap">
               <input type="range" class="cp-progress" id="cpProgress" min="0" max="100" step="0.1" value="0">
@@ -1036,6 +1102,12 @@ function createPlayerMarkup(video, resolutionOptions) {
               <div class="cp-bar-left">
                 <button class="cp-btn" id="cpPlay" type="button">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <button class="cp-btn" id="cpSkipBack" type="button" title="-10초">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8zm-1.1 11H10v-3.26L9 13.12V12.26l1.85-.61h.05V16zm4.28-1.41c0 .84-.16 1.43-.49 1.77-.32.33-.72.5-1.19.5-.45 0-.83-.16-1.14-.49s-.48-.9-.49-1.71v-.91c0-.83.16-1.41.49-1.76.32-.34.72-.51 1.19-.51.46 0 .84.16 1.15.49.31.32.47.88.48 1.68v.94zm-.92-.9c0-.46-.05-.79-.16-.98-.1-.19-.26-.28-.46-.28-.19 0-.34.09-.44.27-.1.18-.16.49-.16.94v1.15c0 .47.05.81.16 1.01.11.2.26.3.46.3.19 0 .34-.09.44-.28.1-.19.16-.52.16-.97v-1.16z"/></svg>
+                </button>
+                <button class="cp-btn" id="cpSkipFwd" type="button" title="+10초">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8zm-1.1 11H10v-3.26L9 13.12V12.26l1.85-.61h.05V16zm4.28-1.41c0 .84-.16 1.43-.49 1.77-.32.33-.72.5-1.19.5-.45 0-.83-.16-1.14-.49s-.48-.9-.49-1.71v-.91c0-.83.16-1.41.49-1.76.32-.34.72-.51 1.19-.51.46 0 .84.16 1.15.49.31.32.47.88.48 1.68v.94zm-.92-.9c0-.46-.05-.79-.16-.98-.1-.19-.26-.28-.46-.28-.19 0-.34.09-.44.27-.1.18-.16.49-.16.94v1.15c0 .47.05.81.16 1.01.11.2.26.3.46.3.19 0 .34-.09.44-.28.1-.19.16-.52.16-.97v-1.16z"/></svg>
                 </button>
                 <div class="cp-vol-wrap">
                   <button class="cp-btn" id="cpVol" type="button">
@@ -1141,17 +1213,26 @@ function initMiniPlayerWatcher(videoData) {
     if (!video) return;
     const miniBtn = document.getElementById("cpMini");
 
-    const saveState = (playing) => setMpState({
-        active: true,
-        videoId: videoData.id,
-        videoUrl: video.src || videoData.videoUrl,
-        title: videoData.title,
-        thumbnail: videoData.thumbnail,
-        channel: videoData.channel,
-        currentTime: video.currentTime,
-        duration: video.duration || 0,
-        playing: playing
-    });
+    const saveState = (playing) => {
+        setMpState({
+            active: true,
+            videoId: videoData.id,
+            videoUrl: video.src || videoData.videoUrl,
+            title: videoData.title,
+            thumbnail: videoData.thumbnail,
+            channel: videoData.channel,
+            currentTime: video.currentTime,
+            duration: video.duration || 0,
+            playing: playing
+        });
+        try {
+            const map = JSON.parse(localStorage.getItem("mt-video-progress") || "{}");
+            map[String(videoData.id)] = { currentTime: video.currentTime, duration: video.duration || 0 };
+            const keys = Object.keys(map);
+            if (keys.length > 100) delete map[keys[0]];
+            localStorage.setItem("mt-video-progress", JSON.stringify(map));
+        } catch {}
+    };
 
     let saveInterval;
     video.addEventListener('play', () => {
@@ -1221,7 +1302,18 @@ function initCustomPlayer() {
     player.addEventListener("dblclick", (e) => {
         if (e.target.closest(".cp-controls")) return;
         clearTimeout(clickTimer);
-        document.fullscreenElement ? document.exitFullscreen() : player.requestFullscreen();
+        const rect = player.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const thirds = rect.width / 3;
+        if (x < thirds) {
+            video.currentTime = Math.max(0, video.currentTime - 10);
+            flashSkipZone(document.getElementById("cpSkipLeft"));
+        } else if (x > rect.width - thirds) {
+            video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+            flashSkipZone(document.getElementById("cpSkipRight"));
+        } else {
+            document.fullscreenElement ? document.exitFullscreen() : player.requestFullscreen();
+        }
     });
 
     // 모바일 터치 지원
@@ -1477,6 +1569,30 @@ function initCustomPlayer() {
                 if (volSlider) volSlider.value = video.muted ? 0 : video.volume;
                 break;
         }
+    });
+
+    // 스킵 버튼
+    const skipBackBtn = document.getElementById("cpSkipBack");
+    const skipFwdBtn  = document.getElementById("cpSkipFwd");
+    const skipLeftZone  = document.getElementById("cpSkipLeft");
+    const skipRightZone = document.getElementById("cpSkipRight");
+
+    function flashSkipZone(zone) {
+        if (!zone) return;
+        zone.classList.add("flash");
+        clearTimeout(zone._flashTimer);
+        zone._flashTimer = setTimeout(() => zone.classList.remove("flash"), 600);
+    }
+
+    skipBackBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        video.currentTime = Math.max(0, video.currentTime - 10);
+        flashSkipZone(skipLeftZone);
+    });
+    skipFwdBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+        flashSkipZone(skipRightZone);
     });
 
     // 기존 디버그/에러 로깅 유지
@@ -3139,7 +3255,12 @@ async function initHomePage() {
     async function loadPage() {
         if (isLoading || !hasMore) return;
         isLoading = true;
-        showLoader(true);
+
+        if (currentPage === 0) {
+            videoGrid.innerHTML = createSkeletonCards(8);
+        } else {
+            showLoader(true);
+        }
 
         try {
             const params = new URLSearchParams({ page: currentPage, size: 12 });
@@ -3201,6 +3322,7 @@ async function initHomePage() {
             hasMore = data.hasMore;
             currentPage++;
         } catch {
+            if (currentPage === 0) videoGrid.innerHTML = "";
             hasMore = false;
         } finally {
             isLoading = false;
@@ -3648,6 +3770,7 @@ async function initWatchPage() {
         <div class="comment-form-body">
           <input type="text" class="comment-input" id="commentInput" placeholder="${authMe.loggedIn ? "댓글 추가..." : "로그인 후 댓글을 입력할 수 있어"}" maxlength="300" ${authMe.loggedIn ? "" : "readonly"} />
           <div class="comment-form-actions">
+            <span class="comment-char-counter" id="commentCharCounter" style="display:none">0/300</span>
             <button class="comment-btn cancel" id="commentCancelBtn" type="button">취소</button>
             <button class="comment-btn submit" id="commentSubmitBtn" type="button" disabled>댓글</button>
           </div>
@@ -4114,6 +4237,17 @@ async function initWatchPage() {
         }
     });
 
+    const commentCharCounter = document.getElementById("commentCharCounter");
+
+    function updateCommentCounter() {
+        if (!commentCharCounter || !commentInput) return;
+        const len = commentInput.value.length;
+        commentCharCounter.textContent = `${len}/300`;
+        commentCharCounter.style.display = len > 0 ? "inline" : "none";
+        commentCharCounter.classList.toggle("near-limit", len >= 270 && len < 300);
+        commentCharCounter.classList.toggle("at-limit", len >= 300);
+    }
+
     commentInput?.addEventListener("input", () => {
         if (!commentSubmitBtn) return;
 
@@ -4123,6 +4257,7 @@ async function initWatchPage() {
         }
 
         commentSubmitBtn.disabled = commentInput.value.trim() === "";
+        updateCommentCounter();
     });
 
     commentInput?.addEventListener("keydown", (event) => {
@@ -4143,6 +4278,7 @@ async function initWatchPage() {
     commentCancelBtn?.addEventListener("click", () => {
         if (commentInput) commentInput.value = "";
         if (commentSubmitBtn) commentSubmitBtn.disabled = true;
+        updateCommentCounter();
     });
 
     commentSubmitBtn?.addEventListener("click", async () => {
@@ -4158,6 +4294,7 @@ async function initWatchPage() {
             refreshComments();
             commentInput.value = "";
             commentSubmitBtn.disabled = true;
+            updateCommentCounter();
         } catch (error) {
             alert(error.message || "댓글 작성 중 오류가 발생했어.");
         }
