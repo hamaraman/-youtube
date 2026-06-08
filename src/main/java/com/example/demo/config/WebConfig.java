@@ -14,7 +14,7 @@ import java.io.File;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    @Value("${allowed.origins:http://localhost:8080,https://mytube.it.com}")
+    @Value("${allowed.origins:http://localhost:8080,https://mytube.it.com,https://www.mytube.it.com}")
     private String allowedOrigins;
 
     @Override
