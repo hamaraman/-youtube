@@ -273,6 +273,88 @@ function getShareUrl(videoId) {
     return `${window.location.origin}/watch.html?v=${videoId}`;
 }
 
+function showShareModal(videoId, getCurrentTime) {
+    document.getElementById("shareModal")?.remove();
+
+    const baseUrl = getShareUrl(videoId);
+
+    function buildUrl(withTime) {
+        if (!withTime) return baseUrl;
+        const t = Math.floor(getCurrentTime());
+        return t > 0 ? `${baseUrl}&t=${t}` : baseUrl;
+    }
+
+    const modal = document.createElement("div");
+    modal.id = "shareModal";
+    modal.className = "share-modal-backdrop";
+    modal.innerHTML = `
+        <div class="share-modal" role="dialog" aria-modal="true" aria-label="공유">
+            <div class="share-modal-header">
+                <h3 class="share-modal-title">공유</h3>
+                <button class="share-modal-close" id="shareModalClose" type="button" aria-label="닫기">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                </button>
+            </div>
+            <div class="share-modal-url-row">
+                <input class="share-modal-input" id="shareModalInput" type="text" readonly value="${escapeHtml(baseUrl)}" />
+                <button class="share-modal-copy-btn" id="shareModalCopyBtn" type="button">복사</button>
+            </div>
+            <label class="share-modal-timestamp">
+                <input type="checkbox" id="shareTimestampCheck" />
+                <span id="shareTimestampLabel">현재 시간부터 시작</span>
+            </label>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add("show"));
+
+    const input = modal.querySelector("#shareModalInput");
+    const copyBtn = modal.querySelector("#shareModalCopyBtn");
+    const check = modal.querySelector("#shareTimestampCheck");
+    const label = modal.querySelector("#shareTimestampLabel");
+
+    const t = Math.floor(getCurrentTime());
+    if (t > 0) {
+        const mins = Math.floor(t / 60);
+        const secs = t % 60;
+        label.textContent = `현재 시간부터 시작 (${mins > 0 ? mins + "분 " : ""}${secs}초)`;
+    }
+
+    check.addEventListener("change", () => {
+        input.value = buildUrl(check.checked);
+    });
+
+    copyBtn.addEventListener("click", async () => {
+        const url = input.value;
+        try {
+            const copied = await copyTextToClipboard(url);
+            if (copied) {
+                copyBtn.textContent = "복사됨!";
+                copyBtn.classList.add("copied");
+                setTimeout(() => {
+                    copyBtn.textContent = "복사";
+                    copyBtn.classList.remove("copied");
+                }, 2000);
+            } else {
+                prompt("이 링크를 복사해줘.", url);
+            }
+        } catch {
+            prompt("이 링크를 복사해줘.", url);
+        }
+    });
+
+    function closeModal() {
+        modal.classList.remove("show");
+        modal.addEventListener("transitionend", () => modal.remove(), { once: true });
+    }
+
+    modal.querySelector("#shareModalClose").addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+    document.addEventListener("keydown", function onKey(e) {
+        if (e.key === "Escape") { closeModal(); document.removeEventListener("keydown", onKey); }
+    });
+}
+
 async function copyTextToClipboard(text) {
     if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(text);
@@ -3688,20 +3770,10 @@ async function initWatchPage() {
         }
     });
 
-    shareBtn?.addEventListener("click", async () => {
-        const shareUrl = getShareUrl(currentVideo.id);
-
-        try {
-            const copied = await copyTextToClipboard(shareUrl);
-
-            if (copied) {
-                showToast("링크가 복사되었습니다.");
-            } else {
-                prompt("이 링크를 복사해줘.", shareUrl);
-            }
-        } catch {
-            prompt("이 링크를 복사해줘.", shareUrl);
-        }
+    shareBtn?.addEventListener("click", () => {
+        const pv = document.querySelector("#customPlayer video.player-video");
+        const getCurrentTime = () => pv ? pv.currentTime : 0;
+        showShareModal(currentVideo.id, getCurrentTime);
     });
 
     saveBtn?.addEventListener("click", async () => {
