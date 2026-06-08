@@ -4399,7 +4399,7 @@ body.theater-mode .comments-section { padding-left: 24px; padding-right: 24px; }
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0,0,0,0.88);
+    background: #000;
     border-radius: inherit;
     z-index: 50;
     animation: fadeIn 0.25s ease;
