@@ -4378,12 +4378,17 @@ html[data-theme="light"] .recommend-tag {
 
 /* ── 극장 모드 ───────────────────────────────────────────── */
 body.theater-mode .watch-shell > aside.sidebar { display: none; }
+body.theater-mode .watch-page { padding-left: 0; padding-right: 0; }
 body.theater-mode .watch-layout { grid-template-columns: 1fr; max-width: 100%; }
 body.theater-mode .watch-side-column { display: none; }
 body.theater-mode .watch-main-column { max-width: 100%; }
-body.theater-mode .player-box { aspect-ratio: 16/9; max-height: 80vh; }
+body.theater-mode .player-box { aspect-ratio: 16/9; max-height: 80vh; border-radius: 0; }
 body.theater-mode #customPlayer,
-body.theater-mode .player-video { max-height: 80vh; }
+body.theater-mode .player-video { max-height: 80vh; border-radius: 0; }
+body.theater-mode .watch-title,
+body.theater-mode .watch-meta-row,
+body.theater-mode .watch-description-box,
+body.theater-mode .comments-section { padding-left: 24px; padding-right: 24px; }
 
 /* ── 영상 종료 오버레이 ──────────────────────────────────── */
 .video-end-overlay {
