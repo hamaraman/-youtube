@@ -53,6 +53,12 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     @Query("SELECT v FROM Video v WHERE " +
            "(LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "LOWER(v.channel) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (v.visibility IS NULL OR v.visibility != '비공개') ORDER BY v.viewCount DESC, v.id DESC")
+    Page<Video> searchPublicByKeywordPageableOrderByViewCount(@Param("keyword") String keyword, Pageable pageable);
+
+    @Query("SELECT v FROM Video v WHERE " +
+           "(LOWER(v.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(v.channel) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (v.visibility IS NULL OR v.visibility != '비공개') AND v.category = :category ORDER BY v.id DESC")
     Page<Video> searchPublicByKeywordAndCategoryPageable(@Param("keyword") String keyword, @Param("category") String category, Pageable pageable);
 

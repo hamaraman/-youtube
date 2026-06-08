@@ -144,6 +144,7 @@ public class VideoController {
             @RequestParam(required = false) String category,
             @RequestParam(required = false) Long ownerId,
             @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String sortBy,
             HttpSession session) {
         Long loginUserId = getLoginUserId(session);
         PageRequest pageable = PageRequest.of(page, size);
@@ -151,10 +152,13 @@ public class VideoController {
         Page<Video> videoPage;
         boolean hasKeyword = keyword != null && !keyword.isBlank();
         boolean hasCategory = category != null && !category.isBlank();
-        boolean isPopular = "popular".equals(sort);
+        boolean isPopular = "popular".equals(sort) || "popular".equals(sortBy);
+        boolean isByViewCount = "latest".equals(sortBy);
 
         if (ownerId != null) {
             videoPage = videoRepository.findPublicByOwnerIdPageable(ownerId, pageable);
+        } else if (isPopular && hasKeyword) {
+            videoPage = videoRepository.searchPublicByKeywordPageableOrderByViewCount(keyword, pageable);
         } else if (isPopular) {
             videoPage = videoRepository.findAllPublicPageableOrderByViewCount(pageable);
         } else if (hasKeyword && hasCategory) {

@@ -1050,6 +1050,9 @@ function createPlayerMarkup(video, resolutionOptions) {
                 <button class="cp-btn" id="cpMini" type="button" title="미니 플레이어">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zm-10-7h8v5h-8z"/></svg>
                 </button>
+                <button class="cp-btn" id="cpTheater" type="button" title="극장 모드 (t)">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6H5c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H5V8h14v8z"/></svg>
+                </button>
                 <button class="cp-btn" id="cpFs" type="button">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
                 </button>
@@ -1182,6 +1185,7 @@ function initCustomPlayer() {
     const volBtn    = document.getElementById("cpVol");
     const volSlider = document.getElementById("cpVolume");
     const fsBtn     = document.getElementById("cpFs");
+    const theaterBtn = document.getElementById("cpTheater");
 
     const I_PLAY   = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
     const I_PAUSE  = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
@@ -1279,6 +1283,25 @@ function initCustomPlayer() {
         video.muted = video.volume === 0;
         if (volBtn) volBtn.innerHTML = video.muted ? I_MUTE : I_VOL;
     });
+
+    // 극장 모드
+    const I_THEATER     = `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6H5c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H5V8h14v8z"/></svg>`;
+    const I_THEATER_EXIT= `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/></svg>`;
+    function toggleTheater() {
+        const isTheater = document.body.classList.toggle("theater-mode");
+        if (theaterBtn) theaterBtn.innerHTML = isTheater ? I_THEATER_EXIT : I_THEATER;
+        try { localStorage.setItem("mt-theater", isTheater ? "1" : "0"); } catch {}
+    }
+    theaterBtn?.addEventListener("click", (e) => { e.stopPropagation(); toggleTheater(); });
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "t" && !e.target.matches("input,textarea,[contenteditable]")) toggleTheater();
+    });
+    try {
+        if (localStorage.getItem("mt-theater") === "1") {
+            document.body.classList.add("theater-mode");
+            if (theaterBtn) theaterBtn.innerHTML = I_THEATER_EXIT;
+        }
+    } catch {}
 
     // 전체화면
     fsBtn?.addEventListener("click", (e) => {
@@ -2170,6 +2193,17 @@ function initNotifications() {
     setInterval(refresh, 30000);
 }
 
+function initThemeToggle() {
+    if (!window.ThemeManager) return;
+    const topbarRight = document.querySelector(".topbar-right");
+    if (!topbarRight) return;
+    if (topbarRight.querySelector(".theme-toggle-btn")) return;
+    const btn = window.ThemeManager.createToggleBtn();
+    const uploadBtn = topbarRight.querySelector('a[href="upload.html"]');
+    if (uploadBtn) topbarRight.insertBefore(btn, uploadBtn);
+    else topbarRight.prepend(btn);
+}
+
 function initGlobalTopSearch() {
     if (page === "search") return;
 
@@ -2807,6 +2841,53 @@ async function initSearchPage() {
     let isLoading = false;
     let hasMore = true;
     let totalVideoCount = 0;
+    let searchSort = url.searchParams.get("sort") || "";
+    let searchCategory = url.searchParams.get("category") || "";
+
+    // 필터 바 주입
+    const filterBarId = "searchFilterBar";
+    if (!document.getElementById(filterBarId) && videoGrid.parentElement) {
+        let cats = [];
+        try {
+            const r = await fetch("/api/videos/categories");
+            if (r.ok) cats = await r.json();
+        } catch {}
+
+        const filterBar = document.createElement("div");
+        filterBar.id = filterBarId;
+        filterBar.className = "search-filter-bar";
+        filterBar.innerHTML = `
+            <div class="search-filter-group">
+                <span class="search-filter-label">정렬</span>
+                <button class="search-filter-btn${!searchSort ? " is-active" : ""}" data-sort="">관련성</button>
+                <button class="search-filter-btn${searchSort === "latest" ? " is-active" : ""}" data-sort="latest">최신순</button>
+                <button class="search-filter-btn${searchSort === "popular" ? " is-active" : ""}" data-sort="popular">조회수순</button>
+                <button class="search-filter-btn${searchSort === "likes" ? " is-active" : ""}" data-sort="likes">좋아요순</button>
+            </div>
+            ${cats.length ? `
+            <div class="search-filter-group">
+                <span class="search-filter-label">카테고리</span>
+                <button class="search-filter-btn${!searchCategory ? " is-active" : ""}" data-cat="">전체</button>
+                ${cats.map(c => `<button class="search-filter-btn${searchCategory === c ? " is-active" : ""}" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("")}
+            </div>` : ""}
+        `;
+        videoGrid.parentElement.insertBefore(filterBar, videoGrid);
+
+        filterBar.querySelectorAll(".search-filter-btn[data-sort]").forEach(btn => {
+            btn.addEventListener("click", () => {
+                searchSort = btn.dataset.sort;
+                filterBar.querySelectorAll(".search-filter-btn[data-sort]").forEach(b => b.classList.toggle("is-active", b.dataset.sort === searchSort));
+                resetAndLoad();
+            });
+        });
+        filterBar.querySelectorAll(".search-filter-btn[data-cat]").forEach(btn => {
+            btn.addEventListener("click", () => {
+                searchCategory = btn.dataset.cat;
+                filterBar.querySelectorAll(".search-filter-btn[data-cat]").forEach(b => b.classList.toggle("is-active", b.dataset.cat === searchCategory));
+                resetAndLoad();
+            });
+        });
+    }
 
     if (searchPageInput) searchPageInput.value = currentKeyword;
     updateHeader();
@@ -2887,6 +2968,9 @@ async function initSearchPage() {
         try {
             const params = new URLSearchParams({ page: currentPage, size: 12 });
             if (currentKeyword.trim()) params.set("keyword", currentKeyword.trim());
+            if (searchSort === "popular") params.set("sort", "popular");
+            else if (searchSort) params.set("sortBy", searchSort);
+            if (searchCategory) params.set("category", searchCategory);
 
             const res = await fetch(`/api/videos/feed?${params}`);
             if (!res.ok) throw new Error();
@@ -3682,6 +3766,55 @@ async function initWatchPage() {
                 if (document.visibilityState === "hidden") doSave();
             });
             window.addEventListener("beforeunload", doSave);
+        }
+    }
+
+    // 영상 종료 후 다음 영상 오버레이
+    {
+        const pv = document.querySelector("#customPlayer video.player-video");
+        const playerBox = document.querySelector(".player-box");
+        const nextVideo = recommendVideos[0];
+        if (pv && playerBox && nextVideo) {
+            pv.addEventListener("ended", () => {
+                const overlay = document.createElement("div");
+                overlay.className = "video-end-overlay";
+                let countdown = 5;
+                overlay.innerHTML = `
+                    <div class="video-end-card">
+                        <a href="${getVideoUrl(nextVideo.id)}" class="video-end-thumb-link">
+                            <img class="video-end-thumb" src="${escapeHtml(nextVideo.thumbnail)}" alt="${escapeHtml(nextVideo.title)}" />
+                            <span class="video-end-duration">${escapeHtml(nextVideo.duration || "0:00")}</span>
+                        </a>
+                        <div class="video-end-info">
+                            <p class="video-end-label">다음 영상</p>
+                            <p class="video-end-title">${escapeHtml(nextVideo.title)}</p>
+                            <p class="video-end-ch">${escapeHtml(nextVideo.channel)}</p>
+                            <div class="video-end-actions">
+                                <a href="${getVideoUrl(nextVideo.id)}" class="video-end-play-btn">
+                                    <span class="video-end-countdown" id="videoEndCountdown">${countdown}초 후 재생</span>
+                                </a>
+                                <button class="video-end-cancel-btn" type="button">취소</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                playerBox.appendChild(overlay);
+
+                const countdownEl = overlay.querySelector("#videoEndCountdown");
+                const timer = setInterval(() => {
+                    countdown--;
+                    if (countdownEl) countdownEl.textContent = `${countdown}초 후 재생`;
+                    if (countdown <= 0) {
+                        clearInterval(timer);
+                        window.location.href = getVideoUrl(nextVideo.id);
+                    }
+                }, 1000);
+
+                overlay.querySelector(".video-end-cancel-btn").addEventListener("click", () => {
+                    clearInterval(timer);
+                    overlay.remove();
+                });
+            }, { once: true });
         }
     }
 
@@ -4635,6 +4768,7 @@ const page = document.body.dataset.page;
     }
 
     consumePendingToast();
+    initThemeToggle();
     initGlobalTopSearch();
     initResumeBar();
     initNotifications();
@@ -5350,6 +5484,43 @@ async function fetchMyHistoryVideos() {
         return merged;
     }
 
+    function getDateGroupLabel(dateStr) {
+        const now = new Date();
+        const d = new Date(dateStr || 0);
+        const diffMs = now - d;
+        const diffDays = Math.floor(diffMs / 86400000);
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const itemStart  = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const diffCalDays = Math.round((todayStart - itemStart) / 86400000);
+        if (diffCalDays === 0) return "오늘";
+        if (diffCalDays === 1) return "어제";
+        if (diffCalDays <= 7) return "이번 주";
+        if (diffCalDays <= 14) return "지난 주";
+        const diffMonths = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+        if (diffMonths < 1) return "이번 달";
+        if (diffMonths < 2) return "지난 달";
+        return `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
+    }
+
+    function buildHistoryGroupedHtml(videos) {
+        const groups = [];
+        const groupMap = new Map();
+        for (const v of videos) {
+            const label = getDateGroupLabel(v.watchedAt);
+            if (!groupMap.has(label)) {
+                groupMap.set(label, []);
+                groups.push(label);
+            }
+            groupMap.get(label).push(v);
+        }
+        return groups.map(label => `
+            <div class="history-date-group">
+                <h3 class="history-date-label">${safeEscape(label)}</h3>
+                <div class="history-force-grid">${groupMap.get(label).map(createHistoryCard).join("")}</div>
+            </div>
+        `).join("");
+    }
+
     async function renderHistoryPageForce() {
         if (getCurrentPage() !== "history") return;
 
@@ -5374,7 +5545,8 @@ async function fetchMyHistoryVideos() {
             main.appendChild(grid);
         }
 
-        grid.classList.add("history-force-grid");
+        grid.classList.remove("history-force-grid");
+        grid.classList.add("history-grouped-root");
 
         let toolbar = document.getElementById("historyForceToolbar");
 
@@ -5417,7 +5589,7 @@ async function fetchMyHistoryVideos() {
         }
 
         toolbar.hidden = false;
-        grid.innerHTML = videos.map(createHistoryCard).join("");
+        grid.innerHTML = buildHistoryGroupedHtml(videos);
     }
 
     function bootHistoryForcePatch() {

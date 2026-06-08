@@ -4376,6 +4376,216 @@ html[data-theme="light"] .recommend-tag {
     color: #065fd4;
 }
 
+/* ── 극장 모드 ───────────────────────────────────────────── */
+body.theater-mode .watch-shell > aside.sidebar { display: none; }
+body.theater-mode .watch-layout { grid-template-columns: 1fr; max-width: 100%; }
+body.theater-mode .watch-side-column { display: none; }
+body.theater-mode .watch-main-column { max-width: 100%; }
+body.theater-mode .player-box { aspect-ratio: 16/9; max-height: 80vh; }
+body.theater-mode #customPlayer,
+body.theater-mode .player-video { max-height: 80vh; }
+
+/* ── 영상 종료 오버레이 ──────────────────────────────────── */
+.video-end-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    border-radius: inherit;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.video-end-card {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    padding: 20px;
+    max-width: 560px;
+    width: 90%;
+}
+
+.video-end-thumb-link {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.video-end-thumb {
+    width: 160px;
+    aspect-ratio: 16/9;
+    object-fit: cover;
+    border-radius: 8px;
+    display: block;
+}
+
+.video-end-duration {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    font-size: 11px;
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+
+.video-end-info { flex: 1; min-width: 0; }
+
+.video-end-label {
+    font-size: 12px;
+    color: #aaa;
+    margin: 0 0 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.video-end-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #f1f1f1;
+    margin: 0 0 4px;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.video-end-ch {
+    font-size: 13px;
+    color: #aaa;
+    margin: 0 0 14px;
+}
+
+.video-end-actions { display: flex; gap: 10px; align-items: center; }
+
+.video-end-play-btn {
+    display: inline-flex;
+    align-items: center;
+    background: #fff;
+    color: #0f0f0f;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 20px;
+    text-decoration: none;
+    transition: background 0.15s;
+}
+
+.video-end-play-btn:hover { background: #ddd; }
+
+.video-end-countdown { font-size: 13px; }
+
+.video-end-cancel-btn {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: #f1f1f1;
+    font-size: 13px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.video-end-cancel-btn:hover { background: rgba(255,255,255,0.1); }
+
+@media (max-width: 500px) {
+    .video-end-card { flex-direction: column; }
+    .video-end-thumb { width: 100%; }
+}
+
+/* ── 시청 기록 날짜 그룹핑 ──────────────────────────────── */
+.history-grouped-root { padding: 0 4px; }
+
+.history-date-group { margin-bottom: 28px; }
+
+.history-date-label {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f1f1f1;
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #282828;
+}
+
+html[data-theme="light"] .history-date-label {
+    color: #0f0f0f;
+    border-bottom-color: #e0e0e0;
+}
+
+/* ── 검색 필터 바 ────────────────────────────────────────── */
+.search-filter-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 0 16px;
+    border-bottom: 1px solid #282828;
+    margin-bottom: 16px;
+}
+
+.search-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.search-filter-label {
+    font-size: 13px;
+    color: #aaa;
+    white-space: nowrap;
+    min-width: 36px;
+}
+
+.search-filter-btn {
+    background: transparent;
+    border: 1px solid #3d3d3d;
+    color: #e0e0e0;
+    font-size: 13px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+.search-filter-btn:hover {
+    background: rgba(255,255,255,0.07);
+    border-color: #aaa;
+}
+
+.search-filter-btn.is-active {
+    background: #f1f1f1;
+    border-color: #f1f1f1;
+    color: #0f0f0f;
+    font-weight: 600;
+}
+
+html[data-theme="light"] .search-filter-bar {
+    border-bottom-color: #e0e0e0;
+}
+
+html[data-theme="light"] .search-filter-label { color: #606060; }
+
+html[data-theme="light"] .search-filter-btn {
+    border-color: #ccc;
+    color: #0f0f0f;
+}
+
+html[data-theme="light"] .search-filter-btn:hover {
+    background: rgba(0,0,0,0.05);
+    border-color: #888;
+}
+
+html[data-theme="light"] .search-filter-btn.is-active {
+    background: #0f0f0f;
+    border-color: #0f0f0f;
+    color: #fff;
+}
+
 /* ── 댓글 정렬 버튼 ─────────────────────────────────────── */
 .comments-header {
     display: flex;
