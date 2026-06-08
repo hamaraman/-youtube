@@ -752,36 +752,51 @@ function tokenize(text) {
         .filter((token) => token.length >= 2);
 }
 
-function getRecommendationScore(baseVideo, targetVideo) {
-    let score = 0;
+// 세션마다 다른 추천 순서를 위한 랜덤 시드 (탭 열 때 한 번만 생성)
+const _REC_SHUFFLE = Math.random();
 
+function getRecommendationScore(baseVideo, targetVideo) {
     if (baseVideo.id === targetVideo.id) return -Infinity;
 
-    if (String(baseVideo.category || "") === String(targetVideo.category || "")) {
-        score += 40;
+    let score = 0;
+
+    const baseCategory = String(baseVideo.category || "").trim();
+    const targetCategory = String(targetVideo.category || "").trim();
+
+    // 카테고리 일치 (빈 카테고리는 점수 없음)
+    if (baseCategory && targetCategory && baseCategory === targetCategory) {
+        score += 50;
     }
 
-    if (String(baseVideo.channel || "") === String(targetVideo.channel || "")) {
-        score += 30;
+    // 같은 채널
+    if (String(baseVideo.channel || "").trim() === String(targetVideo.channel || "").trim()
+            && String(baseVideo.channel || "").trim()) {
+        score += 25;
     }
 
+    // 키워드 겹침 (제목 + 설명 + 카테고리)
     const baseTokens = new Set([
         ...tokenize(baseVideo.title),
         ...tokenize(baseVideo.description),
-        ...tokenize(baseVideo.category)
+        ...tokenize(baseVideo.category),
     ]);
-
     const targetTokens = [
         ...tokenize(targetVideo.title),
         ...tokenize(targetVideo.description),
-        ...tokenize(targetVideo.category)
+        ...tokenize(targetVideo.category),
     ];
+    targetTokens.forEach((t) => { if (baseTokens.has(t)) score += 5; });
 
-    targetTokens.forEach((token) => {
-        if (baseTokens.has(token)) score += 4;
-    });
+    // 조회수 (로그 스케일, 최대 약 40점)
+    const views = loadViewCount(targetVideo);
+    if (views > 0) score += Math.log10(views + 1) * 10;
 
-    score += Math.min(loadViewCount(targetVideo) / 1000, 20);
+    // 좋아요 수 보너스 (로그 스케일, 최대 약 15점)
+    const likes = Number(targetVideo.likeCount || 0);
+    if (likes > 0) score += Math.log10(likes + 1) * 5;
+
+    // 세션 내 다양성 (±3점 노이즈, id 기반으로 세션마다 다른 순서)
+    score += ((Number(targetVideo.id) * 2654435761 + Math.floor(_REC_SHUFFLE * 1e9)) % 100) / 33;
 
     return score;
 }
@@ -791,9 +806,17 @@ function getRecommendedVideos(baseVideo, allVideos, limit = 12) {
         .filter((video) => video.id !== baseVideo.id)
         .map((video) => ({
             ...video,
-            recommendationScore: getRecommendationScore(baseVideo, video)
+            _recScore: getRecommendationScore(baseVideo, video),
+            _recTag: (() => {
+                const bc = String(baseVideo.category || "").trim();
+                const tc = String(video.category || "").trim();
+                if (bc && tc && bc === tc) return "카테고리";
+                if (String(baseVideo.channel || "").trim() &&
+                    String(baseVideo.channel || "").trim() === String(video.channel || "").trim()) return "채널";
+                return null;
+            })(),
         }))
-        .sort((a, b) => b.recommendationScore - a.recommendationScore || Number(b.id) - Number(a.id))
+        .sort((a, b) => b._recScore - a._recScore || loadViewCount(b) - loadViewCount(a))
         .slice(0, limit);
 }
 
@@ -898,6 +921,9 @@ function createLikedVideoCard(video) {
 
 function createRecommendCard(video) {
     const viewCount = loadViewCount(video);
+    const tag = video._recTag
+        ? `<span class="recommend-tag">${escapeHtml(video._recTag)}</span>`
+        : "";
 
     return `
     <a class="recommend-card" href="${getVideoUrl(video.id)}">
@@ -907,7 +933,7 @@ function createRecommendCard(video) {
       </div>
       <div class="recommend-info">
         <h4 class="recommend-title">${escapeHtml(video.title)}</h4>
-        <p class="recommend-meta">${escapeHtml(video.channel)}</p>
+        <p class="recommend-meta">${escapeHtml(video.channel)}${tag}</p>
         <p class="recommend-meta">조회수 ${formatCount(viewCount)}회 · ${escapeHtml(video.date || "방금 전")}</p>
       </div>
     </a>
