@@ -4323,3 +4323,37 @@ html[data-theme="light"] .share-modal-copy-btn:hover {
 html[data-theme="light"] .share-modal-timestamp {
     color: #606060;
 }
+
+/* ── 댓글 더 보기 버튼 ──────────────────────────────────── */
+.comment-load-more {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px;
+    background: none;
+    border: 1px solid #303030;
+    border-radius: 20px;
+    color: #3ea6ff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.comment-load-more:hover {
+    background: rgba(62, 166, 255, 0.08);
+}
+
+.comment-load-more:disabled {
+    color: #aaa;
+    cursor: default;
+}
+
+html[data-theme="light"] .comment-load-more {
+    border-color: #d0d0d0;
+    color: #065fd4;
+}
+
+html[data-theme="light"] .comment-load-more:hover {
+    background: rgba(6, 95, 212, 0.06);
+}

@@ -13,6 +13,9 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -37,16 +40,33 @@ public class CommentController {
     }
 
     @GetMapping("/videos/{id}/comments")
-    public ResponseEntity<?> getComments(@PathVariable Long id, HttpSession session) {
+    public ResponseEntity<?> getComments(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            HttpSession session) {
+
         Optional<Video> optionalVideo = videoRepository.findById(id);
         if (optionalVideo.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
         final Long finalLoginUserId = loginUserResolver.getUserId(session);
+        int safeSize = Math.min(Math.max(size, 1), 50);
 
-        List<Comment> parentComments = commentRepository.findByVideoIdAndParentIdIsNullOrderByIdDesc(id);
-        if (parentComments.isEmpty()) return ResponseEntity.ok(List.of());
+        Page<Comment> pageResult = commentRepository
+                .findByVideoIdAndParentIdIsNullOrderByIdDesc(id, PageRequest.of(page, safeSize));
+        List<Comment> parentComments = pageResult.getContent();
+
+        if (parentComments.isEmpty()) {
+            long total = commentRepository.countAllByVideoId(id);
+            Map<String, Object> empty = new HashMap<>();
+            empty.put("comments", List.of());
+            empty.put("total", total);
+            empty.put("page", page);
+            empty.put("hasMore", false);
+            return ResponseEntity.ok(empty);
+        }
 
         List<Long> parentIds = parentComments.stream().map(Comment::getId).collect(Collectors.toList());
         List<Comment> allReplies = commentRepository.findByParentIdInOrderByIdAsc(parentIds);
@@ -75,7 +95,13 @@ public class CommentController {
                 })
                 .collect(Collectors.toList());
 
-        return ResponseEntity.ok(comments);
+        long total = commentRepository.countAllByVideoId(id);
+        Map<String, Object> response = new HashMap<>();
+        response.put("comments", comments);
+        response.put("total", total);
+        response.put("page", page);
+        response.put("hasMore", pageResult.hasNext());
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/videos/{id}/comments")

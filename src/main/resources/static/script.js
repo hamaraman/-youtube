@@ -125,14 +125,13 @@ async function fetchMyHistoryVideos() {
     return response.json();
 }
 
-async function fetchCommentsByVideoId(id) {
+async function fetchCommentsByVideoId(id, page = 0, size = 10) {
     try {
-        const response = await fetch(`/api/videos/${id}/comments`);
-        if (!response.ok) return [];
-        const data = await response.json();
-        return Array.isArray(data) ? data : [];
+        const response = await fetch(`/api/videos/${id}/comments?page=${page}&size=${size}`);
+        if (!response.ok) return { comments: [], total: 0, hasMore: false };
+        return await response.json();
     } catch {
-        return [];
+        return { comments: [], total: 0, hasMore: false };
     }
 }
 
@@ -1520,18 +1519,28 @@ function createCommentItem(comment) {
     </div>`;
 }
 
-function renderCommentList(commentListEl, commentsCountEl, comments) {
+function renderCommentList(commentListEl, commentsCountEl, comments, serverTotal, hasMore, onLoadMore) {
     if (!commentListEl || !commentsCountEl) return;
 
-    const total = comments.reduce((sum, c) => sum + 1 + (c.replies?.length || 0), 0);
-    commentsCountEl.textContent = `${formatCount(total)}개의 댓글`;
+    const displayTotal = serverTotal != null
+        ? serverTotal
+        : comments.reduce((sum, c) => sum + 1 + (c.replies?.length || 0), 0);
+    commentsCountEl.textContent = `${formatCount(displayTotal)}개의 댓글`;
 
     if (comments.length === 0) {
         commentListEl.innerHTML = `<p class="comment-empty">아직 댓글이 없습니다.</p>`;
         return;
     }
 
-    commentListEl.innerHTML = comments.map(createCommentItem).join("");
+    let html = comments.map(createCommentItem).join("");
+    if (hasMore && onLoadMore) {
+        html += `<button class="comment-load-more" id="commentLoadMore" type="button">댓글 더 보기</button>`;
+    }
+    commentListEl.innerHTML = html;
+
+    if (hasMore && onLoadMore) {
+        document.getElementById("commentLoadMore")?.addEventListener("click", onLoadMore);
+    }
 }
 
 function readVideoDuration(file) {
@@ -3308,7 +3317,15 @@ async function initWatchPage() {
         } catch {}
     }
 
-    let comments = await fetchCommentsByVideoId(currentVideo.id);
+    let comments = [];
+    let commentPage = 0;
+    let commentHasMore = false;
+    let commentTotal = 0;
+
+    const initCommentData = await fetchCommentsByVideoId(currentVideo.id, 0);
+    comments = initCommentData.comments || [];
+    commentHasMore = initCommentData.hasMore || false;
+    commentTotal = Number(initCommentData.total || 0);
 
     const recommendVideos = getRecommendedVideos(currentVideo, allVideos, 12);
 
@@ -3515,8 +3532,18 @@ async function initWatchPage() {
         saveBtn.classList.toggle("active", isSaved);
     }
 
+    async function loadMoreComments() {
+        const btn = document.getElementById("commentLoadMore");
+        if (btn) { btn.disabled = true; btn.textContent = "불러오는 중..."; }
+        commentPage++;
+        const data = await fetchCommentsByVideoId(currentVideo.id, commentPage);
+        comments = [...comments, ...(data.comments || [])];
+        commentHasMore = data.hasMore || false;
+        refreshComments();
+    }
+
     function refreshComments() {
-        renderCommentList(commentList, commentsCount, comments);
+        renderCommentList(commentList, commentsCount, comments, commentTotal, commentHasMore, loadMoreComments);
         bindCommentActionButtons();
     }
 
@@ -3603,6 +3630,7 @@ async function initWatchPage() {
                         parent.replies = parent.replies || [];
                         parent.replies.push(newReply);
                     }
+                    commentTotal++;
                     const form = commentList.querySelector(`[data-reply-form="${parentId}"]`);
                     if (form) form.hidden = true;
                     if (input) input.value = "";
@@ -3671,11 +3699,16 @@ async function initWatchPage() {
 
                 try {
                     await deleteCommentById(commentId);
+                    const deleted = comments.find(item => Number(item.id) === commentId);
+                    const deletedReplies = deleted?.replies?.length || 0;
                     comments = comments.filter(item => Number(item.id) !== commentId);
                     comments = comments.map(item => {
+                        const before = item.replies?.length || 0;
                         item.replies = (item.replies || []).filter(r => Number(r.id) !== commentId);
+                        if (item.replies.length < before) commentTotal--;
                         return item;
                     });
+                    if (deleted) commentTotal -= (1 + deletedReplies);
                     refreshComments();
                     showToast("댓글이 삭제되었습니다.");
                 } catch (error) {
@@ -3782,6 +3815,7 @@ async function initWatchPage() {
         try {
             const createdComment = await createCommentByVideoId(currentVideo.id, text);
             comments.unshift(createdComment);
+            commentTotal++;
             refreshComments();
             commentInput.value = "";
             commentSubmitBtn.disabled = true;
