@@ -1544,17 +1544,21 @@ function initCustomPlayer() {
                 video.currentTime = Math.min(video.duration || 0, video.currentTime + 5);
                 break;
             case "ArrowUp":
-                e.preventDefault();
-                video.volume = Math.min(1, video.volume + 0.1);
-                video.muted = false;
-                if (volBtn) volBtn.innerHTML = I_VOL;
-                if (volSlider) volSlider.value = video.volume;
+                if (player.matches(":hover")) {
+                    e.preventDefault();
+                    video.volume = Math.min(1, video.volume + 0.1);
+                    video.muted = false;
+                    if (volBtn) volBtn.innerHTML = I_VOL;
+                    if (volSlider) volSlider.value = video.volume;
+                }
                 break;
             case "ArrowDown":
-                e.preventDefault();
-                video.volume = Math.max(0, video.volume - 0.1);
-                if (video.volume === 0) { video.muted = true; if (volBtn) volBtn.innerHTML = I_MUTE; }
-                if (volSlider) volSlider.value = video.volume;
+                if (player.matches(":hover")) {
+                    e.preventDefault();
+                    video.volume = Math.max(0, video.volume - 0.1);
+                    if (video.volume === 0) { video.muted = true; if (volBtn) volBtn.innerHTML = I_MUTE; }
+                    if (volSlider) volSlider.value = video.volume;
+                }
                 break;
             case "f":
             case "F":

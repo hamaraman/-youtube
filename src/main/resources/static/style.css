@@ -4377,6 +4377,7 @@ html[data-theme="light"] .recommend-tag {
 }
 
 /* ── 극장 모드 ───────────────────────────────────────────── */
+body.theater-mode .watch-shell { align-items: flex-start; min-height: 0; }
 body.theater-mode .watch-shell > aside.sidebar { display: none; }
 body.theater-mode .watch-page { padding-left: 0; padding-right: 0; }
 body.theater-mode .watch-layout { grid-template-columns: 1fr; max-width: 100%; }
@@ -4391,39 +4392,38 @@ body.theater-mode .watch-description-box,
 body.theater-mode .comments-section { padding-left: 24px; padding-right: 24px; }
 
 /* ── 영상 종료 오버레이 ──────────────────────────────────── */
+/* ── 영상 종료 오버레이 (우하단 미니카드) ────────────────── */
 .video-end-overlay {
     position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.85);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    bottom: 56px;
+    right: 12px;
     z-index: 50;
-    border-radius: inherit;
-    animation: fadeIn 0.3s ease;
+    animation: fadeIn 0.25s ease;
+    pointer-events: auto;
 }
 
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 .video-end-card {
     display: flex;
-    gap: 20px;
-    align-items: center;
-    padding: 20px;
-    max-width: 560px;
-    width: 90%;
+    flex-direction: column;
+    width: 200px;
+    background: rgba(20,20,20,0.96);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
 }
 
 .video-end-thumb-link {
     position: relative;
-    flex-shrink: 0;
+    display: block;
+    line-height: 0;
 }
 
 .video-end-thumb {
-    width: 160px;
+    width: 100%;
     aspect-ratio: 16/9;
     object-fit: cover;
-    border-radius: 8px;
     display: block;
 }
 
@@ -4438,68 +4438,82 @@ body.theater-mode .comments-section { padding-left: 24px; padding-right: 24px; }
     border-radius: 3px;
 }
 
-.video-end-info { flex: 1; min-width: 0; }
+.video-end-info {
+    padding: 8px 10px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
 
 .video-end-label {
-    font-size: 12px;
+    font-size: 11px;
     color: #aaa;
-    margin: 0 0 4px;
+    margin: 0;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
 }
 
 .video-end-title {
-    font-size: 15px;
+    font-size: 12px;
     font-weight: 600;
     color: #f1f1f1;
-    margin: 0 0 4px;
+    margin: 0;
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+    line-height: 1.4;
 }
 
 .video-end-ch {
-    font-size: 13px;
+    font-size: 11px;
     color: #aaa;
-    margin: 0 0 14px;
+    margin: 0;
 }
 
-.video-end-actions { display: flex; gap: 10px; align-items: center; }
+.video-end-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-top: 4px;
+}
 
 .video-end-play-btn {
     display: inline-flex;
     align-items: center;
     background: #fff;
     color: #0f0f0f;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
-    padding: 8px 16px;
-    border-radius: 20px;
+    padding: 5px 10px;
+    border-radius: 14px;
     text-decoration: none;
     transition: background 0.15s;
+    flex: 1;
+    justify-content: center;
 }
 
 .video-end-play-btn:hover { background: #ddd; }
 
-.video-end-countdown { font-size: 13px; }
+.video-end-countdown { font-size: 12px; }
 
 .video-end-cancel-btn {
     background: transparent;
-    border: 1px solid rgba(255,255,255,0.3);
-    color: #f1f1f1;
-    font-size: 13px;
-    padding: 7px 14px;
-    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #ccc;
+    font-size: 11px;
+    padding: 5px 8px;
+    border-radius: 14px;
     cursor: pointer;
     transition: background 0.15s;
+    flex-shrink: 0;
 }
 
 .video-end-cancel-btn:hover { background: rgba(255,255,255,0.1); }
 
 @media (max-width: 500px) {
-    .video-end-card { flex-direction: column; }
-    .video-end-thumb { width: 100%; }
+    .video-end-overlay { right: 8px; bottom: 52px; }
+    .video-end-card { width: 160px; }
 }
 
 /* ── 시청 기록 날짜 그룹핑 ──────────────────────────────── */
