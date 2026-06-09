@@ -877,6 +877,51 @@ function createSkeletonCards(count = 8) {
     return Array.from({ length: count }, () => card).join("");
 }
 
+let _serverProgressMap = null;
+let _serverProgressFetch = null;
+
+function parseDurationSecs(str) {
+    if (!str) return 0;
+    const parts = str.trim().split(":").map(Number);
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    return 0;
+}
+
+async function fetchServerProgress() {
+    if (_serverProgressMap !== null) return _serverProgressMap;
+    if (_serverProgressFetch) return _serverProgressFetch;
+    _serverProgressFetch = fetch("/api/my-progress")
+        .then(r => r.ok ? r.json() : {})
+        .catch(() => ({}))
+        .then(data => { _serverProgressMap = data; return data; });
+    return _serverProgressFetch;
+}
+
+async function applyServerProgress() {
+    const map = await fetchServerProgress();
+    if (!map || !Object.keys(map).length) return;
+    document.querySelectorAll(".card[data-video-id]").forEach(card => {
+        const videoId = String(card.dataset.videoId);
+        const lastPos = map[videoId];
+        if (!lastPos || lastPos <= 0) return;
+        const durEl = card.querySelector(".duration");
+        const totalSecs = parseDurationSecs(durEl?.textContent);
+        if (!totalSecs) return;
+        const pct = Math.min(100, (lastPos / totalSecs) * 100);
+        if (pct < 1) return;
+        let bar = card.querySelector(".card-progress-bar");
+        if (bar) {
+            bar.style.width = pct.toFixed(1) + "%";
+        } else {
+            bar = document.createElement("div");
+            bar.className = "card-progress-bar";
+            bar.style.width = pct.toFixed(1) + "%";
+            card.querySelector(".thumbnail-wrap")?.appendChild(bar);
+        }
+    });
+}
+
 function getVideoProgress(videoId) {
     try {
         const state = getMpState();
@@ -906,7 +951,7 @@ function createVideoCard(video) {
     const progressBar = progress > 1 ? `<div class="card-progress-bar" style="width:${progress.toFixed(1)}%"></div>` : "";
 
     return `
-    <article class="card">
+    <article class="card" data-video-id="${video.id}">
       <a href="${getVideoUrl(video.id)}" class="card-link">
         <div class="thumbnail-wrap">
           <img class="thumbnail-image" src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" />
@@ -1932,6 +1977,7 @@ async function initUserPage() {
             }
             if (data.videos.length) {
                 grid.insertAdjacentHTML("beforeend", data.videos.map(createVideoCard).join(""));
+                applyServerProgress();
             }
             hasMore = data.hasMore;
             currentPage++;
@@ -2124,6 +2170,7 @@ async function initSubscriptionPage() {
 
             if (data.videos.length > 0) {
                 grid.insertAdjacentHTML("beforeend", data.videos.map(createVideoCard).join(""));
+                applyServerProgress();
             }
 
             hasMore = data.hasMore;
@@ -3183,6 +3230,7 @@ async function initSearchPage() {
             if (data.videos.length > 0) {
                 videoGrid.insertAdjacentHTML("beforeend", data.videos.map(createVideoCard).join(""));
                 totalVideoCount += data.videos.length;
+                applyServerProgress();
             }
 
             hasMore = data.hasMore;
@@ -3379,6 +3427,7 @@ async function initHomePage() {
 
             if (data.videos.length > 0) {
                 videoGrid.insertAdjacentHTML("beforeend", data.videos.map(createVideoCard).join(""));
+                applyServerProgress();
                 if (authMe?.loggedIn && myId) {
                     data.videos.forEach(v => {
                         if (String(v.ownerId) === String(myId)) return;
@@ -4727,6 +4776,7 @@ async function initChannelPage() {
             return;
         }
         channelVideoGrid.innerHTML = videos.map(v => createVideoCard(v)).join("");
+        applyServerProgress();
     } catch {
         if (channelEmptyState) channelEmptyState.hidden = false;
     }
@@ -5818,7 +5868,7 @@ async function fetchMyHistoryVideos() {
             : "방금 전";
 
         return `
-            <article class="card history-force-card">
+            <article class="card history-force-card" data-video-id="${item.id}">
                 <a href="${safeEscape(videoUrl)}" class="card-link">
                     <div class="thumbnail-wrap">
                         <img class="thumbnail-image" src="${safeEscape(item.thumbnail)}" alt="${safeEscape(item.title)}" />
@@ -5985,6 +6035,7 @@ async function fetchMyHistoryVideos() {
 
         toolbar.hidden = false;
         grid.innerHTML = buildHistoryGroupedHtml(videos);
+        applyServerProgress();
     }
 
     function bootHistoryForcePatch() {

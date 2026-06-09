@@ -134,6 +134,20 @@ public class HistoryController {
         return ResponseEntity.ok(Map.of("position", position));
     }
 
+    @GetMapping("/my-progress")
+    public ResponseEntity<?> getMyProgress(HttpSession session) {
+        Long loginUserId = getLoginUserId(session);
+        if (loginUserId == null) return ResponseEntity.ok(Map.of());
+
+        Map<Long, Double> result = new HashMap<>();
+        for (VideoHistory h : videoHistoryRepository.findByUserIdOrderByWatchedAtDesc(loginUserId)) {
+            if (h.getLastPosition() != null && h.getLastPosition() > 0) {
+                result.put(h.getVideoId(), h.getLastPosition());
+            }
+        }
+        return ResponseEntity.ok(result);
+    }
+
     @GetMapping("/my-history")
     public ResponseEntity<?> getMyHistory(HttpSession session) {
         Long loginUserId = getLoginUserId(session);
