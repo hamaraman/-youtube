@@ -112,7 +112,8 @@ public class PlaylistController {
         Long userId = loginUserResolver.getUserId(session);
         Optional<Playlist> opt = playlistRepository.findById(id);
         if (opt.isEmpty()) return ResponseEntity.notFound().build();
-        if (!opt.get().getUserId().equals(userId)) return ResponseEntity.status(403).build();
+
+        boolean isOwner = userId != null && opt.get().getUserId().equals(userId);
 
         List<Map<String, Object>> videos = playlistVideoRepository.findByPlaylistIdOrderByAddedAtDesc(id)
                 .stream()
@@ -130,7 +131,24 @@ public class PlaylistController {
                 ))
                 .collect(Collectors.toList());
 
-        return ResponseEntity.ok(Map.of("name", opt.get().getName(), "videos", videos));
+        return ResponseEntity.ok(Map.of("name", opt.get().getName(), "videos", videos, "isOwner", isOwner));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> renamePlaylist(@PathVariable Long id, @RequestBody Map<String, String> body, HttpSession session) {
+        Long userId = loginUserResolver.getUserId(session);
+        if (userId == null) return ResponseEntity.status(401).build();
+
+        Optional<Playlist> opt = playlistRepository.findById(id);
+        if (opt.isEmpty()) return ResponseEntity.notFound().build();
+        if (!opt.get().getUserId().equals(userId)) return ResponseEntity.status(403).build();
+
+        String name = body.getOrDefault("name", "").trim();
+        if (name.isEmpty()) return ResponseEntity.badRequest().body(Map.of("success", false, "message", "이름을 입력해줘."));
+
+        opt.get().setName(name);
+        playlistRepository.save(opt.get());
+        return ResponseEntity.ok(Map.of("success", true));
     }
 
     @PostMapping("/{id}/videos")

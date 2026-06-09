@@ -2046,33 +2046,71 @@ async function initPlaylistPage() {
     async function openDetail(id, name) {
         plListView.style.display = "none";
         plDetailView.classList.add("is-open");
-        plDetailTitle.textContent = name;
+        plDetailTitle.textContent = name || "로딩 중...";
+
         const res = await fetch(`/api/playlists/${id}/videos`);
-        if (!res.ok) return;
+        if (!res.ok) { plDetailTitle.textContent = name || "재생목록"; return; }
         const data = await res.json();
         const videos = data.videos || [];
+        const isOwner = !!data.isOwner;
+        const currentName = data.name || name;
+        plDetailTitle.textContent = currentName;
+
+        plDetailView.querySelector(".pl-rename-btn")?.remove();
+        plDetailView.querySelector(".pl-play-all-btn")?.remove();
+
+        if (isOwner) {
+            const renameBtn = document.createElement("button");
+            renameBtn.type = "button";
+            renameBtn.className = "pl-rename-btn";
+            renameBtn.title = "이름 변경";
+            renameBtn.innerHTML = `<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
+            plDetailView.querySelector(".pl-detail-header").appendChild(renameBtn);
+            renameBtn.addEventListener("click", async () => {
+                const newName = prompt("새 이름:", plDetailTitle.textContent);
+                if (!newName?.trim()) return;
+                const r = await fetch(`/api/playlists/${id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name: newName.trim() })
+                });
+                if (r.ok) { plDetailTitle.textContent = newName.trim(); data.name = newName.trim(); }
+            });
+        }
+
+        if (videos.length) {
+            const playAllBtn = document.createElement("a");
+            playAllBtn.href = `watch.html?v=${videos[0].id}&list=${id}`;
+            playAllBtn.className = "pl-play-all-btn";
+            playAllBtn.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> 전체 재생`;
+            plDetailView.querySelector(".pl-detail-header").appendChild(playAllBtn);
+        }
+
         if (!videos.length) { plDetailEmpty.style.display = "block"; plVideoList.innerHTML = ""; return; }
         plDetailEmpty.style.display = "none";
-        plVideoList.innerHTML = videos.map(v => `
+        plVideoList.innerHTML = videos.map((v, i) => `
             <div class="pl-video-item">
-                <a href="watch.html?v=${v.id}" class="pl-video-link">
+                <span class="pl-video-num">${videos.length - i}</span>
+                <a href="watch.html?v=${v.id}&list=${id}" class="pl-video-link">
                     <div class="pl-video-thumb"><img src="${escapeHtml(v.thumbnail)}" alt="${escapeHtml(v.title)}"></div>
                 </a>
                 <div class="pl-video-info">
-                    <a href="watch.html?v=${v.id}" class="pl-video-link">
+                    <a href="watch.html?v=${v.id}&list=${id}" class="pl-video-link">
                         <div class="pl-video-title">${escapeHtml(v.title)}</div>
                         <div class="pl-video-meta">${escapeHtml(v.channel)} · 조회수 ${formatCount(v.viewCount)}회 · ${escapeHtml(v.date)}</div>
                     </a>
                 </div>
-                <button type="button" class="pl-video-remove" data-pl-id="${id}" data-video-id="${v.id}">제거</button>
+                ${isOwner ? `<button type="button" class="pl-video-remove" data-pl-id="${id}" data-video-id="${v.id}">제거</button>` : ""}
             </div>`).join("");
 
-        plVideoList.querySelectorAll(".pl-video-remove").forEach(btn => {
-            btn.addEventListener("click", async () => {
-                await fetch(`/api/playlists/${btn.dataset.plId}/videos/${btn.dataset.videoId}`, { method: "DELETE" });
-                openDetail(id, name);
+        if (isOwner) {
+            plVideoList.querySelectorAll(".pl-video-remove").forEach(btn => {
+                btn.addEventListener("click", async () => {
+                    await fetch(`/api/playlists/${btn.dataset.plId}/videos/${btn.dataset.videoId}`, { method: "DELETE" });
+                    openDetail(id, data.name);
+                });
             });
-        });
+        }
     }
 
     document.getElementById("plBackBtn")?.addEventListener("click", () => {
@@ -2096,7 +2134,9 @@ async function initPlaylistPage() {
     });
     plNameInput?.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("plModalConfirm").click(); });
 
-    loadPlaylists();
+    await loadPlaylists();
+    const urlId = new URLSearchParams(window.location.search).get("id");
+    if (urlId) openDetail(Number(urlId), "");
 }
 
 async function initSubscriptionPage() {
@@ -3835,6 +3875,7 @@ async function initWatchPage() {
     const params = new URLSearchParams(window.location.search);
     const rawVideoId = params.get("v") || params.get("id");
     const videoId = Number(rawVideoId);
+    const listId = params.get("list") ? Number(params.get("list")) : null;
 
     const uploadedVideos = await fetchUploadedVideos();
     const allVideos = makeFeedVideos(uploadedVideos);
@@ -3925,6 +3966,7 @@ async function initWatchPage() {
         <button class="watch-action-btn ${isSaved ? "active" : ""}" id="saveBtn" type="button">
           ${isSaved ? "저장됨" : "저장"}
         </button>
+        <button class="watch-action-btn" id="plAddBtn" type="button">재생목록</button>
       </div>
     </div>
 
@@ -3962,6 +4004,46 @@ async function initWatchPage() {
 
     if (watchRecommendList) {
         watchRecommendList.innerHTML = recommendVideos.map(createRecommendCard).join("");
+    }
+
+    let playlistVideos = [];
+    let playlistIndex = -1;
+    if (listId) {
+        try {
+            const plRes = await fetch(`/api/playlists/${listId}/videos`);
+            if (plRes.ok) {
+                const plData = await plRes.json();
+                playlistVideos = (plData.videos || []).slice().reverse();
+                playlistIndex = playlistVideos.findIndex(v => v.id === videoId);
+                const panel = document.getElementById("watchPlaylistPanel");
+                if (panel) {
+                    panel.style.display = "block";
+                    panel.innerHTML = `
+                        <div class="watch-pl-header">
+                            <a href="playlist.html?id=${listId}" class="watch-pl-title">${escapeHtml(plData.name || "재생목록")}</a>
+                            <span class="watch-pl-pos">${playlistIndex >= 0 ? `${playlistIndex + 1} / ${playlistVideos.length}` : ""}</span>
+                        </div>
+                        <div class="watch-pl-list">
+                            ${playlistVideos.map((v, i) => `
+                                <a href="watch.html?v=${v.id}&list=${listId}" class="watch-pl-item${v.id === videoId ? " is-active" : ""}">
+                                    <div class="watch-pl-thumb">
+                                        <img src="${escapeHtml(v.thumbnail)}" alt="${escapeHtml(v.title)}">
+                                        ${v.id === videoId
+                                            ? '<span class="watch-pl-now">▶</span>'
+                                            : `<span class="watch-pl-num">${i + 1}</span>`}
+                                    </div>
+                                    <div class="watch-pl-info">
+                                        <div class="watch-pl-item-title">${escapeHtml(v.title)}</div>
+                                        <div class="watch-pl-item-ch">${escapeHtml(v.channel)}</div>
+                                    </div>
+                                </a>`).join("")}
+                        </div>`;
+                    setTimeout(() => {
+                        panel.querySelector(".watch-pl-item.is-active")?.scrollIntoView({ block: "nearest" });
+                    }, 150);
+                }
+            }
+        } catch {}
     }
 
     const watchRecommendChipbar = document.getElementById("watchRecommendChipbar");
@@ -4110,7 +4192,12 @@ async function initWatchPage() {
     {
         const pv = document.querySelector("#customPlayer video.player-video");
         const playerBox = document.querySelector(".player-box");
-        const nextVideo = recommendVideos[0];
+        const nextPlVideo = playlistIndex >= 0 && playlistIndex < playlistVideos.length - 1
+            ? playlistVideos[playlistIndex + 1] : null;
+        const nextVideo = nextPlVideo || recommendVideos[0];
+        const getNextUrl = () => nextPlVideo
+            ? `watch.html?v=${nextPlVideo.id}&list=${listId}`
+            : getVideoUrl(nextVideo?.id);
         if (pv && playerBox && nextVideo) {
             pv.addEventListener("ended", () => {
                 const overlay = document.createElement("div");
@@ -4118,16 +4205,16 @@ async function initWatchPage() {
                 let countdown = 5;
                 overlay.innerHTML = `
                     <div class="video-end-card">
-                        <a href="${getVideoUrl(nextVideo.id)}" class="video-end-thumb-link">
+                        <a href="${getNextUrl()}" class="video-end-thumb-link">
                             <img class="video-end-thumb" src="${escapeHtml(nextVideo.thumbnail)}" alt="${escapeHtml(nextVideo.title)}" />
                             <span class="video-end-duration">${escapeHtml(nextVideo.duration || "0:00")}</span>
                         </a>
                         <div class="video-end-info">
-                            <p class="video-end-label">다음 영상</p>
+                            <p class="video-end-label">${nextPlVideo ? "재생목록 다음 영상" : "다음 영상"}</p>
                             <p class="video-end-title">${escapeHtml(nextVideo.title)}</p>
                             <p class="video-end-ch">${escapeHtml(nextVideo.channel)}</p>
                             <div class="video-end-actions">
-                                <a href="${getVideoUrl(nextVideo.id)}" class="video-end-play-btn">
+                                <a href="${getNextUrl()}" class="video-end-play-btn">
                                     <span class="video-end-countdown" id="videoEndCountdown">${countdown}초 후 재생</span>
                                 </a>
                                 <button class="video-end-cancel-btn" type="button">취소</button>
@@ -4143,7 +4230,7 @@ async function initWatchPage() {
                     if (countdownEl) countdownEl.textContent = `${countdown}초 후 재생`;
                     if (countdown <= 0) {
                         clearInterval(timer);
-                        window.location.href = getVideoUrl(nextVideo.id);
+                        window.location.href = getNextUrl();
                     }
                 }, 1000);
 
@@ -4159,6 +4246,7 @@ async function initWatchPage() {
     const likeBtn = document.getElementById("likeBtn");
     const shareBtn = document.getElementById("shareBtn");
     const saveBtn = document.getElementById("saveBtn");
+    const plAddBtn = document.getElementById("plAddBtn");
     const commentInput = document.getElementById("commentInput");
     const commentSubmitBtn = document.getElementById("commentSubmitBtn");
     const commentCancelBtn = document.getElementById("commentCancelBtn");
@@ -4450,6 +4538,11 @@ async function initWatchPage() {
         } catch (error) {
             alert(error.message || "저장 처리 중 오류가 발생했어.");
         }
+    });
+
+    plAddBtn?.addEventListener("click", () => {
+        if (!requireAuthRedirect()) return;
+        window.__openPlaylistMenu?.(plAddBtn, currentVideo.id);
     });
 
     descriptionToggle?.addEventListener("click", () => {
@@ -9981,4 +10074,5 @@ async function fetchMyHistoryVideos() {
             }
         });
     }
+    window.__openPlaylistMenu = openPlaylistDropdown;
 })();

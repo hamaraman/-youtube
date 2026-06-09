@@ -238,6 +238,27 @@
             padding: 10px 8px;
         }
 
+        #watchPlaylistPanel { border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
+        .watch-pl-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #1a1a1a; }
+        .watch-pl-title { font-size: 13px; font-weight: 700; color: #f1f1f1; text-decoration: none; }
+        .watch-pl-title:hover { text-decoration: underline; }
+        .watch-pl-pos { font-size: 12px; color: #aaa; }
+        .watch-pl-list { max-height: 320px; overflow-y: auto; background: #1a1a1a; padding: 4px 6px; }
+        .watch-pl-item { display: flex; gap: 8px; padding: 6px; text-decoration: none; color: inherit; border-radius: 8px; }
+        .watch-pl-item:hover { background: #272727; }
+        .watch-pl-item.is-active { background: #272727; }
+        .watch-pl-thumb { width: 80px; flex-shrink: 0; aspect-ratio: 16/9; border-radius: 4px; overflow: hidden; position: relative; background: #000; }
+        .watch-pl-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .watch-pl-now, .watch-pl-num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; }
+        .watch-pl-now { background: rgba(0,0,0,.6); color: #ff4444; font-size: 14px; }
+        .watch-pl-num { color: #bbb; }
+        .watch-pl-info { flex: 1; min-width: 0; }
+        .watch-pl-item-title { font-size: 12px; font-weight: 600; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #f1f1f1; }
+        .watch-pl-item-ch { font-size: 11px; color: #aaa; margin-top: 2px; }
+        html[data-theme="light"] .watch-pl-header, html[data-theme="light"] .watch-pl-list { background: #f0f0f0; }
+        html[data-theme="light"] .watch-pl-item:hover, html[data-theme="light"] .watch-pl-item.is-active { background: #e0e0e0; }
+        html[data-theme="light"] .watch-pl-item-title { color: #0f0f0f; }
+
         @media (max-width: 900px) {
             .watch-side-column {
                 position: static;
@@ -374,6 +395,7 @@
             <section class="watch-main-column" id="watchMain"></section>
 
             <aside class="watch-side-column">
+                <div id="watchPlaylistPanel" style="display:none;"></div>
                 <div class="watch-recommend-header">
                     <div class="watch-recommend-header-default">
                         <h3 class="watch-recommend-title">추천 영상</h3>
