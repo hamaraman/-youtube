@@ -650,7 +650,12 @@ public class VideoUploadController {
             );
             pb.redirectErrorStream(true);
             Process proc = pb.start();
-            proc.getInputStream().transferTo(OutputStream.nullOutputStream());
+            Thread drainConv = new Thread(() -> {
+                try { proc.getInputStream().transferTo(OutputStream.nullOutputStream()); }
+                catch (Exception ignored) {}
+            });
+            drainConv.setDaemon(true);
+            drainConv.start();
             boolean convDone = proc.waitFor(60, TimeUnit.MINUTES);
             if (convDone && proc.exitValue() == 0) {
                 Files.move(tmpPath, servePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
@@ -684,7 +689,12 @@ public class VideoUploadController {
                     ProcessBuilder vb = new ProcessBuilder(cmd);
                     vb.redirectErrorStream(true);
                     Process vp = vb.start();
-                    vp.getInputStream().transferTo(OutputStream.nullOutputStream());
+                    Thread drainVar = new Thread(() -> {
+                        try { vp.getInputStream().transferTo(OutputStream.nullOutputStream()); }
+                        catch (Exception ignored) {}
+                    });
+                    drainVar.setDaemon(true);
+                    drainVar.start();
                     boolean vDone = vp.waitFor(60, TimeUnit.MINUTES);
                     if (vDone && vp.exitValue() == 0) {
                         String url;
