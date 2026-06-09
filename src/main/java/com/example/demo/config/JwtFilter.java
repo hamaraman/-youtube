@@ -37,9 +37,10 @@ public class JwtFilter extends OncePerRequestFilter {
                 String email = claims.get("email", String.class);
                 String channelName = claims.get("channelName", String.class);
                 String profileImage = claims.get("profileImage", String.class);
+                String role = claims.get("role", String.class);
 
                 AuthController.SessionUser user = new AuthController.SessionUser(
-                        userId, username, nickname, email, channelName, profileImage, "USER"
+                        userId, username, nickname, email, channelName, profileImage, role
                 );
                 request.setAttribute("jwtLoginUser", user);
             }

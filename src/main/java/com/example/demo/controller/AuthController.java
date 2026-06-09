@@ -170,7 +170,8 @@ public class AuthController {
 
             String token = jwtUtil.generateToken(
                     user.getId(), user.getUsername(), user.getNickname(),
-                    user.getEmail(), user.getChannelName(), user.getProfileImage()
+                    user.getEmail(), user.getChannelName(), user.getProfileImage(),
+                    user.getRole()
             );
 
             return ResponseEntity.ok(new LoginResponse(true, "로그인되었습니다.", sessionUser, token));

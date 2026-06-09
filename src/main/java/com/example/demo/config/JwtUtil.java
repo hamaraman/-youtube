@@ -23,7 +23,7 @@ public class JwtUtil {
     }
 
     public String generateToken(Long userId, String username, String nickname, String email,
-                                String channelName, String profileImage) {
+                                String channelName, String profileImage, String role) {
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("username", username)
@@ -31,6 +31,7 @@ public class JwtUtil {
                 .claim("email", email)
                 .claim("channelName", channelName)
                 .claim("profileImage", profileImage)
+                .claim("role", role != null ? role : "USER")
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + EXPIRATION_MS))
                 .signWith(key)
