@@ -362,6 +362,40 @@
             .sa-engagement-item { border-right: none; border-bottom: 1px solid #222; padding: 12px 0; }
             .sa-engagement-item:last-child { border-bottom: none; }
         }
+        .studio-mobile-stats { display: none; }
+        @media (max-width: 640px) {
+            .studio-table { overflow-x: unset; border-radius: 14px; }
+            .studio-head { display: none; }
+            .studio-row {
+                display: flex;
+                flex-direction: column;
+                gap: 0;
+                padding: 14px;
+                min-width: unset;
+            }
+            .studio-video-cell { margin-bottom: 10px; }
+            .studio-thumb { width: 90px; }
+            .studio-cell-text,
+            .studio-number,
+            .studio-status-cell { display: none; }
+            .studio-mobile-stats {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex-wrap: wrap;
+                margin-bottom: 10px;
+                font-size: 13px;
+                color: #aaa;
+            }
+            .studio-mobile-dot { color: #444; }
+            .studio-mobile-stats .studio-status-badge {
+                font-size: 12px;
+                padding: 0 8px;
+                min-height: 24px;
+                margin-left: auto;
+            }
+            .studio-actions { flex-wrap: wrap; gap: 6px; }
+        }
     </style>
 </head>
 <body data-page="studio">

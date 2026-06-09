@@ -1049,7 +1049,15 @@ function createManageCard(video) {
       <div class="studio-number">${formatCount(viewCount)}</div>
       <div class="studio-number">${formatCount(likeCount)}</div>
       <div class="studio-number">${formatCount(commentCount)}</div>
-      <div>
+      <div class="studio-status-cell">
+        <span class="studio-status-badge">${escapeHtml(video.visibility || "공개")}</span>
+      </div>
+      <div class="studio-mobile-stats">
+        <span>조회 ${formatCount(viewCount)}</span>
+        <span class="studio-mobile-dot">·</span>
+        <span>좋아요 ${formatCount(likeCount)}</span>
+        <span class="studio-mobile-dot">·</span>
+        <span>댓글 ${formatCount(commentCount)}</span>
         <span class="studio-status-badge">${escapeHtml(video.visibility || "공개")}</span>
       </div>
       <div class="studio-actions">
