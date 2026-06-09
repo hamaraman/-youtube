@@ -311,6 +311,30 @@
             font-weight: 700;
         }
 
+        .edit-video-section { border-top: 1px solid #272727; margin-top: 24px; padding-top: 20px; }
+        .edit-video-section h3 { font-size: 15px; font-weight: 700; margin: 0 0 10px; color: #f1f1f1; }
+        .edit-video-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .edit-video-hint { font-size: 12px; color: #888; margin: 8px 0 0; }
+        #videoEncodeStatus { margin-top: 14px; }
+        .encode-status-box { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; background: #121212; border-radius: 12px; border: 1px solid #303030; }
+        .encode-status-box.is-done { border-color: #1e5c1e; background: #0a150a; }
+        .encode-status-box.is-error { border-color: #5c1e1e; background: #150a0a; }
+        .encode-status-row { display: flex; align-items: center; gap: 10px; }
+        .encode-spinner { width: 18px; height: 18px; border: 2px solid #333; border-top-color: #ff4444; border-radius: 50%; animation: espin 0.8s linear infinite; flex-shrink: 0; }
+        @keyframes espin { to { transform: rotate(360deg); } }
+        .encode-status-label { font-size: 14px; color: #f1f1f1; }
+        .encode-steps { display: flex; gap: 6px; flex-wrap: wrap; }
+        .encode-step { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: #1a1a1a; color: #888; border: 1px solid #303030; }
+        .encode-step.is-active { background: #2a0000; color: #ff6666; border-color: #5c1e1e; }
+        .encode-step.is-done { background: #0a1a0a; color: #5c9c5c; border-color: #1e5c1e; }
+        .upload-progress-wrap { width: 100%; }
+        .upload-progress-bar { width: 100%; height: 6px; background: #272727; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+        .upload-progress-fill { height: 100%; background: #ff0000; border-radius: 3px; transition: width 0.2s; width: 0%; }
+
+        html[data-theme="light"] .encode-status-box { background: #f5f5f5; border-color: #ddd; }
+        html[data-theme="light"] .encode-step { background: #eee; color: #666; border-color: #ddd; }
+        html[data-theme="light"] .encode-status-label { color: #0f0f0f; }
+
         @media (max-width: 1000px) {
             .edit-grid {
                 grid-template-columns: 1fr;
@@ -602,6 +626,17 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <div class="edit-video-section">
+                    <h3>영상 파일 교체</h3>
+                    <div class="edit-video-row">
+                        <input type="file" id="editVideoFile" accept="video/*" style="display:none">
+                        <button type="button" class="edit-btn" id="editVideoFileBtn">파일 선택...</button>
+                        <span id="editVideoFileName" style="color:#aaa; font-size:13px;"></span>
+                    </div>
+                    <div id="videoEncodeStatus" style="display:none;"></div>
+                    <p class="edit-video-hint">새 파일을 선택하면 메타데이터 저장 후 인코딩이 시작됩니다. 기존 해상도는 인코딩 완료 후 교체됩니다.</p>
                 </div>
 
                 <div class="edit-actions">

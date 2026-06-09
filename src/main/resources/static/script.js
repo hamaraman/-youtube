@@ -4709,6 +4709,21 @@ async function initEditPage() {
         });
     }
 
+    let selectedVideoFile = null;
+    const editVideoFileBtn = document.getElementById("editVideoFileBtn");
+    const editVideoFileInput = document.getElementById("editVideoFile");
+    const editVideoFileName = document.getElementById("editVideoFileName");
+    if (editVideoFileBtn && editVideoFileInput) {
+        editVideoFileBtn.addEventListener("click", () => editVideoFileInput.click());
+        editVideoFileInput.addEventListener("change", () => {
+            const file = editVideoFileInput.files && editVideoFileInput.files[0];
+            selectedVideoFile = file || null;
+            if (editVideoFileName) {
+                editVideoFileName.textContent = file ? file.name : "";
+            }
+        });
+    }
+
     editForm.addEventListener(
         "submit",
         async (event) => {
@@ -4740,8 +4755,20 @@ async function initEditPage() {
                 if (selectedThumbnailFile) {
                     await replaceVideoThumbnail(videoId, selectedThumbnailFile);
                 }
-                setPendingToast("영상 수정이 완료되었습니다.");
-                window.location.href = getVideoUrl(videoId);
+
+                if (selectedVideoFile) {
+                    const statusBox = document.getElementById("videoEncodeStatus");
+                    if (statusBox) statusBox.style.display = "";
+                    editSubmitBtn.textContent = "업로드 중...";
+                    await uploadVideoFileWithProgress(videoId, selectedVideoFile, statusBox);
+                    editSubmitBtn.textContent = "인코딩 중...";
+                    await pollEncodeStatus(videoId, statusBox);
+                    setPendingToast("영상 교체가 완료되었습니다.");
+                    window.location.href = getVideoUrl(videoId);
+                } else {
+                    setPendingToast("영상 수정이 완료되었습니다.");
+                    window.location.href = getVideoUrl(videoId);
+                }
             } catch (error) {
                 alert(error.message || "수정 중 오류가 발생했어.");
                 editSubmitBtn.disabled = false;
@@ -4750,6 +4777,105 @@ async function initEditPage() {
         },
         { once: true }
     );
+}
+
+function uploadVideoFileWithProgress(videoId, file, statusEl) {
+    return new Promise((resolve, reject) => {
+        if (statusEl) {
+            statusEl.innerHTML = `
+                <div class="encode-status-box">
+                    <div class="encode-status-row">
+                        <div class="encode-spinner"></div>
+                        <span class="encode-status-label">영상 업로드 중...</span>
+                    </div>
+                    <div class="upload-progress-wrap">
+                        <div class="upload-progress-bar">
+                            <div class="upload-progress-fill" id="uploadProgressFill"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        const formData = new FormData();
+        formData.append("videoFile", file);
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `/api/videos/${videoId}/replace-video`);
+        xhr.upload.addEventListener("progress", (e) => {
+            if (e.lengthComputable) {
+                const pct = Math.round((e.loaded / e.total) * 100);
+                const fill = document.getElementById("uploadProgressFill");
+                if (fill) fill.style.width = pct + "%";
+                const lbl = statusEl && statusEl.querySelector(".encode-status-label");
+                if (lbl) lbl.textContent = `영상 업로드 중... ${pct}%`;
+            }
+        });
+        xhr.addEventListener("load", () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+            } else {
+                let msg = "업로드 실패";
+                try { msg = JSON.parse(xhr.responseText).error || msg; } catch {}
+                reject(new Error(msg));
+            }
+        });
+        xhr.addEventListener("error", () => reject(new Error("업로드 중 네트워크 오류")));
+        xhr.send(formData);
+    });
+}
+
+function pollEncodeStatus(videoId, statusEl) {
+    const STEPS = ["QUEUED", "CONVERTING", "1080p", "720p", "480p", "360p", "UPLOADING", "DONE"];
+    const LABELS = {
+        QUEUED: "대기 중",
+        CONVERTING: "H.264 변환 중",
+        "1080p": "1080p 인코딩",
+        "720p": "720p 인코딩",
+        "480p": "480p 인코딩",
+        "360p": "360p 인코딩",
+        UPLOADING: "클라우드 업로드 중",
+        DONE: "완료"
+    };
+
+    function renderSteps(current) {
+        const currentIdx = STEPS.indexOf(current);
+        return STEPS.map((s, i) => {
+            const cls = i < currentIdx ? "encode-step is-done"
+                : i === currentIdx ? "encode-step is-active"
+                : "encode-step";
+            return `<span class="${cls}">${LABELS[s] || s}</span>`;
+        }).join("");
+    }
+
+    return new Promise((resolve, reject) => {
+        function tick() {
+            fetch(`/api/videos/${videoId}/encode-status`)
+                .then(r => r.json())
+                .then(data => {
+                    const status = data.status || "QUEUED";
+                    if (statusEl) {
+                        const isError = status.startsWith("ERROR");
+                        statusEl.innerHTML = `
+                            <div class="encode-status-box${status === "DONE" ? " is-done" : isError ? " is-error" : ""}">
+                                <div class="encode-status-row">
+                                    ${status !== "DONE" && !isError ? '<div class="encode-spinner"></div>' : ""}
+                                    <span class="encode-status-label">${isError ? "오류: " + status.slice(6) : (LABELS[status] || status)}</span>
+                                </div>
+                                ${!isError ? `<div class="encode-steps">${renderSteps(status)}</div>` : ""}
+                            </div>
+                        `;
+                    }
+                    if (status === "DONE") {
+                        resolve();
+                    } else if (status.startsWith("ERROR")) {
+                        reject(new Error(status.slice(6) || "인코딩 오류"));
+                    } else {
+                        setTimeout(tick, 3000);
+                    }
+                })
+                .catch(() => setTimeout(tick, 5000));
+        }
+        tick();
+    });
 }
 
 function initTabBar(barId, onSwitch) {
