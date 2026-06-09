@@ -67,4 +67,17 @@ public class NotificationController {
         notificationRepository.saveAll(unread);
         return ResponseEntity.ok().build();
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteNotification(@PathVariable Long id, HttpSession session) {
+        Long userId = loginUserResolver.getUserId(session);
+        if (userId == null) return ResponseEntity.status(401).build();
+
+        notificationRepository.findById(id).ifPresent(n -> {
+            if (n.getReceiverId().equals(userId)) {
+                notificationRepository.delete(n);
+            }
+        });
+        return ResponseEntity.ok().build();
+    }
 }

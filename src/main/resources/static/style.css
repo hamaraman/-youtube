@@ -562,6 +562,45 @@ img {
     background: rgba(168, 85, 247, 0.07);
 }
 
+@keyframes bell-ring {
+    0%, 100% { transform: rotate(0); }
+    15%       { transform: rotate(18deg); }
+    30%       { transform: rotate(-15deg); }
+    45%       { transform: rotate(12deg); }
+    60%       { transform: rotate(-8deg); }
+    75%       { transform: rotate(5deg); }
+    90%       { transform: rotate(-3deg); }
+}
+
+.notif-bell-ring svg {
+    transform-origin: top center;
+    animation: bell-ring 0.65s ease-in-out;
+}
+
+.notif-delete-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 13px;
+    line-height: 1;
+    padding: 4px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+}
+
+.notif-item:hover .notif-delete-btn {
+    opacity: 1;
+}
+
+.notif-delete-btn:hover {
+    color: #e53935;
+    background: rgba(229, 57, 53, 0.1);
+}
+
 .notif-thumb-wrap {
     position: relative;
     flex-shrink: 0;

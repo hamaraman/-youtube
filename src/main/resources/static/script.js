@@ -2181,6 +2181,21 @@ function initNotifications() {
     const goVideoLink = document.getElementById("notifGoVideo");
 
     let open = false;
+    let lastUnreadCount = -1;
+
+    function ringBell() {
+        if (!btn) return;
+        btn.classList.remove("notif-bell-ring");
+        void btn.offsetWidth;
+        btn.classList.add("notif-bell-ring");
+        setTimeout(() => btn.classList.remove("notif-bell-ring"), 700);
+    }
+
+    function showBrowserNotif(message, icon) {
+        if (!("Notification" in window) || Notification.permission !== "granted") return;
+        try { new Notification("새 알림", { body: message, icon: icon || "/favicon.ico", tag: "youtube-notif" }); }
+        catch (e) {}
+    }
 
     async function fetchNotifs() {
         try {
@@ -2207,6 +2222,7 @@ function initNotifications() {
         if (type === "COMMENT")      return `<div class="notif-type-icon">💬</div>`;
         if (type === "COMMENT_LIKE") return `<div class="notif-type-icon">💬</div>`;
         if (type === "SUBSCRIBE")    return `<div class="notif-type-icon">🔔</div>`;
+        if (type === "VIDEO")        return `<div class="notif-type-icon">🎬</div>`;
         return `<div class="notif-type-icon">🎬</div>`;
     }
 
@@ -2265,11 +2281,32 @@ function initNotifications() {
                     ${n.message}
                     <div class="notif-time">${timeAgo(n.createdAt)}</div>
                 </div>
+                <button class="notif-delete-btn" data-delete-id="${n.id}" title="삭제">✕</button>
             </div>
         `).join("");
 
+        list.querySelectorAll(".notif-delete-btn").forEach((delBtn) => {
+            delBtn.addEventListener("click", async (e) => {
+                e.stopPropagation();
+                const id = delBtn.dataset.deleteId;
+                await fetch(`/api/notifications/${id}`, { method: "DELETE" });
+                const data = await fetchNotifs();
+                if (data) {
+                    lastUnreadCount = data.unreadCount;
+                    if (data.unreadCount > 0) {
+                        badge.textContent = data.unreadCount > 99 ? "99+" : data.unreadCount;
+                        badge.style.display = "flex";
+                    } else {
+                        badge.style.display = "none";
+                    }
+                    renderList(data.notifications);
+                }
+            });
+        });
+
         list.querySelectorAll(".notif-item").forEach((item) => {
-            item.addEventListener("click", async () => {
+            item.addEventListener("click", async (e) => {
+                if (e.target.closest(".notif-delete-btn")) return;
                 const id = item.dataset.id;
                 const type = item.dataset.type;
                 const videoId = item.dataset.video;
@@ -2298,6 +2335,9 @@ function initNotifications() {
         const data = await fetchNotifs();
         if (!data) return;
 
+        const prev = lastUnreadCount;
+        lastUnreadCount = data.unreadCount;
+
         if (data.unreadCount > 0) {
             badge.textContent = data.unreadCount > 99 ? "99+" : data.unreadCount;
             badge.style.display = "flex";
@@ -2305,17 +2345,30 @@ function initNotifications() {
             badge.style.display = "none";
         }
 
+        if (prev !== -1 && data.unreadCount > prev && !open) {
+            ringBell();
+            if (data.notifications && data.notifications.length > 0) {
+                showBrowserNotif(data.notifications[0].message, data.notifications[0].thumbnail);
+            }
+        }
+
         if (open && list.style.display !== "none") renderList(data.notifications);
     }
 
     btn.addEventListener("click", async (e) => {
         e.stopPropagation();
+        if ("Notification" in window && Notification.permission === "default") {
+            Notification.requestPermission();
+        }
         open = !open;
         dropdown.style.display = open ? "block" : "none";
         if (open) {
             showMainView();
             const data = await fetchNotifs();
-            if (data) renderList(data.notifications);
+            if (data) {
+                lastUnreadCount = data.unreadCount;
+                renderList(data.notifications);
+            }
         }
     });
 

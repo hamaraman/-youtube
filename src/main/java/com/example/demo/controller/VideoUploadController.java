@@ -161,6 +161,7 @@ public class VideoUploadController {
                 for (Subscription sub : subs) {
                     Notification notif = new Notification();
                     notif.setReceiverId(sub.getSubscriberId());
+                    notif.setType("VIDEO");
                     notif.setMessage(channel.trim() + "이(가) 새 영상을 올렸어요: " + title.trim());
                     notif.setRelatedVideoId(savedVideo.getId());
                     notif.setThumbnail(finalThumbnailUrl);
