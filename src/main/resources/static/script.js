@@ -9798,7 +9798,8 @@ async function fetchMyHistoryVideos() {
         normalizeSidebarText();
         markActiveMenu();
         bindMenuButton();
-        setInlineState(getCurrentExpandedState());
+        const isMobileInit = window.innerWidth <= 900;
+        setInlineState(isMobileInit ? false : getCurrentExpandedState());
     }
 
     function watchSidebarChanges() {
