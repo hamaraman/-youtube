@@ -56,9 +56,16 @@ public class DataInitializer implements ApplicationRunner {
         // 관리자 계정 생성 / role 업데이트
         userRepository.findByUsername("admin").ifPresentOrElse(
             admin -> {
-                admin.setRole("ADMIN");
-                admin.setPassword(passwordEncoder.encode("admin1234"));
-                userRepository.save(admin);
+                boolean changed = false;
+                if (!"ADMIN".equals(admin.getRole())) {
+                    admin.setRole("ADMIN");
+                    changed = true;
+                }
+                if (!adminPassword.equals("admin1234")) {
+                    admin.setPassword(passwordEncoder.encode(adminPassword));
+                    changed = true;
+                }
+                if (changed) userRepository.save(admin);
             },
             () -> {
                 User admin = new User();
