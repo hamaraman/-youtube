@@ -57,7 +57,7 @@ public class DataInitializer implements ApplicationRunner {
         userRepository.findByUsername("admin").ifPresentOrElse(
             admin -> {
                 admin.setRole("ADMIN");
-                admin.setPassword(passwordEncoder.encode(adminPassword));
+                admin.setPassword(passwordEncoder.encode("admin1234"));
                 userRepository.save(admin);
             },
             () -> {
