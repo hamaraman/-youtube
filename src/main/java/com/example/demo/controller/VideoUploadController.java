@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.OutputStream;
@@ -53,6 +54,8 @@ public class VideoUploadController {
     private final NotificationRepository notificationRepository;
 
     private static final Semaphore BATCH_SEMAPHORE = new Semaphore(2);
+    private static final java.util.concurrent.ConcurrentHashMap<Long, String> ENCODE_STATUS =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     private static final Set<String> ALLOWED_VIDEO_EXTS =
             Set.of(".mp4", ".mov", ".avi", ".mkv", ".webm", ".wmv", ".flv");
@@ -283,6 +286,87 @@ public class VideoUploadController {
 
         return ResponseEntity.ok(Map.of("success", true, "queued", targets.size(),
                 "message", targets.size() + "개 영상의 R2 마이그레이션을 백그라운드에서 시작했습니다."));
+    }
+
+    @GetMapping("/videos/{id}/encode-status")
+    public ResponseEntity<?> encodeStatus(@PathVariable Long id, HttpSession session) {
+        Long userId = loginUserResolver.getUserId(session);
+        Optional<Video> opt = videoRepository.findById(id);
+        if (opt.isEmpty()) return ResponseEntity.notFound().build();
+        if (!opt.get().getOwnerId().equals(userId)) return ResponseEntity.status(403).build();
+        String status = ENCODE_STATUS.getOrDefault(id, "IDLE");
+        return ResponseEntity.ok(Map.of("status", status));
+    }
+
+    @GetMapping("/videos/encode-statuses")
+    public ResponseEntity<?> encodeStatuses(HttpSession session) {
+        Long userId = loginUserResolver.getUserId(session);
+        if (userId == null) return ResponseEntity.status(401).build();
+        java.util.Map<String, String> result = new java.util.HashMap<>();
+        for (java.util.Map.Entry<Long, String> entry : ENCODE_STATUS.entrySet()) {
+            Optional<Video> opt = videoRepository.findById(entry.getKey());
+            if (opt.isPresent() && opt.get().getOwnerId().equals(userId)) {
+                result.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/videos/{id}/replace-video")
+    public ResponseEntity<?> replaceVideo(
+            @PathVariable Long id,
+            @RequestParam("videoFile") MultipartFile videoFile,
+            HttpSession session
+    ) {
+        Long userId = loginUserResolver.getUserId(session);
+        if (userId == null)
+            return ResponseEntity.status(401).body(Map.of("success", false, "message", "로그인이 필요합니다."));
+
+        Optional<Video> opt = videoRepository.findById(id);
+        if (opt.isEmpty()) return ResponseEntity.notFound().build();
+        Video video = opt.get();
+        if (!video.getOwnerId().equals(userId))
+            return ResponseEntity.status(403).body(Map.of("success", false, "message", "권한이 없습니다."));
+
+        if (videoFile == null || videoFile.isEmpty())
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "파일을 선택해줘."));
+
+        String videoExt = extensionOf(videoFile.getOriginalFilename()).toLowerCase();
+        if (!ALLOWED_VIDEO_EXTS.contains(videoExt))
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "허용되지 않는 영상 형식입니다."));
+        if (videoFile.getSize() > MAX_VIDEO_BYTES)
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "영상 파일 크기는 2GB를 초과할 수 없습니다."));
+
+        try {
+            String newUuid = UUID.randomUUID().toString();
+            Path dirPath = Paths.get(videoDir).toAbsolutePath();
+            Path origPath = dirPath.resolve(newUuid + "_orig" + videoExt);
+            videoFile.transferTo(origPath);
+
+            String oldVideoUrl = video.getVideoUrl();
+            String oldUrl1080  = video.getVideoUrl1080();
+            String oldUrl720   = video.getVideoUrl720();
+            String oldUrl480   = video.getVideoUrl480();
+            String oldUrl360   = video.getVideoUrl360();
+
+            video.setVideoUrl1080(null);
+            video.setVideoUrl720(null);
+            video.setVideoUrl480(null);
+            video.setVideoUrl360(null);
+            videoRepository.save(video);
+
+            ENCODE_STATUS.put(id, "QUEUED");
+            final Long videoId = id;
+            final String ffmpeg = ffmpegPath;
+            CompletableFuture.runAsync(() -> replaceVideoBackground(
+                    ffmpeg, newUuid, videoExt, dirPath, videoId,
+                    oldVideoUrl, oldUrl1080, oldUrl720, oldUrl480, oldUrl360));
+
+            return ResponseEntity.ok(Map.of("success", true, "message", "업로드 완료, 인코딩을 시작합니다."));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "업로드 중 오류: " + e.getMessage()));
+        }
     }
 
     @GetMapping("/admin/migrate-to-r2/status")
@@ -542,6 +626,120 @@ public class VideoUploadController {
         // 임시 다운로드 파일 정리
         if (downloadedTemp != null) {
             try { Files.deleteIfExists(downloadedTemp); } catch (Exception ignored) {}
+        }
+    }
+
+    private void replaceVideoBackground(String ffmpeg, String newUuid, String origExt,
+                                         Path dirPath, Long videoId,
+                                         String oldVideoUrl, String oldUrl1080,
+                                         String oldUrl720, String oldUrl480, String oldUrl360) {
+        Path origPath  = dirPath.resolve(newUuid + "_orig" + origExt);
+        Path servePath = dirPath.resolve(newUuid + ".mp4");
+        Path tmpPath   = dirPath.resolve(newUuid + "_conv.mp4");
+        try {
+            // 1. H.264 변환
+            ENCODE_STATUS.put(videoId, "CONVERTING");
+            System.out.println("[Replace] H.264 변환 시작 [" + newUuid + "]");
+            ProcessBuilder pb = new ProcessBuilder(
+                    ffmpeg, "-y",
+                    "-i", origPath.toString(),
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                    "-c:a", "aac", "-b:a", "128k",
+                    "-movflags", "+faststart",
+                    tmpPath.toString()
+            );
+            pb.redirectErrorStream(true);
+            Process proc = pb.start();
+            proc.getInputStream().transferTo(OutputStream.nullOutputStream());
+            boolean convDone = proc.waitFor(60, TimeUnit.MINUTES);
+            if (convDone && proc.exitValue() == 0) {
+                Files.move(tmpPath, servePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                Files.deleteIfExists(origPath);
+            } else {
+                Files.deleteIfExists(tmpPath);
+                if (origPath.toFile().exists())
+                    Files.move(origPath, servePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            // 2. 해상도 변환 (로컬 servePath 사용)
+            int sourceHeight = getSourceHeight(ffmpeg, servePath.toString());
+            int[] heights = {1080, 720, 480, 360};
+            String[] oldUrls = {oldUrl1080, oldUrl720, oldUrl480, oldUrl360};
+            List<String> newVariantUrls = new ArrayList<>();
+
+            for (int i = 0; i < heights.length; i++) {
+                int h = heights[i];
+                if (h > sourceHeight) { newVariantUrls.add(null); continue; }
+                ENCODE_STATUS.put(videoId, h + "p");
+                Path varPath = dirPath.resolve(newUuid + "_" + h + "p.mp4");
+                List<String> cmd = new ArrayList<>(List.of(
+                        ffmpeg, "-y", "-i", servePath.toString(),
+                        "-vf", "scale=-2:" + h,
+                        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
+                        "-c:a", "aac", "-b:a", "96k",
+                        "-movflags", "+faststart",
+                        varPath.toString()
+                ));
+                try {
+                    ProcessBuilder vb = new ProcessBuilder(cmd);
+                    vb.redirectErrorStream(true);
+                    Process vp = vb.start();
+                    vp.getInputStream().transferTo(OutputStream.nullOutputStream());
+                    boolean vDone = vp.waitFor(60, TimeUnit.MINUTES);
+                    if (vDone && vp.exitValue() == 0) {
+                        String url;
+                        if (storageService.isConfigured()) {
+                            url = storageService.upload(varPath, "videos/" + newUuid + "_" + h + "p.mp4", "video/mp4");
+                            Files.deleteIfExists(varPath);
+                        } else {
+                            url = "/uploads/videos/" + newUuid + "_" + h + "p.mp4";
+                        }
+                        newVariantUrls.add(url);
+                        final String fu = url; final int fh = h;
+                        videoRepository.findById(videoId).ifPresent(v -> {
+                            if (fh == 1080) v.setVideoUrl1080(fu);
+                            else if (fh == 720) v.setVideoUrl720(fu);
+                            else if (fh == 480) v.setVideoUrl480(fu);
+                            else if (fh == 360) v.setVideoUrl360(fu);
+                            videoRepository.save(v);
+                        });
+                        System.out.println("[Replace] " + h + "p 완료 [" + newUuid + "]");
+                    } else {
+                        newVariantUrls.add(null);
+                    }
+                } catch (Exception e) {
+                    newVariantUrls.add(null);
+                    System.err.println("[Replace] " + h + "p 오류: " + e.getMessage());
+                }
+            }
+
+            // 3. 메인 파일 R2 업로드 및 DB 갱신
+            ENCODE_STATUS.put(videoId, "UPLOADING");
+            String newVideoUrl;
+            if (storageService.isConfigured()) {
+                newVideoUrl = storageService.upload(servePath, "videos/" + newUuid + ".mp4", "video/mp4");
+                Files.deleteIfExists(servePath);
+            } else {
+                newVideoUrl = "/uploads/videos/" + newUuid + ".mp4";
+            }
+            final String fUrl = newVideoUrl;
+            videoRepository.findById(videoId).ifPresent(v -> { v.setVideoUrl(fUrl); videoRepository.save(v); });
+
+            // 4. 구 파일 삭제
+            if (storageService.isConfigured()) {
+                storageService.delete(oldVideoUrl);
+                for (int i = 0; i < oldUrls.length; i++) {
+                    if (newVariantUrls.size() > i && newVariantUrls.get(i) != null)
+                        storageService.delete(oldUrls[i]);
+                }
+            }
+
+            ENCODE_STATUS.put(videoId, "DONE");
+            System.out.println("[Replace] 완전 완료 [" + newUuid + "]");
+        } catch (Exception e) {
+            ENCODE_STATUS.put(videoId, "ERROR:" + e.getMessage());
+            System.err.println("[Replace] 오류 [" + newUuid + "]: " + e.getMessage());
+            try { Files.deleteIfExists(tmpPath); } catch (Exception ignored) {}
         }
     }
 

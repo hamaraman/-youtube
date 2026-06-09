@@ -1087,6 +1087,7 @@ function createManageCard(video) {
           <h4 class="studio-video-title">${escapeHtml(video.title)}</h4>
           <p class="studio-video-meta">${escapeHtml(video.channel)} · 조회수 ${formatCount(viewCount)}회 · ${escapeHtml(video.date || "방금 전")}</p>
           <p class="studio-video-desc">${escapeHtml(video.description || "")}</p>
+          <span class="studio-encode-badge" id="encodeBadge-${video.id}" style="display:none;"></span>
         </div>
       </div>
 
@@ -5391,9 +5392,59 @@ async function initStudioPage() {
             renderAnalyticsExtra(videos);
             uploadedVideosCache = normalizeVideos(videos);
             renderFilteredList();
+            startEncodeStatusPolling();
         } catch {
             channelManageList.innerHTML = `<p class="studio-error">영상을 불러오는 중 오류가 발생했습니다.</p>`;
         }
+    }
+
+    let encodeStatusPollTimer = null;
+
+    async function applyEncodeStatusBadges() {
+        const STEP_LABELS = {
+            QUEUED: "대기 중", CONVERTING: "H.264 변환 중",
+            "1080p": "1080p 인코딩", "720p": "720p 인코딩",
+            "480p": "480p 인코딩", "360p": "360p 인코딩",
+            UPLOADING: "클라우드 업로드 중", DONE: "완료", IDLE: ""
+        };
+        let hasActive = false;
+        try {
+            const res = await fetch("/api/videos/encode-statuses");
+            if (!res.ok) return false;
+            const statuses = await res.json();
+            for (const [id, status] of Object.entries(statuses)) {
+                const badge = document.getElementById(`encodeBadge-${id}`);
+                if (!badge) continue;
+                const isActive = status !== "IDLE" && status !== "DONE" && !status.startsWith("ERROR");
+                if (isActive) hasActive = true;
+                if (status === "IDLE" || status === "DONE") {
+                    badge.style.display = "none";
+                } else if (status.startsWith("ERROR")) {
+                    badge.style.display = "";
+                    badge.className = "studio-encode-badge is-error";
+                    badge.textContent = "인코딩 오류";
+                } else {
+                    badge.style.display = "";
+                    badge.className = "studio-encode-badge is-encoding";
+                    badge.textContent = `⏳ ${STEP_LABELS[status] || status}`;
+                }
+            }
+        } catch {}
+        return hasActive;
+    }
+
+    function startEncodeStatusPolling() {
+        if (encodeStatusPollTimer) clearInterval(encodeStatusPollTimer);
+        applyEncodeStatusBadges().then(hasActive => {
+            if (!hasActive) return;
+            encodeStatusPollTimer = setInterval(async () => {
+                const stillActive = await applyEncodeStatusBadges();
+                if (!stillActive) {
+                    clearInterval(encodeStatusPollTimer);
+                    encodeStatusPollTimer = null;
+                }
+            }, 4000);
+        });
     }
 
     if (channelSearchInput) channelSearchInput.addEventListener("input", renderFilteredList);

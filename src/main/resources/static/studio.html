@@ -209,6 +209,31 @@
             border: 1px solid #303030;
             font-size: 13px;
         }
+        .studio-encode-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .studio-encode-badge.is-encoding {
+            background: #1a120a;
+            border: 1px solid #5c3a1e;
+            color: #e8a060;
+            animation: studioBadgePulse 1.6s ease-in-out infinite;
+        }
+        .studio-encode-badge.is-error {
+            background: #1a0a0a;
+            border: 1px solid #5c1e1e;
+            color: #e06060;
+        }
+        @keyframes studioBadgePulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.55; }
+        }
         .studio-actions { display: flex; gap: 8px; flex-wrap: wrap; }
         .studio-action-btn {
             height: 34px;
