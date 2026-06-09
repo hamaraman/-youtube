@@ -1,4 +1,4 @@
-﻿const DEFAULT_AVATAR = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MCIgaGVpZ2h0PSI4MCI+PGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9IiM2MTYxNjEiLz48L3N2Zz4=";
+const DEFAULT_AVATAR = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MCIgaGVpZ2h0PSI4MCI+PGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9IiM2MTYxNjEiLz48L3N2Zz4=";
 const DEFAULT_THUMBNAIL = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgwIiBoZWlnaHQ9IjcyMCI+PHJlY3Qgd2lkdGg9IjEyODAiIGhlaWdodD0iNzIwIiBmaWxsPSIjMjEyMTIxIi8+PHBvbHlnb24gcG9pbnRzPSI1NjAsMzEwIDU2MCw0MTAgNjgwLDM2MCIgZmlsbD0iIzQyNDI0MiIvPjwvc3ZnPg==";
 
 document.addEventListener("error", function (e) {
@@ -9039,319 +9039,6 @@ async function fetchMyHistoryVideos() {
     }
 })();
 /* =========================================================
-   보관함/내 채널 사이드바 햄버거 확장 복구 패치 v1
-   - 홈 화면은 건드리지 않음
-   - history / saved / liked / channel 에서만 72px ↔ 240px 전환
-========================================================= */
-
-(function () {
-    const PATCH_ID = "subpage-sidebar-expand-fix-v1";
-
-    function getPageName() {
-        const page = document.body.dataset.page || "";
-        const file = window.location.pathname.split("/").pop() || "";
-
-        if (page) return page;
-        if (file.includes("history")) return "history";
-        if (file.includes("saved")) return "saved";
-        if (file.includes("liked")) return "liked";
-        if (file.includes("channel")) return "channel";
-
-        return "";
-    }
-
-    function isTargetPage() {
-        return ["history", "saved", "liked", "channel"].includes(getPageName());
-    }
-
-    function getMenuButton() {
-        return (
-            document.getElementById("menuBtn") ||
-            document.querySelector(".menu-btn") ||
-            document.querySelector('[aria-label="메뉴"]')
-        );
-    }
-
-    function getSidebar() {
-        return (
-            document.getElementById("sidebar") ||
-            document.querySelector(".sidebar")
-        );
-    }
-
-    function getMain() {
-        return (
-            document.getElementById("main") ||
-            document.querySelector("main") ||
-            document.querySelector(".main")
-        );
-    }
-
-    function ensureStyle() {
-        if (document.getElementById(PATCH_ID + "-style")) return;
-
-        const style = document.createElement("style");
-        style.id = PATCH_ID + "-style";
-        style.textContent = `
-            body.subpage-sidebar-expanded .sidebar,
-            body.subpage-sidebar-expanded #sidebar {
-                width: 240px !important;
-                padding: 12px !important;
-                box-sizing: border-box !important;
-            }
-
-            body.subpage-sidebar-expanded .sidebar-inner {
-                align-items: stretch !important;
-            }
-
-            body.subpage-sidebar-expanded .sidebar-item {
-                width: 100% !important;
-                min-height: 42px !important;
-                height: 42px !important;
-                padding: 0 12px !important;
-                flex-direction: row !important;
-                align-items: center !important;
-                justify-content: flex-start !important;
-                gap: 18px !important;
-                text-align: left !important;
-            }
-
-            body.subpage-sidebar-expanded .sidebar-icon {
-                width: 24px !important;
-                height: 24px !important;
-                min-width: 24px !important;
-                min-height: 24px !important;
-                flex: 0 0 24px !important;
-                margin: 0 !important;
-            }
-
-            body.subpage-sidebar-expanded .sidebar-label {
-                width: auto !important;
-                min-height: auto !important;
-                font-size: 14px !important;
-                line-height: 1.2 !important;
-                white-space: nowrap !important;
-                text-align: left !important;
-                justify-content: flex-start !important;
-            }
-
-            body.subpage-sidebar-expanded .main,
-            body.subpage-sidebar-expanded main,
-            body.subpage-sidebar-expanded #main {
-                margin-left: 240px !important;
-            }
-
-            body.subpage-sidebar-collapsed .sidebar,
-            body.subpage-sidebar-collapsed #sidebar {
-                width: 72px !important;
-                padding: 8px 4px !important;
-                box-sizing: border-box !important;
-            }
-
-            body.subpage-sidebar-collapsed .sidebar-inner {
-                align-items: center !important;
-            }
-
-            body.subpage-sidebar-collapsed .sidebar-item {
-                width: 64px !important;
-                min-height: 64px !important;
-                height: auto !important;
-                padding: 7px 4px !important;
-                flex-direction: column !important;
-                align-items: center !important;
-                justify-content: center !important;
-                gap: 5px !important;
-                text-align: center !important;
-            }
-
-            body.subpage-sidebar-collapsed .sidebar-icon {
-                width: 24px !important;
-                height: 24px !important;
-                min-width: 24px !important;
-                min-height: 24px !important;
-                flex: 0 0 24px !important;
-                margin: 0 auto !important;
-            }
-
-            body.subpage-sidebar-collapsed .sidebar-label {
-                width: 100% !important;
-                min-height: 24px !important;
-                font-size: 10px !important;
-                line-height: 1.15 !important;
-                white-space: normal !important;
-                text-align: center !important;
-                justify-content: center !important;
-                word-break: keep-all !important;
-            }
-
-            body.subpage-sidebar-collapsed .main,
-            body.subpage-sidebar-collapsed main,
-            body.subpage-sidebar-collapsed #main {
-                margin-left: 72px !important;
-            }
-
-            @media (max-width: 900px) {
-                body.subpage-sidebar-expanded .main,
-                body.subpage-sidebar-expanded main,
-                body.subpage-sidebar-expanded #main,
-                body.subpage-sidebar-collapsed .main,
-                body.subpage-sidebar-collapsed main,
-                body.subpage-sidebar-collapsed #main {
-                    margin-left: 0 !important;
-                }
-
-                body.subpage-sidebar-expanded .sidebar,
-                body.subpage-sidebar-expanded #sidebar {
-                    transform: translateX(0) !important;
-                    width: 240px !important;
-                }
-
-                body.subpage-sidebar-collapsed .sidebar,
-                body.subpage-sidebar-collapsed #sidebar {
-                    transform: translateX(-100%) !important;
-                    width: 240px !important;
-                }
-            }
-        `;
-
-        document.head.appendChild(style);
-    }
-
-    function applySidebarState(expanded) {
-        const sidebar = getSidebar();
-        const main = getMain();
-
-        if (!sidebar) return;
-
-        const isMobile = window.innerWidth <= 900;
-
-        document.body.classList.toggle("subpage-sidebar-expanded", expanded);
-        document.body.classList.toggle("subpage-sidebar-collapsed", !expanded);
-
-        sidebar.classList.remove("collapsed");
-        sidebar.classList.toggle("is-open", expanded);
-
-        const backdrop = document.getElementById("sidebarBackdrop");
-        if (backdrop && isMobile) {
-            backdrop.classList.toggle("is-open", expanded);
-            if (expanded && !backdrop.dataset.subpageListenerBound) {
-                backdrop.dataset.subpageListenerBound = "true";
-                backdrop.addEventListener("click", function () {
-                    applySidebarState(false);
-                });
-            }
-        }
-
-        if (expanded) {
-            sidebar.style.setProperty("width", "240px", "important");
-            sidebar.style.setProperty("padding", "12px", "important");
-
-            if (main && window.innerWidth > 900) {
-                main.style.setProperty("margin-left", "240px", "important");
-            }
-
-            sidebar.querySelectorAll(".sidebar-item").forEach((item) => {
-                item.style.setProperty("width", "100%", "important");
-                item.style.setProperty("min-height", "42px", "important");
-                item.style.setProperty("height", "42px", "important");
-                item.style.setProperty("padding", "0 12px", "important");
-                item.style.setProperty("flex-direction", "row", "important");
-                item.style.setProperty("align-items", "center", "important");
-                item.style.setProperty("justify-content", "flex-start", "important");
-                item.style.setProperty("gap", "18px", "important");
-                item.style.setProperty("text-align", "left", "important");
-            });
-
-            sidebar.querySelectorAll(".sidebar-label").forEach((label) => {
-                label.style.setProperty("width", "auto", "important");
-                label.style.setProperty("min-height", "auto", "important");
-                label.style.setProperty("font-size", "14px", "important");
-                label.style.setProperty("white-space", "nowrap", "important");
-                label.style.setProperty("text-align", "left", "important");
-                label.style.setProperty("justify-content", "flex-start", "important");
-            });
-        } else {
-            sidebar.style.setProperty("width", "72px", "important");
-            sidebar.style.setProperty("padding", "8px 4px", "important");
-
-            if (main && window.innerWidth > 900) {
-                main.style.setProperty("margin-left", "72px", "important");
-            }
-
-            sidebar.querySelectorAll(".sidebar-item").forEach((item) => {
-                item.style.setProperty("width", "64px", "important");
-                item.style.setProperty("min-height", "64px", "important");
-                item.style.removeProperty("height");
-                item.style.setProperty("padding", "7px 4px", "important");
-                item.style.setProperty("flex-direction", "column", "important");
-                item.style.setProperty("align-items", "center", "important");
-                item.style.setProperty("justify-content", "center", "important");
-                item.style.setProperty("gap", "5px", "important");
-                item.style.setProperty("text-align", "center", "important");
-            });
-
-            sidebar.querySelectorAll(".sidebar-label").forEach((label) => {
-                label.style.setProperty("width", "100%", "important");
-                label.style.setProperty("min-height", "24px", "important");
-                label.style.setProperty("font-size", "10px", "important");
-                label.style.setProperty("white-space", "normal", "important");
-                label.style.setProperty("text-align", "center", "important");
-                label.style.setProperty("justify-content", "center", "important");
-            });
-        }
-    }
-
-    function toggleSidebar() {
-        const isExpanded = document.body.classList.contains("subpage-sidebar-expanded");
-        applySidebarState(!isExpanded);
-    }
-
-    function bindMenuButton() {
-        if (document.body.dataset.subpageSidebarExpandBound === "true") return;
-        document.body.dataset.subpageSidebarExpandBound = "true";
-
-        document.addEventListener(
-            "click",
-            function (event) {
-                if (!isTargetPage()) return;
-
-                const menuBtn = event.target.closest("#menuBtn, .menu-btn, [aria-label='메뉴']");
-                if (!menuBtn) return;
-
-                event.preventDefault();
-                event.stopPropagation();
-                event.stopImmediatePropagation();
-
-                toggleSidebar();
-            },
-            true
-        );
-    }
-
-    function boot() {
-        if (!isTargetPage()) return;
-
-        ensureStyle();
-        bindMenuButton();
-
-        if (
-            !document.body.classList.contains("subpage-sidebar-expanded") &&
-            !document.body.classList.contains("subpage-sidebar-collapsed")
-        ) {
-            applySidebarState(false);
-        }
-    }
-
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", boot);
-    } else {
-        boot();
-    }
-
-    setTimeout(boot, 300);
-    setTimeout(boot, 1000);
-})();
-/* =========================================================
    전체 페이지 사이드바 통합 패치 v1
    - 메인 화면 사이드바 기준으로 모든 페이지 통일
    - upload.html 제외
@@ -9733,19 +9420,75 @@ async function fetchMyHistoryVideos() {
 
         if (!sidebar) return;
 
+        const isMobile = window.innerWidth <= 900;
+
         document.body.classList.add(PATCH_ID);
         document.body.classList.toggle("sidebar-unified-expanded", expanded);
         document.body.classList.toggle("sidebar-unified-collapsed", !expanded);
 
         sidebar.classList.remove("collapsed");
+
+        // Mobile: overlay mode (is-open + backdrop)
+        const backdrop = document.getElementById("sidebarBackdrop");
+        if (isMobile) {
+            sidebar.classList.toggle("is-open", expanded);
+            sidebar.classList.remove("is-collapsed");
+            if (backdrop) {
+                backdrop.classList.toggle("is-open", expanded);
+                if (!backdrop.dataset.unifyBound) {
+                    backdrop.dataset.unifyBound = "true";
+                    backdrop.addEventListener("click", function () { setInlineState(false); });
+                }
+            }
+
+            // Mobile sidebar always shows full-row items
+            sidebar.style.setProperty("width", "240px", "important");
+            sidebar.style.setProperty("padding", "12px", "important");
+            sidebar.style.setProperty("box-sizing", "border-box", "important");
+            if (main) main.style.setProperty("margin-left", "0", "important");
+
+            sidebar.querySelectorAll(".sidebar-item").forEach((item) => {
+                item.style.setProperty("display", "flex", "important");
+                item.style.setProperty("width", "100%", "important");
+                item.style.setProperty("min-height", "44px", "important");
+                item.style.setProperty("height", "44px", "important");
+                item.style.setProperty("padding", "0 16px", "important");
+                item.style.setProperty("flex-direction", "row", "important");
+                item.style.setProperty("align-items", "center", "important");
+                item.style.setProperty("justify-content", "flex-start", "important");
+                item.style.setProperty("gap", "18px", "important");
+                item.style.setProperty("text-align", "left", "important");
+                item.style.setProperty("white-space", "nowrap", "important");
+            });
+
+            sidebar.querySelectorAll(".sidebar-icon").forEach((icon) => {
+                icon.style.setProperty("width", "24px", "important");
+                icon.style.setProperty("height", "24px", "important");
+                icon.style.setProperty("min-width", "24px", "important");
+                icon.style.setProperty("flex", "0 0 24px", "important");
+                icon.style.setProperty("margin", "0", "important");
+            });
+
+            sidebar.querySelectorAll(".sidebar-label").forEach((label) => {
+                label.style.setProperty("display", "inline-flex", "important");
+                label.style.setProperty("font-size", "14px", "important");
+                label.style.setProperty("white-space", "nowrap", "important");
+                label.style.setProperty("text-align", "left", "important");
+            });
+
+            return; // mobile done, skip desktop logic below
+        }
+
+        // Desktop: collapsed (72px icon) vs expanded (240px)
         sidebar.classList.toggle("is-collapsed", !expanded);
-        sidebar.classList.toggle("is-mobile-open", expanded);
+        sidebar.classList.remove("is-open");
+        if (backdrop) backdrop.classList.remove("is-open");
 
         sidebar.style.setProperty("width", expanded ? "240px" : "72px", "important");
         sidebar.style.setProperty("padding", expanded ? "12px" : "8px 4px", "important");
         sidebar.style.setProperty("box-sizing", "border-box", "important");
 
-        if (main && window.innerWidth > 900) {
+        if (main) {
             main.style.setProperty("margin-left", expanded ? "240px" : "72px", "important");
         }
 
@@ -9823,8 +9566,15 @@ async function fetchMyHistoryVideos() {
     }
 
     function toggleSidebar() {
-        const next = !document.body.classList.contains("sidebar-unified-expanded");
-        setInlineState(next);
+        const isMobile = window.innerWidth <= 900;
+        if (isMobile) {
+            const sidebar = getSidebar();
+            const isOpen = sidebar && sidebar.classList.contains("is-open");
+            setInlineState(!isOpen);
+        } else {
+            const next = !document.body.classList.contains("sidebar-unified-expanded");
+            setInlineState(next);
+        }
     }
 
     function bindMenuButton() {
@@ -9837,7 +9587,9 @@ async function fetchMyHistoryVideos() {
             function (event) {
                 if (shouldSkipPage()) return;
 
-                const menuButton = event.target.closest("#menuBtn, .menu-btn, [aria-label='메뉴']");
+                const menuButton = event.target.closest(
+                    "#menuBtn, #menuToggle, .menu-btn, [aria-label='메뉴'], [aria-label='메뉴 열기']"
+                );
 
                 if (!menuButton) return;
 
@@ -9849,15 +9601,33 @@ async function fetchMyHistoryVideos() {
             },
             true
         );
+
+        // Close mobile sidebar when resizing to desktop
+        let resizeTimer;
+        window.addEventListener("resize", function () {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function () {
+                if (shouldSkipPage()) return;
+                if (window.innerWidth > 900) {
+                    const sidebar = getSidebar();
+                    if (sidebar) sidebar.classList.remove("is-open");
+                    const bd = document.getElementById("sidebarBackdrop");
+                    if (bd) bd.classList.remove("is-open");
+                    // Re-apply desktop state from localStorage
+                    setInlineState(getCurrentExpandedState());
+                }
+            }, 200);
+        });
     }
 
     function bootUnifiedSidebar() {
         if (shouldSkipPage()) return;
 
         const sidebar = getSidebar();
-        const menuButton = getMenuButton();
+        if (!sidebar) return;
 
-        if (!sidebar || !menuButton) return;
+        if (document.body.dataset.unifiedSidebarBooted === "true") return;
+        document.body.dataset.unifiedSidebarBooted = "true";
 
         ensureStyle();
         normalizeSidebarText();
