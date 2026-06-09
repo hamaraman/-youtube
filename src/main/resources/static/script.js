@@ -9223,11 +9223,24 @@ async function fetchMyHistoryVideos() {
 
         if (!sidebar) return;
 
+        const isMobile = window.innerWidth <= 900;
+
         document.body.classList.toggle("subpage-sidebar-expanded", expanded);
         document.body.classList.toggle("subpage-sidebar-collapsed", !expanded);
 
         sidebar.classList.remove("collapsed");
-        sidebar.classList.toggle("is-mobile-open", expanded);
+        sidebar.classList.toggle("is-open", expanded);
+
+        const backdrop = document.getElementById("sidebarBackdrop");
+        if (backdrop && isMobile) {
+            backdrop.classList.toggle("is-open", expanded);
+            if (expanded && !backdrop.dataset.subpageListenerBound) {
+                backdrop.dataset.subpageListenerBound = "true";
+                backdrop.addEventListener("click", function () {
+                    applySidebarState(false);
+                });
+            }
+        }
 
         if (expanded) {
             sidebar.style.setProperty("width", "240px", "important");
