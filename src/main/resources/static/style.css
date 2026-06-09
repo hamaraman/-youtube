@@ -5026,3 +5026,64 @@ html[data-theme="light"] .comment-char-counter { color: #999; }
 .cp-skip-zone.flash { opacity: 1; }
 
 .cp-skip-zone svg { filter: drop-shadow(0 1px 3px rgba(0,0,0,.5)); }
+
+/* ── 챕터 목록 ───────────────────────────────────────────────── */
+.chapter-list {
+    background: #181818;
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.chapter-list-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+.chapter-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: none;
+    background: none;
+    color: #f1f1f1;
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: inherit;
+}
+.chapter-item:hover { background: #272727; }
+.chapter-timestamp {
+    color: #3ea6ff;
+    font-size: 13px;
+    font-weight: 600;
+    flex-shrink: 0;
+    min-width: 44px;
+}
+.chapter-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ts-link {
+    background: none;
+    border: none;
+    color: #3ea6ff;
+    font-size: inherit;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 0;
+    font-weight: 600;
+}
+.ts-link:hover { text-decoration: underline; }
+html[data-theme="light"] .chapter-list { background: #f2f2f2; }
+html[data-theme="light"] .chapter-item { color: #0f0f0f; }
+html[data-theme="light"] .chapter-item:hover { background: #e0e0e0; }

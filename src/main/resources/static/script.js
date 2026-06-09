@@ -3687,6 +3687,42 @@ async function initLikedPage() {
 
 
 
+function timestampToSeconds(ts) {
+    const parts = ts.split(':').map(Number);
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    return parts[0] * 60 + (parts[1] || 0);
+}
+
+function parseChapters(description) {
+    if (!description) return [];
+    const re = /^((?:\d{1,2}:)?\d{1,2}:\d{2})\s+(.+)/;
+    return description.split('\n')
+        .map(line => {
+            const m = line.trim().match(re);
+            return m ? { timestamp: m[1], seconds: timestampToSeconds(m[1]), title: m[2].trim() } : null;
+        })
+        .filter(Boolean);
+}
+
+function renderDescriptionWithLinks(text) {
+    if (!text) return '';
+    const tsRe = /((?:\d{1,2}:)?\d{1,2}:\d{2})/g;
+    return text.split('\n').map(line => {
+        const escaped = escapeHtml(line);
+        return escaped.replace(tsRe, match => {
+            const secs = timestampToSeconds(match);
+            return `<button class="ts-link" type="button" data-secs="${secs}">${match}</button>`;
+        });
+    }).join('\n');
+}
+
+function seekVideo(secs) {
+    const pv = document.querySelector('#customPlayer video.player-video');
+    if (!pv) return;
+    const doSeek = () => { pv.currentTime = secs; pv.play(); };
+    pv.readyState >= 1 ? doSeek() : pv.addEventListener('loadedmetadata', doSeek, { once: true });
+}
+
 async function initWatchPage() {
     const watchMain = document.getElementById("watchMain");
     function bindCommentActionButtons(){}
@@ -3746,6 +3782,16 @@ async function initWatchPage() {
 
     const descriptionText = String(currentVideo.description || "");
     const shouldCollapseDescription = descriptionText.length > 140 || descriptionText.includes("\n");
+    const chapters = parseChapters(descriptionText);
+    const chapterHtml = chapters.length >= 2 ? `
+    <div class="chapter-list" id="chapterList">
+      <div class="chapter-list-title">챕터</div>
+      ${chapters.map(ch => `
+        <button class="chapter-item" type="button" data-secs="${ch.seconds}">
+          <span class="chapter-timestamp">${escapeHtml(ch.timestamp)}</span>
+          <span class="chapter-title">${escapeHtml(ch.title)}</span>
+        </button>`).join('')}
+    </div>` : '';
 
     const resolutionOptions = [];
     if (currentVideo.videoUrl) {
@@ -3780,9 +3826,10 @@ async function initWatchPage() {
       </div>
     </div>
 
+    ${chapterHtml}
     <div class="watch-description-box ${shouldCollapseDescription ? "is-collapsed" : ""}" id="watchDescriptionBox">
       <span class="watch-description-meta">조회수 ${formatCount(updatedViewCount)}회 · ${escapeHtml(currentVideo.date || "방금 전")}</span>
-      <div class="watch-description-text" id="watchDescriptionText">${escapeHtml(descriptionText || "설명이 없습니다.")}</div>
+      <div class="watch-description-text" id="watchDescriptionText">${renderDescriptionWithLinks(descriptionText || "설명이 없습니다.")}</div>
       ${shouldCollapseDescription ? '<button type="button" class="watch-description-toggle" id="watchDescriptionToggle">더보기</button>' : ""}
     </div>
 
@@ -4017,6 +4064,18 @@ async function initWatchPage() {
     const commentsCount = document.getElementById("commentsCount");
     const descriptionBox = document.getElementById("watchDescriptionBox");
     const descriptionToggle = document.getElementById("watchDescriptionToggle");
+
+    // 챕터 클릭
+    document.getElementById("chapterList")?.addEventListener("click", e => {
+        const btn = e.target.closest(".chapter-item");
+        if (btn) seekVideo(Number(btn.dataset.secs));
+    });
+
+    // 설명 내 타임스탬프 클릭
+    document.getElementById("watchDescriptionText")?.addEventListener("click", e => {
+        const btn = e.target.closest(".ts-link");
+        if (btn) seekVideo(Number(btn.dataset.secs));
+    });
 
     function refreshLikeButton() {
         if (!likeBtn) return;
