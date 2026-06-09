@@ -4943,50 +4943,112 @@ async function initStudioPage() {
             </section>`;
     }
 
-    function renderViewsChart(videos) {
+    let currentChartDays = 28;
+
+    async function renderDateViewsChart(days) {
         const chartEl = document.getElementById("studioChart");
         if (!chartEl) return;
-        const top = [...videos]
-            .sort((a, b) => Number(b.viewCount || 0) - Number(a.viewCount || 0))
-            .slice(0, 7);
-        if (top.length === 0) {
-            chartEl.innerHTML = `<p class="studio-chart-empty">업로드된 영상이 없어 차트를 표시할 수 없습니다.</p>`;
-            return;
+        currentChartDays = days;
+
+        // Header: title + period buttons
+        const periodBtns = [7, 28, 90].map(d =>
+            `<button class="studio-period-btn${d === days ? " is-active" : ""}" data-days="${d}">${d}일</button>`
+        ).join("");
+
+        chartEl.innerHTML = `
+            <div class="studio-chart-header">
+                <span class="studio-chart-title">날짜별 조회수</span>
+                <div class="studio-period-group">${periodBtns}</div>
+            </div>
+            <div class="studio-chart-body" id="studioChartBody">
+                <p style="color:#555;font-size:14px;padding:40px 0;text-align:center">불러오는 중...</p>
+            </div>`;
+
+        chartEl.querySelectorAll(".studio-period-btn").forEach(btn => {
+            btn.addEventListener("click", () => renderDateViewsChart(Number(btn.dataset.days)));
+        });
+
+        try {
+            const res = await fetch(`/api/studio/view-trend?days=${days}`);
+            if (!res.ok) throw new Error();
+            const data = await res.json();
+            const body = document.getElementById("studioChartBody");
+            if (!body) return;
+
+            if (!data.length || data.every(d => d.count === 0)) {
+                body.innerHTML = `<p class="studio-chart-empty">해당 기간에 조회 기록이 없습니다.</p>`;
+                return;
+            }
+
+            body.innerHTML = buildLineChartSvg(data, days);
+        } catch {
+            const body = document.getElementById("studioChartBody");
+            if (body) body.innerHTML = `<p class="studio-chart-empty">데이터를 불러올 수 없습니다.</p>`;
         }
-        const maxViews = Math.max(...top.map(v => Number(v.viewCount || 0)), 1);
-        const W = 560, H = 200;
-        const padL = 52, padR = 16, padT = 12, padB = 50;
+    }
+
+    function buildLineChartSvg(data, days) {
+        const W = 800, H = 220;
+        const padL = 48, padR = 20, padT = 16, padB = 44;
         const chartW = W - padL - padR;
         const chartH = H - padT - padB;
-        const barGap = 10;
-        const barW = Math.floor((chartW - barGap * (top.length - 1)) / top.length);
+        const counts = data.map(d => Number(d.count));
+        const maxVal = Math.max(...counts, 1);
+        const n = data.length;
+
+        // Y-axis grid lines
+        const ySteps = 4;
         let grid = "";
-        for (let i = 0; i <= 4; i++) {
-            const val = Math.round(maxViews * i / 4);
-            const y = padT + chartH - (chartH * i / 4);
-            grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#222" stroke-width="1"/>
-            <text x="${padL - 6}" y="${y + 4}" text-anchor="end" fill="#666" font-size="10">${formatCount(val)}</text>`;
+        for (let i = 0; i <= ySteps; i++) {
+            const v = Math.round(maxVal * i / ySteps);
+            const y = padT + chartH - (chartH * i / ySteps);
+            grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#1f1f1f" stroke-width="1"/>
+                <text x="${padL - 6}" y="${y + 4}" text-anchor="end" fill="#555" font-size="10">${formatCount(v)}</text>`;
         }
-        let bars = "";
-        top.forEach((v, i) => {
-            const views = Number(v.viewCount || 0);
-            const bh = Math.max(2, (views / maxViews) * chartH);
-            const x = padL + i * (barW + barGap);
-            const y = padT + chartH - bh;
-            const label = (v.title || "").length > 7 ? (v.title || "").slice(0, 7) + "…" : (v.title || "");
-            bars += `
-            <rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="3" fill="#3ea6ff">
-                <title>${escapeHtml(v.title || "")}: ${formatCount(views)}회</title>
-            </rect>
-            <text x="${x + barW / 2}" y="${padT + chartH + 14}" text-anchor="middle" fill="#999" font-size="10">${escapeHtml(label)}</text>
-            ${views > 0 ? `<text x="${x + barW / 2}" y="${y - 4}" text-anchor="middle" fill="#bbb" font-size="9">${formatCount(views)}</text>` : ""}`;
+
+        // X-axis labels: show every Nth date
+        const labelStep = days <= 7 ? 1 : days <= 28 ? 7 : 15;
+        let xLabels = "";
+        data.forEach((d, i) => {
+            if (i % labelStep !== 0 && i !== n - 1) return;
+            const x = padL + (i / (n - 1)) * chartW;
+            const parts = d.date.split("-");
+            const label = `${parts[1]}/${parts[2]}`;
+            xLabels += `<text x="${x}" y="${H - 8}" text-anchor="middle" fill="#555" font-size="10">${label}</text>`;
         });
-        chartEl.innerHTML = `
-        <svg viewBox="0 0 ${W} ${H}" style="width:100%;overflow:visible">
+
+        // Points for line
+        const pts = data.map((d, i) => {
+            const x = padL + (n === 1 ? chartW / 2 : (i / (n - 1)) * chartW);
+            const y = padT + chartH - (Number(d.count) / maxVal) * chartH;
+            return [x, y];
+        });
+
+        // SVG path
+        const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+        const fillPath = `${linePath} L${pts[pts.length - 1][0].toFixed(1)},${(padT + chartH).toFixed(1)} L${pts[0][0].toFixed(1)},${(padT + chartH).toFixed(1)} Z`;
+
+        // Tooltips as circles with <title>
+        const circles = pts.map((p, i) =>
+            `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="4" fill="#3ea6ff" stroke="#141414" stroke-width="2" opacity="${counts[i] > 0 ? 1 : 0}">
+                <title>${data[i].date}: ${formatCount(counts[i])}회</title>
+            </circle>`
+        ).join("");
+
+        return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;overflow:visible" xmlns="http://www.w3.org/2000/svg">
             ${grid}
-            <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + chartH}" stroke="#333" stroke-width="1"/>
-            <line x1="${padL}" y1="${padT + chartH}" x2="${W - padR}" y2="${padT + chartH}" stroke="#333" stroke-width="1"/>
-            ${bars}
+            <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + chartH}" stroke="#2a2a2a" stroke-width="1"/>
+            <line x1="${padL}" y1="${padT + chartH}" x2="${W - padR}" y2="${padT + chartH}" stroke="#2a2a2a" stroke-width="1"/>
+            <defs>
+                <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#3ea6ff" stop-opacity="0.18"/>
+                    <stop offset="100%" stop-color="#3ea6ff" stop-opacity="0"/>
+                </linearGradient>
+            </defs>
+            <path d="${fillPath}" fill="url(#chartFill)"/>
+            <path d="${linePath}" fill="none" stroke="#3ea6ff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+            ${circles}
+            ${xLabels}
         </svg>`;
     }
 
@@ -5004,7 +5066,6 @@ async function initStudioPage() {
             const data = await res.json();
             const videos = Array.isArray(data) ? data : [];
             renderStudioStats(videos);
-            renderViewsChart(videos);
             renderAnalyticsExtra(videos);
             uploadedVideosCache = normalizeVideos(videos);
             renderFilteredList();
@@ -5038,7 +5099,7 @@ async function initStudioPage() {
     });
 
     channelManageList.innerHTML = `<p class="studio-loading">불러오는 중...</p>`;
-    await loadAndRender();
+    await Promise.all([loadAndRender(), renderDateViewsChart(28)]);
 }
 
 const page = document.body.dataset.page;

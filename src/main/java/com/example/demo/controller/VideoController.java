@@ -8,9 +8,11 @@ import com.example.demo.entity.User;
 import com.example.demo.entity.Video;
 import com.example.demo.entity.VideoLike;
 import com.example.demo.entity.VideoSave;
+import com.example.demo.entity.VideoHistory;
 import com.example.demo.repository.CommentRepository;
 import com.example.demo.repository.SubscriptionRepository;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.repository.VideoHistoryRepository;
 import com.example.demo.repository.VideoLikeRepository;
 import com.example.demo.repository.VideoRepository;
 import com.example.demo.repository.VideoSaveRepository;
@@ -27,6 +29,9 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -44,6 +49,7 @@ public class VideoController {
     private final VideoRepository videoRepository;
     private final VideoLikeRepository videoLikeRepository;
     private final VideoSaveRepository videoSaveRepository;
+    private final VideoHistoryRepository videoHistoryRepository;
     private final CommentRepository commentRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
@@ -55,6 +61,7 @@ public class VideoController {
             VideoRepository videoRepository,
             VideoLikeRepository videoLikeRepository,
             VideoSaveRepository videoSaveRepository,
+            VideoHistoryRepository videoHistoryRepository,
             CommentRepository commentRepository,
             SubscriptionRepository subscriptionRepository,
             UserRepository userRepository,
@@ -65,6 +72,7 @@ public class VideoController {
         this.videoRepository = videoRepository;
         this.videoLikeRepository = videoLikeRepository;
         this.videoSaveRepository = videoSaveRepository;
+        this.videoHistoryRepository = videoHistoryRepository;
         this.commentRepository = commentRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.userRepository = userRepository;
@@ -232,6 +240,54 @@ public class VideoController {
 
         List<Video> videos = videoRepository.findByOwnerIdOrderByIdDesc(loginUserId);
         return ResponseEntity.ok(toVideoItems(videos, loginUserId));
+    }
+
+    @GetMapping("/studio/view-trend")
+    public ResponseEntity<?> getViewTrend(
+            @RequestParam(defaultValue = "28") int days,
+            HttpSession session) {
+        Long loginUserId = getLoginUserId(session);
+        if (loginUserId == null) {
+            return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
+        }
+
+        if (days < 1 || days > 365) days = 28;
+
+        List<Video> videos = videoRepository.findByOwnerIdOrderByIdDesc(loginUserId);
+        if (videos.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        List<Long> videoIds = videos.stream().map(Video::getId).collect(Collectors.toList());
+        long since = System.currentTimeMillis() - (long) days * 86_400_000L;
+
+        List<VideoHistory> histories = videoHistoryRepository.findByVideoIdInAndWatchedAtSince(videoIds, since);
+
+        ZoneId zone = ZoneId.of("Asia/Seoul");
+        Map<String, Long> countByDate = new TreeMap<>();
+
+        LocalDate startDate = LocalDate.now(zone).minusDays(days - 1);
+        for (int i = 0; i < days; i++) {
+            countByDate.put(startDate.plusDays(i).toString(), 0L);
+        }
+
+        for (VideoHistory h : histories) {
+            if (h.getWatchedAt() == null) continue;
+            String dateStr = Instant.ofEpochMilli(h.getWatchedAt())
+                    .atZone(zone).toLocalDate().toString();
+            countByDate.merge(dateStr, 1L, Long::sum);
+        }
+
+        List<Map<String, Object>> result = countByDate.entrySet().stream()
+                .map(e -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("date", e.getKey());
+                    m.put("count", e.getValue());
+                    return m;
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/my-videos")

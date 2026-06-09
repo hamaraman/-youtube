@@ -362,6 +362,42 @@
             .sa-engagement-item { border-right: none; border-bottom: 1px solid #222; padding: 12px 0; }
             .sa-engagement-item:last-child { border-bottom: none; }
         }
+        /* ── 날짜별 조회수 차트 ── */
+        .studio-chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .studio-chart-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .studio-period-group {
+            display: flex;
+            gap: 6px;
+        }
+        .studio-period-btn {
+            height: 30px;
+            padding: 0 12px;
+            border-radius: 999px;
+            border: 1px solid #303030;
+            background: #202020;
+            color: #aaa;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .studio-period-btn:hover { color: #fff; border-color: #444; }
+        .studio-period-btn.is-active { background: #3ea6ff; border-color: #3ea6ff; color: #fff; }
+        .studio-chart-body { min-height: 120px; }
         .studio-mobile-stats { display: none; }
         @media (max-width: 640px) {
             .studio-table { overflow-x: unset; border-radius: 14px; }
@@ -516,6 +552,6 @@
 </div>
 
 <script src="auth.js?v=12"></script>
-<script src="script.js?v=21"></script>
+<script src="script.js?v=22"></script>
 </body>
 </html>
