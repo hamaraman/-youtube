@@ -345,12 +345,15 @@
     }
 
     let genResTimer = null;
+    let genResErrCount = 0;
 
     async function checkGenResStatus() {
         const status = document.getElementById('genResStatus');
         try {
             const res = await fetch('/api/admin/generate-resolutions/status');
+            if (!res.ok) throw new Error('server error');
             const data = await res.json();
+            genResErrCount = 0;
             if (data.pending === 0) {
                 clearInterval(genResTimer);
                 genResTimer = null;
@@ -365,7 +368,14 @@
                     genResTimer = setInterval(checkGenResStatus, 5000);
                 }
             }
-        } catch { /* ignore */ }
+        } catch {
+            genResErrCount++;
+            if (genResErrCount >= 5) {
+                clearInterval(genResTimer);
+                genResTimer = null;
+                genResErrCount = 0;
+            }
+        }
     }
 
     checkGenResStatus();
