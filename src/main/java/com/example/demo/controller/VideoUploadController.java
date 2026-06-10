@@ -465,64 +465,127 @@ public class VideoUploadController {
     }
 
     private void convertAndGenerateVariants(String ffmpeg, String uuid, Path dirPath, Long videoId) {
-        Path origPath = findOrigFile(dirPath, uuid);
+        Path origPath  = findOrigFile(dirPath, uuid);
         Path servePath = dirPath.resolve(uuid + ".mp4");
-        Path tmpPath = dirPath.resolve(uuid + "_conv.mp4");
+        Path tmpPath   = dirPath.resolve(uuid + "_conv.mp4");
 
-        if (origPath != null) {
-            try {
-                setEncodeStatus(videoId, "CONVERTING");
-                ProcessBuilder pb = new ProcessBuilder(
-                        ffmpeg, "-y",
-                        "-i", origPath.toString(),
-                        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-                        "-c:a", "aac", "-b:a", "128k",
-                        "-movflags", "+faststart",
-                        tmpPath.toString()
-                );
-                pb.redirectErrorStream(true);
-                Process process = pb.start();
-                Thread drain = new Thread(() -> {
-                    try { process.getInputStream().transferTo(OutputStream.nullOutputStream()); }
-                    catch (Exception ignored) {}
-                });
-                drain.setDaemon(true);
-                drain.start();
-
-                boolean done = process.waitFor(60, TimeUnit.MINUTES);
-                if (done && process.exitValue() == 0) {
-                    Files.move(tmpPath, servePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                    Files.deleteIfExists(origPath);
-                } else {
-                    Files.deleteIfExists(tmpPath);
-                }
-            } catch (Exception e) {
-                try { Files.deleteIfExists(tmpPath); } catch (Exception ignored) {}
+        if (origPath == null) {
+            // 원본 없음 — 이미 변환된 servePath로 변환만
+            generateResolutionVariants(ffmpeg, servePath.toString(), dirPath, uuid, videoId);
+            if (storageService.isConfigured() && servePath.toFile().exists()) {
+                try { storageService.upload(servePath, "videos/" + uuid + ".mp4", "video/mp4"); Files.deleteIfExists(servePath); } catch (Exception ignored) {}
             }
+            return;
         }
 
-        // 썸네일이 없으면 자동 생성
+        setEncodeStatus(videoId, "CONVERTING");
+
+        // 소스 해상도 확인 후 변환 대상 결정
+        int sourceHeight = getSourceHeight(ffmpeg, origPath.toString());
+        int[] allHeights = {1080, 720, 480, 360};
+        java.util.LinkedHashMap<Integer, Path> varTargets = new java.util.LinkedHashMap<>();
+        for (int h : allHeights) {
+            if (h <= sourceHeight) varTargets.put(h, dirPath.resolve(uuid + "_" + h + "p.mp4"));
+        }
+        List<Integer> heights = new ArrayList<>(varTargets.keySet());
+        int nVar = heights.size();
+
+        // 단일 FFmpeg 패스: 메인 H.264 + 모든 해상도 변환
+        List<String> cmd = new ArrayList<>();
+        cmd.add(ffmpeg); cmd.add("-y");
+        cmd.add("-i"); cmd.add(origPath.toString());
+
+        if (nVar > 0) {
+            int nTotal = nVar + 1;
+            StringBuilder fc = new StringBuilder();
+            fc.append("[0:v]split=").append(nTotal).append("[sv_main]");
+            for (int i = 0; i < nVar; i++) fc.append("[sv").append(i).append("]");
+            fc.append(";[sv_main]null[ov_main]");
+            for (int i = 0; i < nVar; i++) {
+                fc.append(";[sv").append(i).append("]scale=-2:").append(heights.get(i)).append("[ov").append(i).append("]");
+            }
+            cmd.add("-filter_complex"); cmd.add(fc.toString());
+            // 메인 출력 (fast/crf23 — 원본 화질)
+            cmd.add("-map"); cmd.add("[ov_main]"); cmd.add("-map"); cmd.add("0:a?");
+            cmd.add("-c:v"); cmd.add("libx264"); cmd.add("-preset"); cmd.add("fast"); cmd.add("-crf"); cmd.add("23");
+            cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
+            cmd.add(tmpPath.toString());
+            // 해상도 변환 출력 (ultrafast/crf26 — 빠른 변환 우선)
+            for (int i = 0; i < nVar; i++) {
+                int h = heights.get(i);
+                cmd.add("-map"); cmd.add("[ov" + i + "]"); cmd.add("-map"); cmd.add("0:a?");
+                cmd.add("-c:v"); cmd.add("libx264"); cmd.add("-preset"); cmd.add("ultrafast"); cmd.add("-crf"); cmd.add("26");
+                cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("96k"); cmd.add("-movflags"); cmd.add("+faststart");
+                cmd.add(varTargets.get(h).toString());
+            }
+        } else {
+            // 변환 대상 해상도 없음 — 단순 H.264 변환만
+            cmd.add("-c:v"); cmd.add("libx264"); cmd.add("-preset"); cmd.add("fast"); cmd.add("-crf"); cmd.add("23");
+            cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
+            cmd.add(tmpPath.toString());
+        }
+
+        System.out.println("[Encode] 단일 패스 시작 (메인+" + nVar + "변환) [" + uuid + "]");
+        try {
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            Thread drain = new Thread(() -> { try { process.getInputStream().transferTo(OutputStream.nullOutputStream()); } catch (Exception ignored) {} });
+            drain.setDaemon(true); drain.start();
+
+            boolean done = process.waitFor(90, TimeUnit.MINUTES);
+            int exitCode = done ? process.exitValue() : -1;
+            System.out.println("[Encode] 단일 패스 종료코드=" + exitCode + " [" + uuid + "]");
+
+            if (done && exitCode == 0) {
+                Files.move(tmpPath, servePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                Files.deleteIfExists(origPath);
+            } else {
+                Files.deleteIfExists(tmpPath);
+                for (Path varPath : varTargets.values()) try { Files.deleteIfExists(varPath); } catch (Exception ignored) {}
+                setEncodeStatus(videoId, "ERROR:FFmpeg exit " + exitCode);
+                return;
+            }
+        } catch (Exception e) {
+            try { Files.deleteIfExists(tmpPath); } catch (Exception ignored) {}
+            setEncodeStatus(videoId, "ERROR:" + e.getMessage());
+            return;
+        }
+
+        // 썸네일 자동 생성
         videoRepository.findById(videoId).ifPresent(v -> {
             if (v.getThumbnail() == null || v.getThumbnail().isBlank()) {
                 String autoThumb = generateAutoThumbnail(ffmpeg, servePath, dirPath, uuid);
-                if (autoThumb != null) {
-                    v.setThumbnail(autoThumb);
-                    videoRepository.save(v);
-                    System.out.println("[Thumb] 자동 썸네일 저장 완료 [" + uuid + "]");
-                }
+                if (autoThumb != null) { v.setThumbnail(autoThumb); videoRepository.save(v); System.out.println("[Thumb] 자동 썸네일 저장 [" + uuid + "]"); }
             }
         });
 
-        // Generate resolution variants (uses local servePath as source)
-        generateResolutionVariants(ffmpeg, servePath.toString(), dirPath, uuid, videoId);
-
-        // Upload converted main file to S3 (overwrite initial upload), then clean up local
-        if (storageService.isConfigured() && servePath.toFile().exists()) {
-            try {
-                storageService.upload(servePath, "videos/" + uuid + ".mp4", "video/mp4");
-                Files.deleteIfExists(servePath);
-            } catch (Exception ignored) {}
+        // 변환된 해상도 파일 R2 업로드 + DB 저장
+        setEncodeStatus(videoId, "ENCODING");
+        for (int h : heights) {
+            Path varPath = varTargets.get(h);
+            if (!varPath.toFile().exists()) continue;
+            String url;
+            if (storageService.isConfigured()) {
+                try { url = storageService.upload(varPath, "videos/" + uuid + "_" + h + "p.mp4", "video/mp4"); Files.deleteIfExists(varPath); }
+                catch (Exception e) { System.err.println("[Encode] R2 업로드 실패 " + h + "p [" + uuid + "]: " + e.getMessage()); continue; }
+            } else { url = "/uploads/videos/" + uuid + "_" + h + "p.mp4"; }
+            final String finalUrl = url; final int finalH = h;
+            videoRepository.findById(videoId).ifPresent(v -> {
+                if (finalH == 1080) v.setVideoUrl1080(finalUrl);
+                else if (finalH == 720) v.setVideoUrl720(finalUrl);
+                else if (finalH == 480) v.setVideoUrl480(finalUrl);
+                else if (finalH == 360) v.setVideoUrl360(finalUrl);
+                videoRepository.save(v);
+            });
+            System.out.println("[Encode] " + h + "p 완료 [" + uuid + "]");
         }
+
+        // 메인 파일 R2 업로드
+        if (storageService.isConfigured() && servePath.toFile().exists()) {
+            try { storageService.upload(servePath, "videos/" + uuid + ".mp4", "video/mp4"); Files.deleteIfExists(servePath); } catch (Exception ignored) {}
+        }
+        setEncodeStatus(videoId, "DONE");
     }
 
     private Path findOrigFile(Path dirPath, String uuid) {
@@ -689,118 +752,108 @@ public class VideoUploadController {
         Path servePath = dirPath.resolve(newUuid + ".mp4");
         Path tmpPath   = dirPath.resolve(newUuid + "_conv.mp4");
         try {
-            // 1. H.264 변환
             setEncodeStatus(videoId, "CONVERTING");
-            System.out.println("[Replace] H.264 변환 시작 [" + newUuid + "]");
-            ProcessBuilder pb = new ProcessBuilder(
-                    ffmpeg, "-y",
-                    "-i", origPath.toString(),
-                    "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-                    "-c:a", "aac", "-b:a", "128k",
-                    "-movflags", "+faststart",
-                    tmpPath.toString()
-            );
+
+            // 소스 해상도 확인 후 변환 대상 결정
+            int sourceHeight = getSourceHeight(ffmpeg, origPath.toString());
+            int[] orderedHeights = {1080, 720, 480, 360};
+            String[] oldUrls = {oldUrl1080, oldUrl720, oldUrl480, oldUrl360};
+            java.util.LinkedHashMap<Integer, Path> varTargets = new java.util.LinkedHashMap<>();
+            for (int h : orderedHeights) {
+                if (h <= sourceHeight) varTargets.put(h, dirPath.resolve(newUuid + "_" + h + "p.mp4"));
+            }
+            List<Integer> heights = new ArrayList<>(varTargets.keySet());
+            int nVar = heights.size();
+
+            // 단일 FFmpeg 패스: 메인 H.264 + 모든 해상도 변환
+            List<String> cmd = new ArrayList<>();
+            cmd.add(ffmpeg); cmd.add("-y");
+            cmd.add("-i"); cmd.add(origPath.toString());
+
+            if (nVar > 0) {
+                int nTotal = nVar + 1;
+                StringBuilder fc = new StringBuilder();
+                fc.append("[0:v]split=").append(nTotal).append("[sv_main]");
+                for (int i = 0; i < nVar; i++) fc.append("[sv").append(i).append("]");
+                fc.append(";[sv_main]null[ov_main]");
+                for (int i = 0; i < nVar; i++) {
+                    fc.append(";[sv").append(i).append("]scale=-2:").append(heights.get(i)).append("[ov").append(i).append("]");
+                }
+                cmd.add("-filter_complex"); cmd.add(fc.toString());
+                cmd.add("-map"); cmd.add("[ov_main]"); cmd.add("-map"); cmd.add("0:a?");
+                cmd.add("-c:v"); cmd.add("libx264"); cmd.add("-preset"); cmd.add("fast"); cmd.add("-crf"); cmd.add("23");
+                cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
+                cmd.add(tmpPath.toString());
+                for (int i = 0; i < nVar; i++) {
+                    int h = heights.get(i);
+                    cmd.add("-map"); cmd.add("[ov" + i + "]"); cmd.add("-map"); cmd.add("0:a?");
+                    cmd.add("-c:v"); cmd.add("libx264"); cmd.add("-preset"); cmd.add("ultrafast"); cmd.add("-crf"); cmd.add("26");
+                    cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("96k"); cmd.add("-movflags"); cmd.add("+faststart");
+                    cmd.add(varTargets.get(h).toString());
+                }
+            } else {
+                cmd.add("-c:v"); cmd.add("libx264"); cmd.add("-preset"); cmd.add("fast"); cmd.add("-crf"); cmd.add("23");
+                cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
+                cmd.add(tmpPath.toString());
+            }
+
+            System.out.println("[Replace] 단일 패스 시작 (메인+" + nVar + "변환) [" + newUuid + "]");
+            ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
             Process proc = pb.start();
-            Thread drainConv = new Thread(() -> {
-                try { proc.getInputStream().transferTo(OutputStream.nullOutputStream()); }
-                catch (Exception ignored) {}
-            });
-            drainConv.setDaemon(true);
-            drainConv.start();
-            boolean convDone = proc.waitFor(60, TimeUnit.MINUTES);
-            if (convDone && proc.exitValue() == 0) {
+            Thread drain = new Thread(() -> { try { proc.getInputStream().transferTo(OutputStream.nullOutputStream()); } catch (Exception ignored) {} });
+            drain.setDaemon(true); drain.start();
+
+            boolean convDone = proc.waitFor(90, TimeUnit.MINUTES);
+            int exitCode = convDone ? proc.exitValue() : -1;
+            System.out.println("[Replace] 단일 패스 종료코드=" + exitCode + " [" + newUuid + "]");
+
+            if (convDone && exitCode == 0) {
                 Files.move(tmpPath, servePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 Files.deleteIfExists(origPath);
             } else {
                 Files.deleteIfExists(tmpPath);
+                for (Path vp : varTargets.values()) try { Files.deleteIfExists(vp); } catch (Exception ignored) {}
                 if (origPath.toFile().exists())
                     Files.move(origPath, servePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                setEncodeStatus(videoId, "ERROR:FFmpeg exit " + exitCode);
+                return;
             }
 
-            // 2. 해상도 변환 (단일 FFmpeg 멀티 출력)
-            int sourceHeight = getSourceHeight(ffmpeg, servePath.toString());
-            int[] heights = {1080, 720, 480, 360};
-            String[] oldUrls = {oldUrl1080, oldUrl720, oldUrl480, oldUrl360};
-            List<String> newVariantUrls = new ArrayList<>();
-
-            java.util.LinkedHashMap<Integer, Path> varTargets = new java.util.LinkedHashMap<>();
-            for (int h : heights) {
-                if (h <= sourceHeight) varTargets.put(h, dirPath.resolve(newUuid + "_" + h + "p.mp4"));
-            }
-
+            // 변환된 해상도 파일 R2 업로드 + DB 저장
             setEncodeStatus(videoId, "ENCODING");
-            List<String> varCmd = new ArrayList<>();
-            varCmd.add(ffmpeg); varCmd.add("-y");
-            varCmd.add("-i"); varCmd.add(servePath.toString());
-            for (java.util.Map.Entry<Integer, Path> entry : varTargets.entrySet()) {
-                int h = entry.getKey();
-                varCmd.add("-vf");     varCmd.add("scale=-2:" + h);
-                varCmd.add("-c:v");    varCmd.add("libx264");
-                varCmd.add("-preset"); varCmd.add("ultrafast");
-                varCmd.add("-crf");    varCmd.add("26");
-                varCmd.add("-c:a");    varCmd.add("aac");
-                varCmd.add("-b:a");    varCmd.add("96k");
-                varCmd.add("-movflags"); varCmd.add("+faststart");
-                varCmd.add(entry.getValue().toString());
-            }
-
-            try {
-                System.out.println("[Replace] 멀티 출력 시작 " + varTargets.keySet() + " [" + newUuid + "]");
-                ProcessBuilder vb = new ProcessBuilder(varCmd);
-                vb.redirectErrorStream(true);
-                Process vp = vb.start();
-                Thread drainVar = new Thread(() -> {
-                    try { vp.getInputStream().transferTo(OutputStream.nullOutputStream()); }
-                    catch (Exception ignored) {}
+            List<String> newVariantUrls = new ArrayList<>();
+            for (int h : orderedHeights) {
+                Path varPath = varTargets.get(h);
+                if (varPath == null || !varPath.toFile().exists()) { newVariantUrls.add(null); continue; }
+                String url;
+                if (storageService.isConfigured()) {
+                    url = storageService.upload(varPath, "videos/" + newUuid + "_" + h + "p.mp4", "video/mp4");
+                    Files.deleteIfExists(varPath);
+                } else { url = "/uploads/videos/" + newUuid + "_" + h + "p.mp4"; }
+                newVariantUrls.add(url);
+                final String fu = url; final int fh = h;
+                videoRepository.findById(videoId).ifPresent(v -> {
+                    if (fh == 1080) v.setVideoUrl1080(fu);
+                    else if (fh == 720) v.setVideoUrl720(fu);
+                    else if (fh == 480) v.setVideoUrl480(fu);
+                    else if (fh == 360) v.setVideoUrl360(fu);
+                    videoRepository.save(v);
                 });
-                drainVar.setDaemon(true);
-                drainVar.start();
-                boolean vDone = vp.waitFor(120, TimeUnit.MINUTES);
-                int vExit = vDone ? vp.exitValue() : -1;
-                System.out.println("[Replace] 멀티 출력 종료코드=" + vExit + " [" + newUuid + "]");
-
-                if (vDone && vExit == 0) {
-                    for (java.util.Map.Entry<Integer, Path> entry : varTargets.entrySet()) {
-                        int h = entry.getKey();
-                        Path varPath = entry.getValue();
-                        if (!varPath.toFile().exists()) { newVariantUrls.add(null); continue; }
-                        String url;
-                        if (storageService.isConfigured()) {
-                            url = storageService.upload(varPath, "videos/" + newUuid + "_" + h + "p.mp4", "video/mp4");
-                            Files.deleteIfExists(varPath);
-                        } else {
-                            url = "/uploads/videos/" + newUuid + "_" + h + "p.mp4";
-                        }
-                        newVariantUrls.add(url);
-                        final String fu = url; final int fh = h;
-                        videoRepository.findById(videoId).ifPresent(v -> {
-                            if (fh == 1080) v.setVideoUrl1080(fu);
-                            else if (fh == 720) v.setVideoUrl720(fu);
-                            else if (fh == 480) v.setVideoUrl480(fu);
-                            else if (fh == 360) v.setVideoUrl360(fu);
-                            videoRepository.save(v);
-                        });
-                        System.out.println("[Replace] " + h + "p 완료 [" + newUuid + "]");
-                    }
-                }
-            } catch (Exception e) {
-                System.err.println("[Replace] 멀티 출력 오류: " + e.getMessage());
+                System.out.println("[Replace] " + h + "p 완료 [" + newUuid + "]");
             }
 
-            // 3. 메인 파일 R2 업로드 및 DB 갱신
+            // 메인 파일 R2 업로드 + DB 갱신
             setEncodeStatus(videoId, "UPLOADING");
             String newVideoUrl;
             if (storageService.isConfigured()) {
                 newVideoUrl = storageService.upload(servePath, "videos/" + newUuid + ".mp4", "video/mp4");
                 Files.deleteIfExists(servePath);
-            } else {
-                newVideoUrl = "/uploads/videos/" + newUuid + ".mp4";
-            }
+            } else { newVideoUrl = "/uploads/videos/" + newUuid + ".mp4"; }
             final String fUrl = newVideoUrl;
             videoRepository.findById(videoId).ifPresent(v -> { v.setVideoUrl(fUrl); videoRepository.save(v); });
 
-            // 4. 구 파일 삭제
+            // 구 파일 R2 삭제
             if (storageService.isConfigured()) {
                 storageService.delete(oldVideoUrl);
                 for (int i = 0; i < oldUrls.length; i++) {
