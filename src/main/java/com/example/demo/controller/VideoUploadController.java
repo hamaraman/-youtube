@@ -201,7 +201,7 @@ public class VideoUploadController {
             e.printStackTrace();
             UploadResponse response = new UploadResponse();
             response.setSuccess(false);
-            response.setMessage("업로드 중 오류가 발생했습니다.");
+            response.setMessage("업로드 중 오류가 발생했습니다: " + e.getClass().getSimpleName() + " - " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
