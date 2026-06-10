@@ -383,14 +383,15 @@ function showShareModal(videoId, getCurrentTime, videoData = {}) {
         }
         const thumb = videoData.thumbnail || "";
         const isAbsoluteUrl = thumb.startsWith("http://") || thumb.startsWith("https://");
+        const watchUrl = `${window.location.origin}/watch.html?v=${videoId}`;
         const shareParams = {
             objectType: "feed",
             content: {
                 title: videoData.title || "영상 공유",
                 description: videoData.description || "",
-                link: { mobileWebUrl: url, webUrl: url },
+                link: { mobileWebUrl: watchUrl, webUrl: watchUrl },
             },
-            buttons: [{ title: "영상 보기", link: { mobileWebUrl: url, webUrl: url } }],
+            buttons: [{ title: "영상 보기", link: { mobileWebUrl: watchUrl, webUrl: watchUrl } }],
         };
         if (isAbsoluteUrl) shareParams.content.imageUrl = thumb;
         try {
