@@ -381,16 +381,23 @@ function showShareModal(videoId, getCurrentTime, videoData = {}) {
             alert("카카오 SDK 로딩 중이에요. 잠시 후 다시 시도해줘.");
             return;
         }
-        Kakao.Share.sendDefault({
+        const thumb = videoData.thumbnail || "";
+        const isAbsoluteUrl = thumb.startsWith("http://") || thumb.startsWith("https://");
+        const shareParams = {
             objectType: "feed",
             content: {
                 title: videoData.title || "영상 공유",
                 description: videoData.description || "",
-                imageUrl: videoData.thumbnail || "",
                 link: { mobileWebUrl: url, webUrl: url },
             },
             buttons: [{ title: "영상 보기", link: { mobileWebUrl: url, webUrl: url } }],
-        });
+        };
+        if (isAbsoluteUrl) shareParams.content.imageUrl = thumb;
+        try {
+            Kakao.Share.sendDefault(shareParams);
+        } catch (e) {
+            alert("카카오톡 공유 실패: " + e.message);
+        }
     });
 
     modal.querySelector("#shareTwitterBtn")?.addEventListener("click", () => {
