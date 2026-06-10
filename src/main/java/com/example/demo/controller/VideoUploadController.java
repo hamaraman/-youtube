@@ -178,6 +178,7 @@ public class VideoUploadController {
                 final Long savedId = savedVideo.getId();
                 final String ffmpeg = ffmpegPath;
                 final Path dirPath = Paths.get(videoDir).toAbsolutePath();
+                ENCODE_STATUS.put(savedId, "QUEUED");
                 CompletableFuture.runAsync(() -> convertAndGenerateVariants(ffmpeg, uuid, dirPath, savedId));
             }
 
@@ -466,6 +467,7 @@ public class VideoUploadController {
 
         if (origPath != null) {
             try {
+                ENCODE_STATUS.put(videoId, "CONVERTING");
                 ProcessBuilder pb = new ProcessBuilder(
                         ffmpeg, "-y",
                         "-i", origPath.toString(),
@@ -589,6 +591,7 @@ public class VideoUploadController {
             cmd.add(entry.getValue().toString());
         }
 
+        ENCODE_STATUS.put(videoId, "ENCODING");
         try {
             System.out.println("[Batch] 멀티 출력 시작 " + targets.keySet() + " [" + uuid + "]");
             ProcessBuilder pb = new ProcessBuilder(cmd);
@@ -637,9 +640,11 @@ public class VideoUploadController {
             }
         } catch (Exception e) {
             System.err.println("[Batch] 멀티 출력 오류 [" + uuid + "]: " + e.getMessage());
+            ENCODE_STATUS.put(videoId, "ERROR:" + e.getMessage());
         } finally {
             if (downloadedTemp != null) try { Files.deleteIfExists(downloadedTemp); } catch (Exception ignored) {}
         }
+        if ("ENCODING".equals(ENCODE_STATUS.get(videoId))) ENCODE_STATUS.put(videoId, "DONE");
     }
 
     private void replaceVideoBackground(String ffmpeg, String newUuid, String origExt,

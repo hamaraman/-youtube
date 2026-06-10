@@ -5403,6 +5403,7 @@ async function initStudioPage() {
     async function applyEncodeStatusBadges() {
         const STEP_LABELS = {
             QUEUED: "대기 중", CONVERTING: "H.264 변환 중",
+            ENCODING: "해상도 변환 중",
             "1080p": "1080p 인코딩", "720p": "720p 인코딩",
             "480p": "480p 인코딩", "360p": "360p 인코딩",
             UPLOADING: "클라우드 업로드 중", DONE: "완료", IDLE: ""
@@ -5435,16 +5436,20 @@ async function initStudioPage() {
 
     function startEncodeStatusPolling() {
         if (encodeStatusPollTimer) clearInterval(encodeStatusPollTimer);
-        applyEncodeStatusBadges().then(hasActive => {
-            if (!hasActive) return;
-            encodeStatusPollTimer = setInterval(async () => {
-                const stillActive = await applyEncodeStatusBadges();
-                if (!stillActive) {
+        let idleCount = 0;
+        applyEncodeStatusBadges();
+        encodeStatusPollTimer = setInterval(async () => {
+            const hasActive = await applyEncodeStatusBadges();
+            if (!hasActive) {
+                idleCount++;
+                if (idleCount >= 5) {
                     clearInterval(encodeStatusPollTimer);
                     encodeStatusPollTimer = null;
                 }
-            }, 4000);
-        });
+            } else {
+                idleCount = 0;
+            }
+        }, 4000);
     }
 
     if (channelSearchInput) channelSearchInput.addEventListener("input", renderFilteredList);
