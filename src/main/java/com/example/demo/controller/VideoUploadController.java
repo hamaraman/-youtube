@@ -591,70 +591,89 @@ public class VideoUploadController {
             return;
         }
 
+        // filter_complex로 단일 디코딩 멀티 출력
+        List<Integer> heights = new ArrayList<>(targets.keySet());
+        int n = heights.size();
+
+        StringBuilder fc = new StringBuilder();
+        if (n == 1) {
+            fc.append("[0:v]scale=-2:").append(heights.get(0)).append("[ov0]");
+        } else {
+            fc.append("[0:v]split=").append(n);
+            for (int i = 0; i < n; i++) fc.append("[sv").append(i).append("]");
+            fc.append(";");
+            for (int i = 0; i < n; i++) {
+                if (i > 0) fc.append(";");
+                fc.append("[sv").append(i).append("]scale=-2:").append(heights.get(i)).append("[ov").append(i).append("]");
+            }
+        }
+
+        List<String> cmd = new ArrayList<>();
+        cmd.add(ffmpeg); cmd.add("-y");
+        cmd.add("-i"); cmd.add(sourceInput);
+        cmd.add("-filter_complex"); cmd.add(fc.toString());
+        for (int i = 0; i < n; i++) {
+            int h = heights.get(i);
+            cmd.add("-map"); cmd.add("[ov" + i + "]");
+            cmd.add("-map"); cmd.add("0:a?");
+            cmd.add("-c:v");    cmd.add("libx264");
+            cmd.add("-preset"); cmd.add("ultrafast");
+            cmd.add("-crf");    cmd.add("26");
+            cmd.add("-c:a");    cmd.add("aac");
+            cmd.add("-b:a");    cmd.add("96k");
+            cmd.add("-movflags"); cmd.add("+faststart");
+            cmd.add(targets.get(h).toString());
+        }
+
         setEncodeStatus(videoId, "ENCODING");
         try {
-            for (java.util.Map.Entry<Integer, Path> entry : targets.entrySet()) {
-                int h = entry.getKey();
-                Path variantPath = entry.getValue();
+            System.out.println("[Batch] filter_complex 멀티 출력 시작 " + targets.keySet() + " [" + uuid + "]");
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            Thread drain = new Thread(() -> {
+                try { process.getInputStream().transferTo(OutputStream.nullOutputStream()); }
+                catch (Exception ignored) {}
+            });
+            drain.setDaemon(true);
+            drain.start();
 
-                List<String> cmd = new ArrayList<>();
-                cmd.add(ffmpeg); cmd.add("-y");
-                cmd.add("-i"); cmd.add(sourceInput);
-                cmd.add("-vf");     cmd.add("scale=-2:" + h);
-                cmd.add("-c:v");    cmd.add("libx264");
-                cmd.add("-preset"); cmd.add("ultrafast");
-                cmd.add("-crf");    cmd.add("26");
-                cmd.add("-c:a");    cmd.add("aac");
-                cmd.add("-b:a");    cmd.add("96k");
-                cmd.add("-movflags"); cmd.add("+faststart");
-                cmd.add(variantPath.toString());
+            boolean done = process.waitFor(120, TimeUnit.MINUTES);
+            int exitCode = done ? process.exitValue() : -1;
+            System.out.println("[Batch] 멀티 출력 종료코드=" + exitCode + " [" + uuid + "]");
 
-                System.out.println("[Batch] " + h + "p 인코딩 시작 [" + uuid + "]");
-                ProcessBuilder pb = new ProcessBuilder(cmd);
-                pb.redirectErrorStream(true);
-                Process process = pb.start();
-                Thread drain = new Thread(() -> {
-                    try { process.getInputStream().transferTo(OutputStream.nullOutputStream()); }
-                    catch (Exception ignored) {}
-                });
-                drain.setDaemon(true);
-                drain.start();
+            if (done && exitCode == 0) {
+                for (java.util.Map.Entry<Integer, Path> entry : targets.entrySet()) {
+                    int h = entry.getKey();
+                    Path variantPath = entry.getValue();
+                    if (!variantPath.toFile().exists()) continue;
 
-                boolean done = process.waitFor(60, TimeUnit.MINUTES);
-                int exitCode = done ? process.exitValue() : -1;
-                System.out.println("[Batch] " + h + "p 종료코드=" + exitCode + " [" + uuid + "]");
-
-                if (!done || exitCode != 0) {
-                    Files.deleteIfExists(variantPath);
-                    continue;
-                }
-                if (!variantPath.toFile().exists()) continue;
-
-                String url;
-                if (storageService.isConfigured()) {
-                    try {
-                        url = storageService.upload(variantPath, "videos/" + uuid + "_" + h + "p.mp4", "video/mp4");
-                        Files.deleteIfExists(variantPath);
-                    } catch (Exception e) {
-                        System.err.println("[Batch] R2 업로드 실패 " + h + "p [" + uuid + "]: " + e.getMessage());
-                        continue;
+                    String url;
+                    if (storageService.isConfigured()) {
+                        try {
+                            url = storageService.upload(variantPath, "videos/" + uuid + "_" + h + "p.mp4", "video/mp4");
+                            Files.deleteIfExists(variantPath);
+                        } catch (Exception e) {
+                            System.err.println("[Batch] R2 업로드 실패 " + h + "p [" + uuid + "]: " + e.getMessage());
+                            continue;
+                        }
+                    } else {
+                        url = "/uploads/videos/" + uuid + "_" + h + "p.mp4";
                     }
-                } else {
-                    url = "/uploads/videos/" + uuid + "_" + h + "p.mp4";
+                    final String finalUrl = url;
+                    final int finalH = h;
+                    videoRepository.findById(videoId).ifPresent(video -> {
+                        if (finalH == 1080) video.setVideoUrl1080(finalUrl);
+                        else if (finalH == 720) video.setVideoUrl720(finalUrl);
+                        else if (finalH == 480) video.setVideoUrl480(finalUrl);
+                        else if (finalH == 360) video.setVideoUrl360(finalUrl);
+                        videoRepository.save(video);
+                    });
+                    System.out.println("[Batch] " + h + "p DB 저장 완료 [" + uuid + "]");
                 }
-                final String finalUrl = url;
-                final int finalH = h;
-                videoRepository.findById(videoId).ifPresent(video -> {
-                    if (finalH == 1080) video.setVideoUrl1080(finalUrl);
-                    else if (finalH == 720) video.setVideoUrl720(finalUrl);
-                    else if (finalH == 480) video.setVideoUrl480(finalUrl);
-                    else if (finalH == 360) video.setVideoUrl360(finalUrl);
-                    videoRepository.save(video);
-                });
-                System.out.println("[Batch] " + h + "p DB 저장 완료 [" + uuid + "]");
             }
         } catch (Exception e) {
-            System.err.println("[Batch] 인코딩 오류 [" + uuid + "]: " + e.getMessage());
+            System.err.println("[Batch] 멀티 출력 오류 [" + uuid + "]: " + e.getMessage());
             setEncodeStatus(videoId, "ERROR:" + e.getMessage());
         } finally {
             if (downloadedTemp != null) try { Files.deleteIfExists(downloadedTemp); } catch (Exception ignored) {}
