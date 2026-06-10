@@ -2741,8 +2741,10 @@ function initUploadPage() {
         const fileBox = uploadThumbnailFile?.closest(".upload-file-box") || uploadThumbnailFile;
         const hasThumbnailUrl = Boolean(uploadThumbnailUrl?.value.trim());
         const hasThumbnailFile = Boolean(uploadThumbnailFile?.files?.[0]);
+        const hasVideoFile = Boolean(uploadVideoFile?.files?.[0]);
 
-        if (!hasThumbnailUrl && !hasThumbnailFile) {
+        // 영상 파일이 있으면 썸네일 없어도 자동 생성
+        if (!hasThumbnailUrl && !hasThumbnailFile && !hasVideoFile) {
             setFieldError(fileBox, "썸네일 URL을 입력하거나 파일을 선택해줘.", "thumbnail", fileBox);
             return false;
         }

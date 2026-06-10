@@ -124,7 +124,7 @@ public class VideoUploadController {
                 return badRequest("영상 파일을 선택하거나 YouTube URL을 입력해줘.");
             }
 
-            // Step 2: save thumbnail
+            // Step 2: save thumbnail (없으면 영상 파일로부터 자동 생성)
             String finalThumbnailUrl;
             if (thumbnailFile != null && !thumbnailFile.isEmpty()) {
                 String thumbExt = extensionOf(thumbnailFile.getOriginalFilename()).toLowerCase();
@@ -140,6 +140,8 @@ public class VideoUploadController {
                 }
             } else if (thumbnailUrl != null && !thumbnailUrl.trim().isEmpty()) {
                 finalThumbnailUrl = thumbnailUrl.trim();
+            } else if (videoUuid != null) {
+                finalThumbnailUrl = ""; // 자동 생성 예정
             } else {
                 return badRequest("썸네일 파일 또는 썸네일 URL이 필요해.");
             }
@@ -499,6 +501,18 @@ public class VideoUploadController {
             }
         }
 
+        // 썸네일이 없으면 자동 생성
+        videoRepository.findById(videoId).ifPresent(v -> {
+            if (v.getThumbnail() == null || v.getThumbnail().isBlank()) {
+                String autoThumb = generateAutoThumbnail(ffmpeg, servePath, dirPath, uuid);
+                if (autoThumb != null) {
+                    v.setThumbnail(autoThumb);
+                    videoRepository.save(v);
+                    System.out.println("[Thumb] 자동 썸네일 저장 완료 [" + uuid + "]");
+                }
+            }
+        });
+
         // Generate resolution variants (uses local servePath as source)
         generateResolutionVariants(ffmpeg, servePath.toString(), dirPath, uuid, videoId);
 
@@ -845,6 +859,65 @@ public class VideoUploadController {
         response.setSuccess(false);
         response.setMessage(message);
         return response;
+    }
+
+    private String generateAutoThumbnail(String ffmpeg, Path videoPath, Path dirPath, String uuid) {
+        if (!videoPath.toFile().exists()) return null;
+        Path thumbPath = dirPath.resolve(uuid + "_thumb.jpg");
+        try {
+            double duration = getSourceDuration(ffmpeg, videoPath.toString());
+            double seekTime = duration > 10 ? duration * 0.1 : Math.max(duration * 0.5, 0);
+
+            ProcessBuilder pb = new ProcessBuilder(
+                    ffmpeg, "-y",
+                    "-ss", String.format("%.2f", seekTime),
+                    "-i", videoPath.toString(),
+                    "-vframes", "1",
+                    "-q:v", "2",
+                    "-vf", "scale=1280:-2",
+                    thumbPath.toString()
+            );
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            p.getInputStream().transferTo(OutputStream.nullOutputStream());
+            boolean done = p.waitFor(30, TimeUnit.SECONDS);
+            if (!done || p.exitValue() != 0 || !thumbPath.toFile().exists()) return null;
+
+            if (storageService.isConfigured()) {
+                String url = storageService.upload(thumbPath, "thumbnails/" + uuid + "_thumb.jpg", "image/jpeg");
+                Files.deleteIfExists(thumbPath);
+                return url;
+            } else {
+                Path destPath = Paths.get(thumbnailDir).toAbsolutePath().resolve(uuid + "_thumb.jpg");
+                Files.move(thumbPath, destPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                return "/uploads/thumbnails/" + uuid + "_thumb.jpg";
+            }
+        } catch (Exception e) {
+            System.err.println("[Thumb] 자동 썸네일 생성 실패 [" + uuid + "]: " + e.getMessage());
+            try { Files.deleteIfExists(thumbPath); } catch (Exception ignored) {}
+            return null;
+        }
+    }
+
+    private double getSourceDuration(String ffmpeg, String sourceInput) {
+        try {
+            String ffprobe = ffmpeg.endsWith("ffmpeg") ? ffmpeg.replace("ffmpeg", "ffprobe")
+                           : ffmpeg.endsWith("ffmpeg.exe") ? ffmpeg.replace("ffmpeg.exe", "ffprobe.exe")
+                           : "ffprobe";
+            ProcessBuilder pb = new ProcessBuilder(
+                    ffprobe, "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "csv=p=0",
+                    sourceInput
+            );
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String out = new String(p.getInputStream().readAllBytes()).trim();
+            p.waitFor(30, TimeUnit.SECONDS);
+            return Double.parseDouble(out.split("\n")[0].trim());
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     private static void setEncodeStatus(Long videoId, String status) {
