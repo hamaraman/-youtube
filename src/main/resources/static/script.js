@@ -5551,6 +5551,11 @@ async function initStudioPage() {
             const res = await fetch("/api/videos/encode-statuses");
             if (!res.ok) return false;
             const statuses = await res.json();
+            // 응답에 없는 배지는 숨김 (서버 재시작 후 상태 유실 대응)
+            document.querySelectorAll("[id^='encodeBadge-']").forEach(badge => {
+                const id = badge.id.replace("encodeBadge-", "");
+                if (!(id in statuses)) badge.style.display = "none";
+            });
             for (const [id, status] of Object.entries(statuses)) {
                 const badge = document.getElementById(`encodeBadge-${id}`);
                 if (!badge) continue;
