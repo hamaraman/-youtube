@@ -1,6 +1,21 @@
 const DEFAULT_AVATAR = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4MCIgaGVpZ2h0PSI4MCI+PGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9IiM2MTYxNjEiLz48L3N2Zz4=";
 const DEFAULT_THUMBNAIL = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMjgwIiBoZWlnaHQ9IjcyMCI+PHJlY3Qgd2lkdGg9IjEyODAiIGhlaWdodD0iNzIwIiBmaWxsPSIjMjEyMTIxIi8+PHBvbHlnb24gcG9pbnRzPSI1NjAsMzEwIDU2MCw0MTAgNjgwLDM2MCIgZmlsbD0iIzQyNDI0MiIvPjwvc3ZnPg==";
 
+(function () {
+    if (typeof Kakao !== "undefined") {
+        if (!Kakao.isInitialized()) Kakao.init("d65b87ff6b7b33d1cdd9d141a913ba39");
+        return;
+    }
+    const s = document.createElement("script");
+    s.src = "https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js";
+    s.crossOrigin = "anonymous";
+    s.onload = () => {
+        if (typeof Kakao !== "undefined" && !Kakao.isInitialized())
+            Kakao.init("d65b87ff6b7b33d1cdd9d141a913ba39");
+    };
+    document.head.appendChild(s);
+})();
+
 document.addEventListener("error", function (e) {
     const img = e.target;
     if (img.tagName !== "IMG") return;
