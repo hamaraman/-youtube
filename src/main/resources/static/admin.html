@@ -354,14 +354,21 @@
             if (data.pending === 0) {
                 clearInterval(genResTimer);
                 genResTimer = null;
-                status.style.color = '#7ce59a';
-                status.textContent = `완료! 전체 ${data.total}개 영상 모두 변환됨`;
+                if (data.total > 0) {
+                    status.style.color = '#7ce59a';
+                    status.textContent = `완료! 전체 ${data.total}개 영상 모두 변환됨`;
+                }
             } else {
                 status.style.color = '#f1c40f';
                 status.textContent = `변환 중... ${data.done}/${data.total}개 완료 (${data.pending}개 남음)`;
+                if (!genResTimer) {
+                    genResTimer = setInterval(checkGenResStatus, 5000);
+                }
             }
         } catch { /* ignore */ }
     }
+
+    checkGenResStatus();
 
     async function generateResolutions() {
         const btn = event.target;
