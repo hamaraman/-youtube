@@ -380,9 +380,21 @@ function showShareModal(videoId, getCurrentTime, videoData = {}) {
             alert("카카오 SDK 로딩 중이에요. 잠시 후 다시 시도해줘.");
             return;
         }
-        const shareUrl = `${window.location.origin}/share/video/${videoId}`;
+        const thumb = videoData.thumbnail || "";
+        const isAbsoluteUrl = thumb.startsWith("http://") || thumb.startsWith("https://");
+        const watchUrl = `${window.location.origin}/watch.html?v=${videoId}`;
+        const shareParams = {
+            objectType: "feed",
+            content: {
+                title: videoData.title || "영상 공유",
+                description: videoData.description || "",
+                imageUrl: isAbsoluteUrl ? thumb : `${window.location.origin}/image/img.png`,
+                link: { mobileWebUrl: watchUrl, webUrl: watchUrl },
+            },
+            buttons: [{ title: "영상 보기", link: { mobileWebUrl: watchUrl, webUrl: watchUrl } }],
+        };
         try {
-            Kakao.Share.sendScrap({ requestUrl: shareUrl });
+            Kakao.Share.sendDefault(shareParams);
         } catch (e) {
             alert("카카오톡 공유 실패: " + e.message);
         }
