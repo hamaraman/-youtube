@@ -5018,6 +5018,9 @@ html[data-theme="light"] .skeleton-line {
 
 .share-sns-btn:hover { background: #2a2a2a; border-color: #555; }
 
+.share-sns-btn.kakao { border-color: #f9e000; color: #3c1e1e; background: #fee500; }
+.share-sns-btn.kakao:hover { background: #f0d800; border-color: #f0d800; }
+
 .share-sns-btn.twitter { border-color: #1d9bf0; }
 .share-sns-btn.twitter:hover { background: rgba(29,155,240,0.12); }
 

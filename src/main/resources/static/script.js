@@ -290,7 +290,7 @@ function getShareUrl(videoId) {
     return `${window.location.origin}/share/video/${videoId}`;
 }
 
-function showShareModal(videoId, getCurrentTime) {
+function showShareModal(videoId, getCurrentTime, videoData = {}) {
     document.getElementById("shareModal")?.remove();
 
     const baseUrl = getShareUrl(videoId);
@@ -322,6 +322,10 @@ function showShareModal(videoId, getCurrentTime) {
                 <span id="shareTimestampLabel">현재 시간부터 시작</span>
             </label>
             <div class="share-sns-row">
+                <button class="share-sns-btn kakao" id="shareKakaoBtn" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3C6.477 3 2 6.477 2 10.5c0 2.548 1.516 4.787 3.812 6.187l-.971 3.626a.25.25 0 0 0 .374.28L9.5 18.25c.825.15 1.672.25 2.5.25 5.523 0 10-3.477 10-7.5S17.523 3 12 3z"/></svg>
+                    카카오톡
+                </button>
                 <button class="share-sns-btn twitter" id="shareTwitterBtn" type="button">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.73-8.835L2.018 2.25H8.056l4.261 5.632 5.927-5.632Zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                     X(Twitter)
@@ -369,6 +373,24 @@ function showShareModal(videoId, getCurrentTime) {
         } catch {
             prompt("이 링크를 복사해줘.", url);
         }
+    });
+
+    modal.querySelector("#shareKakaoBtn")?.addEventListener("click", () => {
+        const url = input.value;
+        if (typeof Kakao === "undefined" || !Kakao.isInitialized()) {
+            alert("카카오 SDK 로딩 중이에요. 잠시 후 다시 시도해줘.");
+            return;
+        }
+        Kakao.Share.sendDefault({
+            objectType: "feed",
+            content: {
+                title: videoData.title || "영상 공유",
+                description: videoData.description || "",
+                imageUrl: videoData.thumbnail || "",
+                link: { mobileWebUrl: url, webUrl: url },
+            },
+            buttons: [{ title: "영상 보기", link: { mobileWebUrl: url, webUrl: url } }],
+        });
     });
 
     modal.querySelector("#shareTwitterBtn")?.addEventListener("click", () => {
@@ -4615,7 +4637,11 @@ async function initWatchPage() {
     shareBtn?.addEventListener("click", () => {
         const pv = document.querySelector("#customPlayer video.player-video");
         const getCurrentTime = () => pv ? pv.currentTime : 0;
-        showShareModal(currentVideo.id, getCurrentTime);
+        showShareModal(currentVideo.id, getCurrentTime, {
+            title: currentVideo.title,
+            description: currentVideo.description,
+            thumbnail: currentVideo.thumbnail,
+        });
     });
 
     saveBtn?.addEventListener("click", async () => {
