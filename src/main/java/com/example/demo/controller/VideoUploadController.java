@@ -540,10 +540,8 @@ public class VideoUploadController {
     }
 
     private void generateResolutionVariants(String ffmpeg, String sourceInput, Path dirPath, String uuid, Long videoId) {
-        // 로컬 파일이면 존재 여부 확인
         if (!sourceInput.startsWith("http") && !new java.io.File(sourceInput).exists()) return;
 
-        // R2 URL이면 로컬에 미리 다운받아서 인코딩 속도 향상
         Path downloadedTemp = null;
         if (sourceInput.startsWith("http")) {
             downloadedTemp = dirPath.resolve(uuid + "_dl_tmp.mp4");
@@ -558,42 +556,61 @@ public class VideoUploadController {
                 System.err.println("[Batch] R2 다운로드 실패 [" + uuid + "]: " + e.getMessage());
                 try { Files.deleteIfExists(downloadedTemp); } catch (Exception ignored) {}
                 downloadedTemp = null;
-                // 실패 시 원래 URL로 계속 진행
             }
         }
 
         int sourceHeight = getSourceHeight(ffmpeg, sourceInput);
-        // 오래 걸리는 순서(고해상도 → 저해상도)로 순차 처리, 완료 즉시 DB 저장
-        int[] allHeights  = {1080, 720, 480, 360};
-        int[] orderedHeights = {1080, 720, 480, 360};
+        int[] allHeights = {1080, 720, 480, 360};
 
-        for (int h : orderedHeights) {
-            if (h > sourceHeight) continue;
+        // 출력할 해상도 결정
+        java.util.LinkedHashMap<Integer, Path> targets = new java.util.LinkedHashMap<>();
+        for (int h : allHeights) {
+            if (h <= sourceHeight) targets.put(h, dirPath.resolve(uuid + "_" + h + "p.mp4"));
+        }
 
-            Path variantPath = dirPath.resolve(uuid + "_" + h + "p.mp4");
-            List<String> cmd = new ArrayList<>();
-            cmd.add(ffmpeg); cmd.add("-y");
-            cmd.add("-i"); cmd.add(sourceInput);
-            cmd.add("-vf"); cmd.add("scale=-2:" + h);
-            cmd.add("-c:v"); cmd.add("libx264");
+        if (targets.isEmpty()) {
+            if (downloadedTemp != null) try { Files.deleteIfExists(downloadedTemp); } catch (Exception ignored) {}
+            return;
+        }
+
+        // 단일 FFmpeg 명령어로 모든 해상도 동시 출력 (소스 디코딩 1번)
+        List<String> cmd = new ArrayList<>();
+        cmd.add(ffmpeg); cmd.add("-y");
+        cmd.add("-i"); cmd.add(sourceInput);
+        for (java.util.Map.Entry<Integer, Path> entry : targets.entrySet()) {
+            int h = entry.getKey();
+            cmd.add("-vf");     cmd.add("scale=-2:" + h);
+            cmd.add("-c:v");    cmd.add("libx264");
             cmd.add("-preset"); cmd.add("ultrafast");
-            cmd.add("-crf"); cmd.add("26");
-            cmd.add("-c:a"); cmd.add("aac");
-            cmd.add("-b:a"); cmd.add("96k");
+            cmd.add("-crf");    cmd.add("26");
+            cmd.add("-c:a");    cmd.add("aac");
+            cmd.add("-b:a");    cmd.add("96k");
             cmd.add("-movflags"); cmd.add("+faststart");
-            cmd.add(variantPath.toString());
+            cmd.add(entry.getValue().toString());
+        }
 
-            try {
-                System.out.println("[Batch] " + h + "p 시작 [" + uuid + "]");
-                ProcessBuilder pb = new ProcessBuilder(cmd);
-                pb.redirectErrorStream(true);
-                Process process = pb.start();
-                process.getInputStream().transferTo(OutputStream.nullOutputStream());
-                boolean done = process.waitFor(60, TimeUnit.MINUTES);
-                int exitCode = done ? process.exitValue() : -1;
-                System.out.println("[Batch] " + h + "p 종료코드=" + exitCode + " [" + uuid + "]");
+        try {
+            System.out.println("[Batch] 멀티 출력 시작 " + targets.keySet() + " [" + uuid + "]");
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            Thread drain = new Thread(() -> {
+                try { process.getInputStream().transferTo(OutputStream.nullOutputStream()); }
+                catch (Exception ignored) {}
+            });
+            drain.setDaemon(true);
+            drain.start();
 
-                if (done && exitCode == 0) {
+            boolean done = process.waitFor(120, TimeUnit.MINUTES);
+            int exitCode = done ? process.exitValue() : -1;
+            System.out.println("[Batch] 멀티 출력 종료코드=" + exitCode + " [" + uuid + "]");
+
+            if (done && exitCode == 0) {
+                for (java.util.Map.Entry<Integer, Path> entry : targets.entrySet()) {
+                    int h = entry.getKey();
+                    Path variantPath = entry.getValue();
+                    if (!variantPath.toFile().exists()) continue;
+
                     String url;
                     if (storageService.isConfigured()) {
                         try {
@@ -606,7 +623,6 @@ public class VideoUploadController {
                     } else {
                         url = "/uploads/videos/" + uuid + "_" + h + "p.mp4";
                     }
-                    // 완료 즉시 DB 저장 → 플레이어에서 바로 사용 가능
                     final String finalUrl = url;
                     final int finalH = h;
                     videoRepository.findById(videoId).ifPresent(video -> {
@@ -618,14 +634,11 @@ public class VideoUploadController {
                     });
                     System.out.println("[Batch] " + h + "p DB 저장 완료 [" + uuid + "]");
                 }
-            } catch (Exception e) {
-                System.err.println("[Batch] " + h + "p 오류 [" + uuid + "]: " + e.getMessage());
             }
-        }
-
-        // 임시 다운로드 파일 정리
-        if (downloadedTemp != null) {
-            try { Files.deleteIfExists(downloadedTemp); } catch (Exception ignored) {}
+        } catch (Exception e) {
+            System.err.println("[Batch] 멀티 출력 오류 [" + uuid + "]: " + e.getMessage());
+        } finally {
+            if (downloadedTemp != null) try { Files.deleteIfExists(downloadedTemp); } catch (Exception ignored) {}
         }
     }
 
@@ -666,37 +679,53 @@ public class VideoUploadController {
                     Files.move(origPath, servePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
 
-            // 2. 해상도 변환 (로컬 servePath 사용)
+            // 2. 해상도 변환 (단일 FFmpeg 멀티 출력)
             int sourceHeight = getSourceHeight(ffmpeg, servePath.toString());
             int[] heights = {1080, 720, 480, 360};
             String[] oldUrls = {oldUrl1080, oldUrl720, oldUrl480, oldUrl360};
             List<String> newVariantUrls = new ArrayList<>();
 
-            for (int i = 0; i < heights.length; i++) {
-                int h = heights[i];
-                if (h > sourceHeight) { newVariantUrls.add(null); continue; }
-                ENCODE_STATUS.put(videoId, h + "p");
-                Path varPath = dirPath.resolve(newUuid + "_" + h + "p.mp4");
-                List<String> cmd = new ArrayList<>(List.of(
-                        ffmpeg, "-y", "-i", servePath.toString(),
-                        "-vf", "scale=-2:" + h,
-                        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26",
-                        "-c:a", "aac", "-b:a", "96k",
-                        "-movflags", "+faststart",
-                        varPath.toString()
-                ));
-                try {
-                    ProcessBuilder vb = new ProcessBuilder(cmd);
-                    vb.redirectErrorStream(true);
-                    Process vp = vb.start();
-                    Thread drainVar = new Thread(() -> {
-                        try { vp.getInputStream().transferTo(OutputStream.nullOutputStream()); }
-                        catch (Exception ignored) {}
-                    });
-                    drainVar.setDaemon(true);
-                    drainVar.start();
-                    boolean vDone = vp.waitFor(60, TimeUnit.MINUTES);
-                    if (vDone && vp.exitValue() == 0) {
+            java.util.LinkedHashMap<Integer, Path> varTargets = new java.util.LinkedHashMap<>();
+            for (int h : heights) {
+                if (h <= sourceHeight) varTargets.put(h, dirPath.resolve(newUuid + "_" + h + "p.mp4"));
+            }
+
+            ENCODE_STATUS.put(videoId, "ENCODING");
+            List<String> varCmd = new ArrayList<>();
+            varCmd.add(ffmpeg); varCmd.add("-y");
+            varCmd.add("-i"); varCmd.add(servePath.toString());
+            for (java.util.Map.Entry<Integer, Path> entry : varTargets.entrySet()) {
+                int h = entry.getKey();
+                varCmd.add("-vf");     varCmd.add("scale=-2:" + h);
+                varCmd.add("-c:v");    varCmd.add("libx264");
+                varCmd.add("-preset"); varCmd.add("ultrafast");
+                varCmd.add("-crf");    varCmd.add("26");
+                varCmd.add("-c:a");    varCmd.add("aac");
+                varCmd.add("-b:a");    varCmd.add("96k");
+                varCmd.add("-movflags"); varCmd.add("+faststart");
+                varCmd.add(entry.getValue().toString());
+            }
+
+            try {
+                System.out.println("[Replace] 멀티 출력 시작 " + varTargets.keySet() + " [" + newUuid + "]");
+                ProcessBuilder vb = new ProcessBuilder(varCmd);
+                vb.redirectErrorStream(true);
+                Process vp = vb.start();
+                Thread drainVar = new Thread(() -> {
+                    try { vp.getInputStream().transferTo(OutputStream.nullOutputStream()); }
+                    catch (Exception ignored) {}
+                });
+                drainVar.setDaemon(true);
+                drainVar.start();
+                boolean vDone = vp.waitFor(120, TimeUnit.MINUTES);
+                int vExit = vDone ? vp.exitValue() : -1;
+                System.out.println("[Replace] 멀티 출력 종료코드=" + vExit + " [" + newUuid + "]");
+
+                if (vDone && vExit == 0) {
+                    for (java.util.Map.Entry<Integer, Path> entry : varTargets.entrySet()) {
+                        int h = entry.getKey();
+                        Path varPath = entry.getValue();
+                        if (!varPath.toFile().exists()) { newVariantUrls.add(null); continue; }
                         String url;
                         if (storageService.isConfigured()) {
                             url = storageService.upload(varPath, "videos/" + newUuid + "_" + h + "p.mp4", "video/mp4");
@@ -714,13 +743,10 @@ public class VideoUploadController {
                             videoRepository.save(v);
                         });
                         System.out.println("[Replace] " + h + "p 완료 [" + newUuid + "]");
-                    } else {
-                        newVariantUrls.add(null);
                     }
-                } catch (Exception e) {
-                    newVariantUrls.add(null);
-                    System.err.println("[Replace] " + h + "p 오류: " + e.getMessage());
                 }
+            } catch (Exception e) {
+                System.err.println("[Replace] 멀티 출력 오류: " + e.getMessage());
             }
 
             // 3. 메인 파일 R2 업로드 및 DB 갱신
