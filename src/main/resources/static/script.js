@@ -376,26 +376,13 @@ function showShareModal(videoId, getCurrentTime, videoData = {}) {
     });
 
     modal.querySelector("#shareKakaoBtn")?.addEventListener("click", () => {
-        const url = input.value;
         if (typeof Kakao === "undefined" || !Kakao.isInitialized()) {
             alert("카카오 SDK 로딩 중이에요. 잠시 후 다시 시도해줘.");
             return;
         }
-        const thumb = videoData.thumbnail || "";
-        const isAbsoluteUrl = thumb.startsWith("http://") || thumb.startsWith("https://");
-        const watchUrl = `${window.location.origin}/watch.html?v=${videoId}`;
-        const shareParams = {
-            objectType: "feed",
-            content: {
-                title: videoData.title || "영상 공유",
-                description: videoData.description || "",
-                link: { mobileWebUrl: watchUrl, webUrl: watchUrl },
-            },
-            buttons: [{ title: "영상 보기", link: { mobileWebUrl: watchUrl, webUrl: watchUrl } }],
-        };
-        if (isAbsoluteUrl) shareParams.content.imageUrl = thumb;
+        const shareUrl = `${window.location.origin}/share/video/${videoId}`;
         try {
-            Kakao.Share.sendDefault(shareParams);
+            Kakao.Share.sendScrap({ requestUrl: shareUrl });
         } catch (e) {
             alert("카카오톡 공유 실패: " + e.message);
         }
