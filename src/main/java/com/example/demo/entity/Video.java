@@ -37,19 +37,25 @@ public class Video {
 
     private String visibility;
 
+    @Column(columnDefinition = "TEXT")
     private String embedUrl;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String thumbnail;
 
+    @Column(columnDefinition = "TEXT")
     private String videoUrl;
 
+    @Column(columnDefinition = "TEXT")
     private String videoUrl1080;
 
+    @Column(columnDefinition = "TEXT")
     private String videoUrl720;
 
+    @Column(columnDefinition = "TEXT")
     private String videoUrl480;
 
+    @Column(columnDefinition = "TEXT")
     private String videoUrl360;
 
     private String dateText;
