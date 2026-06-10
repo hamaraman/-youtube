@@ -56,6 +56,8 @@ public class VideoUploadController {
     private static final Semaphore BATCH_SEMAPHORE = new Semaphore(2);
     private static final java.util.concurrent.ConcurrentHashMap<Long, String> ENCODE_STATUS =
             new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<Long, Long> ENCODE_STATUS_TIME =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     private static final Set<String> ALLOWED_VIDEO_EXTS =
             Set.of(".mp4", ".mov", ".avi", ".mkv", ".webm", ".wmv", ".flv");
@@ -178,7 +180,7 @@ public class VideoUploadController {
                 final Long savedId = savedVideo.getId();
                 final String ffmpeg = ffmpegPath;
                 final Path dirPath = Paths.get(videoDir).toAbsolutePath();
-                ENCODE_STATUS.put(savedId, "QUEUED");
+                setEncodeStatus(savedId, "QUEUED");
                 CompletableFuture.runAsync(() -> convertAndGenerateVariants(ffmpeg, uuid, dirPath, savedId));
             }
 
@@ -356,7 +358,7 @@ public class VideoUploadController {
             video.setVideoUrl360(null);
             videoRepository.save(video);
 
-            ENCODE_STATUS.put(id, "QUEUED");
+            setEncodeStatus(id, "QUEUED");
             final Long videoId = id;
             final String ffmpeg = ffmpegPath;
             CompletableFuture.runAsync(() -> replaceVideoBackground(
@@ -467,7 +469,7 @@ public class VideoUploadController {
 
         if (origPath != null) {
             try {
-                ENCODE_STATUS.put(videoId, "CONVERTING");
+                setEncodeStatus(videoId, "CONVERTING");
                 ProcessBuilder pb = new ProcessBuilder(
                         ffmpeg, "-y",
                         "-i", origPath.toString(),
@@ -591,7 +593,7 @@ public class VideoUploadController {
             cmd.add(entry.getValue().toString());
         }
 
-        ENCODE_STATUS.put(videoId, "ENCODING");
+        setEncodeStatus(videoId, "ENCODING");
         try {
             System.out.println("[Batch] 멀티 출력 시작 " + targets.keySet() + " [" + uuid + "]");
             ProcessBuilder pb = new ProcessBuilder(cmd);
@@ -640,11 +642,11 @@ public class VideoUploadController {
             }
         } catch (Exception e) {
             System.err.println("[Batch] 멀티 출력 오류 [" + uuid + "]: " + e.getMessage());
-            ENCODE_STATUS.put(videoId, "ERROR:" + e.getMessage());
+            setEncodeStatus(videoId, "ERROR:" + e.getMessage());
         } finally {
             if (downloadedTemp != null) try { Files.deleteIfExists(downloadedTemp); } catch (Exception ignored) {}
         }
-        if ("ENCODING".equals(ENCODE_STATUS.get(videoId))) ENCODE_STATUS.put(videoId, "DONE");
+        if ("ENCODING".equals(ENCODE_STATUS.get(videoId))) setEncodeStatus(videoId, "DONE");
     }
 
     private void replaceVideoBackground(String ffmpeg, String newUuid, String origExt,
@@ -656,7 +658,7 @@ public class VideoUploadController {
         Path tmpPath   = dirPath.resolve(newUuid + "_conv.mp4");
         try {
             // 1. H.264 변환
-            ENCODE_STATUS.put(videoId, "CONVERTING");
+            setEncodeStatus(videoId, "CONVERTING");
             System.out.println("[Replace] H.264 변환 시작 [" + newUuid + "]");
             ProcessBuilder pb = new ProcessBuilder(
                     ffmpeg, "-y",
@@ -695,7 +697,7 @@ public class VideoUploadController {
                 if (h <= sourceHeight) varTargets.put(h, dirPath.resolve(newUuid + "_" + h + "p.mp4"));
             }
 
-            ENCODE_STATUS.put(videoId, "ENCODING");
+            setEncodeStatus(videoId, "ENCODING");
             List<String> varCmd = new ArrayList<>();
             varCmd.add(ffmpeg); varCmd.add("-y");
             varCmd.add("-i"); varCmd.add(servePath.toString());
@@ -755,7 +757,7 @@ public class VideoUploadController {
             }
 
             // 3. 메인 파일 R2 업로드 및 DB 갱신
-            ENCODE_STATUS.put(videoId, "UPLOADING");
+            setEncodeStatus(videoId, "UPLOADING");
             String newVideoUrl;
             if (storageService.isConfigured()) {
                 newVideoUrl = storageService.upload(servePath, "videos/" + newUuid + ".mp4", "video/mp4");
@@ -775,10 +777,10 @@ public class VideoUploadController {
                 }
             }
 
-            ENCODE_STATUS.put(videoId, "DONE");
+            setEncodeStatus(videoId, "DONE");
             System.out.println("[Replace] 완전 완료 [" + newUuid + "]");
         } catch (Exception e) {
-            ENCODE_STATUS.put(videoId, "ERROR:" + e.getMessage());
+            setEncodeStatus(videoId, "ERROR:" + e.getMessage());
             System.err.println("[Replace] 오류 [" + newUuid + "]: " + e.getMessage());
             try { Files.deleteIfExists(tmpPath); } catch (Exception ignored) {}
         }
@@ -843,5 +845,22 @@ public class VideoUploadController {
         response.setSuccess(false);
         response.setMessage(message);
         return response;
+    }
+
+    private static void setEncodeStatus(Long videoId, String status) {
+        ENCODE_STATUS.put(videoId, status);
+        ENCODE_STATUS_TIME.put(videoId, System.currentTimeMillis());
+    }
+
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 60_000)
+    public void cleanupEncodeStatus() {
+        long cutoff = System.currentTimeMillis() - 10 * 60 * 1000L;
+        ENCODE_STATUS_TIME.entrySet().removeIf(e -> {
+            String status = ENCODE_STATUS.get(e.getKey());
+            boolean expired = e.getValue() < cutoff
+                    && (status == null || "DONE".equals(status) || status.startsWith("ERROR"));
+            if (expired) ENCODE_STATUS.remove(e.getKey());
+            return expired;
+        });
     }
 }
