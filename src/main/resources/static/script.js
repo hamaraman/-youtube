@@ -2906,6 +2906,8 @@ function initUploadPage() {
 
         if (thumbnailFile) {
             formData.append("thumbnailFile", thumbnailFile);
+        } else if (autoSelectedThumbBlob) {
+            formData.append("thumbnailFile", autoSelectedThumbBlob, "auto_thumb.jpg");
         } else {
             formData.append("thumbnailUrl", thumbnailUrl);
         }
@@ -3040,6 +3042,73 @@ function initUploadPage() {
         updateSummary();
     });
 
+    let autoSelectedThumbBlob = null;
+
+    async function extractVideoThumbnails(file, count = 3) {
+        return new Promise((resolve) => {
+            const url = URL.createObjectURL(file);
+            const video = document.createElement("video");
+            video.src = url;
+            video.muted = true;
+            video.playsInline = true;
+            video.preload = "metadata";
+
+            video.addEventListener("loadedmetadata", async () => {
+                const duration = video.duration;
+                const positions = [0.1, 0.35, 0.6].map(p => Math.max(p * duration, 0.5));
+                const results = [];
+
+                for (const t of positions) {
+                    await new Promise(res => {
+                        video.currentTime = t;
+                        video.addEventListener("seeked", () => {
+                            const canvas = document.createElement("canvas");
+                            const scale = 640 / video.videoWidth;
+                            canvas.width = 640;
+                            canvas.height = Math.round(video.videoHeight * scale);
+                            canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+                            canvas.toBlob(blob => { results.push({ blob, dataUrl: canvas.toDataURL("image/jpeg", 0.85) }); res(); }, "image/jpeg", 0.85);
+                        }, { once: true });
+                    });
+                }
+
+                URL.revokeObjectURL(url);
+                resolve(results);
+            });
+
+            video.addEventListener("error", () => { URL.revokeObjectURL(url); resolve([]); });
+        });
+    }
+
+    function renderThumbCandidates(candidates) {
+        const section = document.getElementById("thumbCandidatesSection");
+        const loading = document.getElementById("thumbCandidatesLoading");
+        const list = document.getElementById("thumbCandidatesList");
+        if (!section || !list) return;
+
+        loading.style.display = "none";
+        list.innerHTML = "";
+        autoSelectedThumbBlob = null;
+
+        candidates.forEach((c, i) => {
+            const div = document.createElement("div");
+            div.className = "thumb-candidate";
+            div.innerHTML = `<img src="${c.dataUrl}" alt="썸네일 후보 ${i + 1}"><div class="thumb-candidate-label">${["처음", "중간", "후반"][i]}</div>`;
+            div.addEventListener("click", () => {
+                list.querySelectorAll(".thumb-candidate").forEach(el => el.classList.remove("is-selected"));
+                div.classList.add("is-selected");
+                autoSelectedThumbBlob = c.blob;
+                setThumbnailPreview(c.dataUrl);
+            });
+            list.appendChild(div);
+        });
+
+        // 첫 번째 자동 선택
+        if (candidates.length > 0) {
+            list.querySelector(".thumb-candidate")?.click();
+        }
+    }
+
     uploadVideoFile?.addEventListener("change", async () => {
         const file = uploadVideoFile.files?.[0];
         if (selectedVideoName) {
@@ -3048,10 +3117,16 @@ function initUploadPage() {
 
         validateVideoFile();
 
+        const section = document.getElementById("thumbCandidatesSection");
+        const loading = document.getElementById("thumbCandidatesLoading");
+        const list = document.getElementById("thumbCandidatesList");
+
         if (!file) {
             uploadDuration.value = "";
             validateDurationField();
             updateSummary();
+            if (section) section.style.display = "none";
+            autoSelectedThumbBlob = null;
             return;
         }
 
@@ -3060,6 +3135,19 @@ function initUploadPage() {
             uploadDuration.value = formatDuration(durationSeconds);
         } catch {
             uploadDuration.value = "";
+        }
+
+        // 썸네일 후보 추출
+        if (section && loading && list) {
+            section.style.display = "block";
+            loading.style.display = "block";
+            list.innerHTML = "";
+            try {
+                const candidates = await extractVideoThumbnails(file);
+                renderThumbCandidates(candidates);
+            } catch {
+                loading.style.display = "none";
+            }
         }
 
         validateDurationField();
