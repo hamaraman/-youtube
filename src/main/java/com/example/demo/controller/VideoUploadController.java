@@ -1020,7 +1020,7 @@ public class VideoUploadController {
             }
             default -> {
                 cmd.add("-c:v"); cmd.add("libx264");
-                cmd.add("-preset"); cmd.add(highQuality ? "fast" : "ultrafast");
+                cmd.add("-preset"); cmd.add("ultrafast");
                 cmd.add("-crf"); cmd.add(String.valueOf(quality));
             }
         }
