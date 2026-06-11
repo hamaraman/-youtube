@@ -46,6 +46,9 @@ public class VideoUploadController {
     @Value("${ffmpeg.path:ffmpeg}")
     private String ffmpegPath;
 
+    @Value("${ffmpeg.hw-accel:none}")
+    private String ffmpegHwAccel;
+
     private final VideoRepository videoRepository;
     private final LoginUserResolver loginUserResolver;
     private final AdminChecker adminChecker;
@@ -507,20 +510,20 @@ public class VideoUploadController {
             cmd.add("-filter_complex"); cmd.add(fc.toString());
             // 메인 출력 (fast/crf23 — 원본 화질)
             cmd.add("-map"); cmd.add("[ov_main]"); cmd.add("-map"); cmd.add("0:a?");
-            cmd.add("-c:v"); cmd.add("libx264"); cmd.add("-preset"); cmd.add("fast"); cmd.add("-crf"); cmd.add("23");
+            addEncoderArgs(cmd, true);
             cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
             cmd.add(tmpPath.toString());
-            // 해상도 변환 출력 (ultrafast/crf26 — 빠른 변환 우선)
+            // 해상도 변환 출력
             for (int i = 0; i < nVar; i++) {
                 int h = heights.get(i);
                 cmd.add("-map"); cmd.add("[ov" + i + "]"); cmd.add("-map"); cmd.add("0:a?");
-                cmd.add("-c:v"); cmd.add("libx264"); cmd.add("-preset"); cmd.add("ultrafast"); cmd.add("-crf"); cmd.add("26");
+                addEncoderArgs(cmd, false);
                 cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("96k"); cmd.add("-movflags"); cmd.add("+faststart");
                 cmd.add(varTargets.get(h).toString());
             }
         } else {
             // 변환 대상 해상도 없음 — 단순 H.264 변환만
-            cmd.add("-c:v"); cmd.add("libx264"); cmd.add("-preset"); cmd.add("fast"); cmd.add("-crf"); cmd.add("23");
+            addEncoderArgs(cmd, true);
             cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
             cmd.add(tmpPath.toString());
         }
@@ -679,9 +682,7 @@ public class VideoUploadController {
             int h = heights.get(i);
             cmd.add("-map"); cmd.add("[ov" + i + "]");
             cmd.add("-map"); cmd.add("0:a?");
-            cmd.add("-c:v");    cmd.add("libx264");
-            cmd.add("-preset"); cmd.add("ultrafast");
-            cmd.add("-crf");    cmd.add("26");
+            addEncoderArgs(cmd, false);
             cmd.add("-c:a");    cmd.add("aac");
             cmd.add("-b:a");    cmd.add("96k");
             cmd.add("-movflags"); cmd.add("+faststart");
@@ -781,18 +782,18 @@ public class VideoUploadController {
                 }
                 cmd.add("-filter_complex"); cmd.add(fc.toString());
                 cmd.add("-map"); cmd.add("[ov_main]"); cmd.add("-map"); cmd.add("0:a?");
-                cmd.add("-c:v"); cmd.add("libx264"); cmd.add("-preset"); cmd.add("fast"); cmd.add("-crf"); cmd.add("23");
+                addEncoderArgs(cmd, true);
                 cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
                 cmd.add(tmpPath.toString());
                 for (int i = 0; i < nVar; i++) {
                     int h = heights.get(i);
                     cmd.add("-map"); cmd.add("[ov" + i + "]"); cmd.add("-map"); cmd.add("0:a?");
-                    cmd.add("-c:v"); cmd.add("libx264"); cmd.add("-preset"); cmd.add("ultrafast"); cmd.add("-crf"); cmd.add("26");
+                    addEncoderArgs(cmd, false);
                     cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("96k"); cmd.add("-movflags"); cmd.add("+faststart");
                     cmd.add(varTargets.get(h).toString());
                 }
             } else {
-                cmd.add("-c:v"); cmd.add("libx264"); cmd.add("-preset"); cmd.add("fast"); cmd.add("-crf"); cmd.add("23");
+                addEncoderArgs(cmd, true);
                 cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
                 cmd.add(tmpPath.toString());
             }
@@ -988,6 +989,35 @@ public class VideoUploadController {
             return Double.parseDouble(out.split("\n")[0].trim());
         } catch (Exception e) {
             return 0;
+        }
+    }
+
+    private void addEncoderArgs(List<String> cmd, boolean highQuality) {
+        String hw = ffmpegHwAccel == null ? "none" : ffmpegHwAccel.trim().toLowerCase();
+        int quality = highQuality ? 23 : 26;
+        switch (hw) {
+            case "nvenc" -> {
+                cmd.add("-c:v"); cmd.add("h264_nvenc");
+                cmd.add("-preset"); cmd.add(highQuality ? "p4" : "p1");
+                cmd.add("-cq"); cmd.add(String.valueOf(quality));
+            }
+            case "qsv" -> {
+                cmd.add("-c:v"); cmd.add("h264_qsv");
+                cmd.add("-preset"); cmd.add(highQuality ? "medium" : "veryfast");
+                cmd.add("-global_quality"); cmd.add(String.valueOf(quality));
+            }
+            case "amf" -> {
+                cmd.add("-c:v"); cmd.add("h264_amf");
+                cmd.add("-quality"); cmd.add(highQuality ? "quality" : "speed");
+                cmd.add("-rc"); cmd.add("cqp");
+                cmd.add("-qp_i"); cmd.add(String.valueOf(quality));
+                cmd.add("-qp_p"); cmd.add(String.valueOf(quality));
+            }
+            default -> {
+                cmd.add("-c:v"); cmd.add("libx264");
+                cmd.add("-preset"); cmd.add(highQuality ? "fast" : "ultrafast");
+                cmd.add("-crf"); cmd.add(String.valueOf(quality));
+            }
         }
     }
 
