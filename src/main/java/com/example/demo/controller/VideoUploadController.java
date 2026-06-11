@@ -28,6 +28,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -480,6 +481,12 @@ public class VideoUploadController {
         if (origPath == null) {
             // 원본 없음 — 이미 변환된 servePath로 변환만
             generateResolutionVariants(ffmpeg, servePath.toString(), dirPath, uuid, videoId);
+            videoRepository.findById(videoId).ifPresent(v -> {
+                if (v.getThumbnail() == null || v.getThumbnail().isBlank()) {
+                    String autoThumb = generateAutoThumbnail(ffmpeg, servePath, dirPath, uuid);
+                    if (autoThumb != null) { v.setThumbnail(autoThumb); videoRepository.save(v); System.out.println("[Thumb] 자동 썸네일 저장 [" + uuid + "]"); }
+                }
+            });
             if (storageService.isConfigured() && servePath.toFile().exists()) {
                 try { storageService.upload(servePath, "videos/" + uuid + ".mp4", "video/mp4"); Files.deleteIfExists(servePath); } catch (Exception ignored) {}
             }
@@ -881,7 +888,7 @@ public class VideoUploadController {
         String originalFilename = StringUtils.cleanPath(file.getOriginalFilename());
         String ext = "";
         int dot = originalFilename.lastIndexOf(".");
-        if (dot != -1) ext = originalFilename.substring(dot);
+        if (dot != -1) ext = originalFilename.substring(dot).toLowerCase();
 
         String uuid = UUID.randomUUID().toString();
         Path origPath = Paths.get(dir).toAbsolutePath().resolve(uuid + "_orig" + ext);
@@ -944,10 +951,11 @@ public class VideoUploadController {
         try {
             double duration = getSourceDuration(ffmpeg, videoPath.toString());
             double seekTime = duration > 10 ? duration * 0.1 : Math.max(duration * 0.5, 0);
+            System.out.println("[Thumb] 시작 [" + uuid + "] duration=" + duration + " seekTime=" + seekTime);
 
             ProcessBuilder pb = new ProcessBuilder(
                     ffmpeg, "-y",
-                    "-ss", String.format("%.2f", seekTime),
+                    "-ss", String.format(Locale.US, "%.2f", seekTime),
                     "-i", videoPath.toString(),
                     "-vframes", "1",
                     "-q:v", "2",
@@ -956,9 +964,13 @@ public class VideoUploadController {
             );
             pb.redirectErrorStream(true);
             Process p = pb.start();
-            p.getInputStream().transferTo(OutputStream.nullOutputStream());
+            String ffmpegOut = new String(p.getInputStream().readAllBytes());
             boolean done = p.waitFor(30, TimeUnit.SECONDS);
-            if (!done || p.exitValue() != 0 || !thumbPath.toFile().exists()) return null;
+            int exitCode = done ? p.exitValue() : -1;
+            if (!done || exitCode != 0 || !thumbPath.toFile().exists()) {
+                System.err.println("[Thumb] FFmpeg 실패 [" + uuid + "] exitCode=" + exitCode + " output=" + ffmpegOut.substring(0, Math.min(ffmpegOut.length(), 300)));
+                return null;
+            }
 
             if (storageService.isConfigured()) {
                 String url = storageService.upload(thumbPath, "thumbnails/" + uuid + "_thumb.jpg", "image/jpeg");
