@@ -186,7 +186,10 @@ public class VideoUploadController {
                 final String ffmpeg = ffmpegPath;
                 final Path dirPath = Paths.get(videoDir).toAbsolutePath();
                 setEncodeStatus(savedId, "QUEUED");
-                CompletableFuture.runAsync(() -> convertAndGenerateVariants(ffmpeg, uuid, dirPath, savedId));
+                CompletableFuture.runAsync(() -> {
+                    try { BATCH_SEMAPHORE.acquire(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                    try { convertAndGenerateVariants(ffmpeg, uuid, dirPath, savedId); } finally { BATCH_SEMAPHORE.release(); }
+                });
             }
 
             UploadResponse response = new UploadResponse(
@@ -366,9 +369,11 @@ public class VideoUploadController {
             setEncodeStatus(id, "QUEUED");
             final Long videoId = id;
             final String ffmpeg = ffmpegPath;
-            CompletableFuture.runAsync(() -> replaceVideoBackground(
-                    ffmpeg, newUuid, videoExt, dirPath, videoId,
-                    oldVideoUrl, oldUrl1080, oldUrl720, oldUrl480, oldUrl360));
+            CompletableFuture.runAsync(() -> {
+                try { BATCH_SEMAPHORE.acquire(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                try { replaceVideoBackground(ffmpeg, newUuid, videoExt, dirPath, videoId,
+                        oldVideoUrl, oldUrl1080, oldUrl720, oldUrl480, oldUrl360); } finally { BATCH_SEMAPHORE.release(); }
+            });
 
             return ResponseEntity.ok(Map.of("success", true, "message", "업로드 완료, 인코딩을 시작합니다."));
         } catch (Exception e) {
