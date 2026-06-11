@@ -44,6 +44,9 @@ public class S3StorageService {
                     .region(Region.of("auto"))
                     .serviceConfiguration(S3Configuration.builder()
                             .pathStyleAccessEnabled(true)
+                            // R2는 SDK 기본 청크 인코딩 + 트레일러 체크섬(x-amz-checksum-crc32)을 지원하지 않아 401을 반환함
+                            .checksumValidationEnabled(false)
+                            .chunkedEncodingEnabled(false)
                             .build())
                     .build();
         } else {
