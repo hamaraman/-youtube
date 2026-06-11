@@ -5564,6 +5564,16 @@ async function initStudioPage() {
                 if (isActive) hasActive = true;
                 if (status === "IDLE" || status === "DONE") {
                     badge.style.display = "none";
+                    if (status === "DONE") {
+                        fetch(`/api/videos/${id}`)
+                            .then(r => r.ok ? r.json() : null)
+                            .then(v => {
+                                if (!v || !v.thumbnail) return;
+                                const row = document.querySelector(`.studio-row[data-id="${id}"]`);
+                                const img = row?.querySelector(".studio-thumb img");
+                                if (img) img.src = v.thumbnail;
+                            }).catch(() => {});
+                    }
                 } else if (status.startsWith("ERROR")) {
                     badge.style.display = "";
                     badge.className = "studio-encode-badge is-error";
