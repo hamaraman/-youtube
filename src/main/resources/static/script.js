@@ -2520,8 +2520,38 @@ function initNotifications() {
         }
     });
 
+    function connectSSE() {
+        const es = new EventSource("/api/notifications/stream");
+
+        es.addEventListener("notification", (e) => {
+            let data;
+            try { data = JSON.parse(e.data); } catch { return; }
+            const n = data.notification;
+            const unreadCount = data.unreadCount;
+
+            lastUnreadCount = unreadCount;
+            if (unreadCount > 0) {
+                badge.textContent = unreadCount > 99 ? "99+" : unreadCount;
+                badge.style.display = "flex";
+            } else {
+                badge.style.display = "none";
+            }
+
+            if (!open) {
+                ringBell();
+                showBrowserNotif(n.message, n.thumbnail);
+            } else if (list.style.display !== "none") {
+                fetchNotifs().then((data) => { if (data) renderList(data.notifications); });
+            }
+        });
+
+        es.onerror = () => {
+            // EventSource는 연결이 끊기면 브라우저가 자동으로 재연결을 시도함
+        };
+    }
+
     refresh();
-    setInterval(refresh, 30000);
+    connectSSE();
 }
 
 function initThemeToggle() {

@@ -3,10 +3,9 @@ package com.example.demo.controller;
 import com.example.demo.config.AdminChecker;
 import com.example.demo.config.LoginUserResolver;
 import com.example.demo.config.S3StorageService;
-import com.example.demo.entity.Notification;
+import com.example.demo.config.NotificationService;
 import com.example.demo.entity.Subscription;
 import com.example.demo.entity.Video;
-import com.example.demo.repository.NotificationRepository;
 import com.example.demo.repository.SubscriptionRepository;
 import com.example.demo.repository.VideoRepository;
 import jakarta.servlet.http.HttpSession;
@@ -55,7 +54,7 @@ public class VideoUploadController {
     private final AdminChecker adminChecker;
     private final S3StorageService storageService;
     private final SubscriptionRepository subscriptionRepository;
-    private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
 
     private static final Semaphore BATCH_SEMAPHORE = new Semaphore(2);
     private static final java.util.concurrent.ConcurrentHashMap<Long, String> ENCODE_STATUS =
@@ -73,13 +72,13 @@ public class VideoUploadController {
     public VideoUploadController(VideoRepository videoRepository, LoginUserResolver loginUserResolver,
                                  AdminChecker adminChecker, S3StorageService storageService,
                                  SubscriptionRepository subscriptionRepository,
-                                 NotificationRepository notificationRepository) {
+                                 NotificationService notificationService) {
         this.videoRepository = videoRepository;
         this.loginUserResolver = loginUserResolver;
         this.adminChecker = adminChecker;
         this.storageService = storageService;
         this.subscriptionRepository = subscriptionRepository;
-        this.notificationRepository = notificationRepository;
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/upload")
@@ -170,13 +169,9 @@ public class VideoUploadController {
             if ("공개".equals(savedVideo.getVisibility())) {
                 List<Subscription> subs = subscriptionRepository.findByChannelOwnerId(sessionUser.getId());
                 for (Subscription sub : subs) {
-                    Notification notif = new Notification();
-                    notif.setReceiverId(sub.getSubscriberId());
-                    notif.setType("VIDEO");
-                    notif.setMessage(channel.trim() + "이(가) 새 영상을 올렸어요: " + title.trim());
-                    notif.setRelatedVideoId(savedVideo.getId());
-                    notif.setThumbnail(finalThumbnailUrl);
-                    notificationRepository.save(notif);
+                    notificationService.send(sub.getSubscriberId(), sessionUser.getId(), "VIDEO",
+                            channel.trim() + "이(가) 새 영상을 올렸어요: " + title.trim(),
+                            savedVideo.getId(), finalThumbnailUrl);
                 }
             }
 
