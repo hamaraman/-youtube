@@ -1842,7 +1842,7 @@ function readVideoDuration(file) {
         const tempVideo = document.createElement("video");
         const objectUrl = URL.createObjectURL(file);
 
-        const cleanup = () => URL.revokeObjectURL(objectUrl);
+        const cleanup = () => { tempVideo.src = ""; URL.revokeObjectURL(objectUrl); };
         const timer = setTimeout(() => { cleanup(); reject(new Error("timeout")); }, 8000);
 
         tempVideo.preload = "metadata";
@@ -3116,11 +3116,12 @@ function initUploadPage() {
                     });
                 }
 
+                video.src = "";
                 URL.revokeObjectURL(url);
                 resolve(results);
             });
 
-            video.addEventListener("error", () => { URL.revokeObjectURL(url); resolve([]); });
+            video.addEventListener("error", () => { video.src = ""; URL.revokeObjectURL(url); resolve([]); });
         });
     }
 
