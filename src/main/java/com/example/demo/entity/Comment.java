@@ -1,6 +1,9 @@
 package com.example.demo.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.time.Duration;
 
@@ -10,6 +13,9 @@ import java.time.Duration;
                @Index(name = "idx_comments_video_id", columnList = "videoId"),
                @Index(name = "idx_comments_parent_id", columnList = "parent_id")
        })
+@Getter
+@Setter
+@NoArgsConstructor
 public class Comment {
 
     @Id
@@ -40,29 +46,6 @@ public class Comment {
         if (createdAt == null) createdAt = LocalDateTime.now();
     }
 
-    public Comment() {
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Long getVideoId() {
-        return videoId;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public String getAuthor() {
-        return author;
-    }
-
-    public String getText() {
-        return text;
-    }
-
     public String getTime() {
         if (createdAt != null) return timeAgo(createdAt);
         return time;
@@ -80,37 +63,5 @@ public class Comment {
         if (days < 30) return (days / 7) + "주 전";
         if (days < 365) return (days / 30) + "개월 전";
         return (days / 365) + "년 전";
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public void setVideoId(Long videoId) {
-        this.videoId = videoId;
-    }
-
-    public void setUserId(Long userId) {
-        this.userId = userId;
-    }
-
-    public void setAuthor(String author) {
-        this.author = author;
-    }
-
-    public void setText(String text) {
-        this.text = text;
-    }
-
-    public void setTime(String time) {
-        this.time = time;
-    }
-
-    public Long getParentId() {
-        return parentId;
-    }
-
-    public void setParentId(Long parentId) {
-        this.parentId = parentId;
     }
 }

@@ -1,10 +1,16 @@
 package com.example.demo.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "subscriptions",
        uniqueConstraints = @UniqueConstraint(columnNames = {"subscriber_id", "channel_owner_id"}))
+@Getter
+@Setter
+@NoArgsConstructor
 public class Subscription {
 
     @Id
@@ -16,10 +22,4 @@ public class Subscription {
 
     @Column(name = "channel_owner_id", nullable = false)
     private Long channelOwnerId;
-
-    public Long getId() { return id; }
-    public Long getSubscriberId() { return subscriberId; }
-    public Long getChannelOwnerId() { return channelOwnerId; }
-    public void setSubscriberId(Long subscriberId) { this.subscriberId = subscriberId; }
-    public void setChannelOwnerId(Long channelOwnerId) { this.channelOwnerId = channelOwnerId; }
 }

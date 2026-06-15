@@ -1,25 +1,15 @@
 package com.example.demo.controller;
 
-import com.example.demo.config.JwtUtil;
-import com.example.demo.config.LoginAttemptService;
-import com.example.demo.config.PasswordResetTokenStore;
-import com.example.demo.config.UserSessionRegistry;
 import com.example.demo.dto.SignupRequest;
-import com.example.demo.entity.User;
-import com.example.demo.repository.SubscriptionRepository;
-import com.example.demo.repository.UserRepository;
+import com.example.demo.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api")
@@ -27,78 +17,21 @@ public class AuthController {
 
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final UserSessionRegistry sessionRegistry;
-    private final JwtUtil jwtUtil;
-    private final PasswordResetTokenStore resetTokenStore;
-    private final SubscriptionRepository subscriptionRepository;
-    private final JavaMailSender mailSender;
-    private final LoginAttemptService loginAttemptService;
+    private final AuthService authService;
 
-    @Value("${app.base-url}")
-    private String baseUrl;
-
-    @Value("${spring.mail.username}")
-    private String mailSenderUsername;
-
-    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                          UserSessionRegistry sessionRegistry, JwtUtil jwtUtil,
-                          PasswordResetTokenStore resetTokenStore,
-                          SubscriptionRepository subscriptionRepository,
-                          JavaMailSender mailSender,
-                          LoginAttemptService loginAttemptService) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.sessionRegistry = sessionRegistry;
-        this.jwtUtil = jwtUtil;
-        this.resetTokenStore = resetTokenStore;
-        this.subscriptionRepository = subscriptionRepository;
-        this.mailSender = mailSender;
-        this.loginAttemptService = loginAttemptService;
+    public AuthController(AuthService authService) {
+        this.authService = authService;
     }
 
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@RequestBody SignupRequest request) {
         try {
-            String username = request.getUsername() == null ? "" : request.getUsername().trim();
-            String password = request.getPassword() == null ? "" : request.getPassword().trim();
-            String nickname = request.getNickname() == null ? "" : request.getNickname().trim();
-            String email = request.getEmail() == null ? "" : request.getEmail().trim();
-
-            if (username.isEmpty() || password.isEmpty() || nickname.isEmpty()) {
-                return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디, 비밀번호, 닉네임은 필수입니다."));
-            }
-
-            if (!username.matches("^[a-zA-Z0-9_]{4,20}$")) {
-                return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디는 4~20자의 영문, 숫자, 밑줄만 사용할 수 있습니다."));
-            }
-
-            if (password.length() < 8) {
-                return ResponseEntity.badRequest().body(new SimpleResponse(false, "비밀번호는 최소 8자 이상이어야 합니다."));
-            }
-
-            if (userRepository.existsByUsername(username)) {
-                return ResponseEntity.badRequest().body(new SimpleResponse(false, "이미 사용 중인 아이디입니다."));
-            }
-
-            if (!email.isEmpty() && userRepository.existsByEmail(email)) {
-                return ResponseEntity.badRequest().body(new SimpleResponse(false, "이미 사용 중인 이메일입니다."));
-            }
-
-            User user = new User();
-            user.setUsername(username);
-            user.setPassword(passwordEncoder.encode(password));
-            user.setNickname(nickname);
-            user.setEmail(email.isEmpty() ? null : email);
-            user.setChannelName(nickname);
-            user.setProfileImage(null);
-
-            userRepository.save(user);
-
+            authService.signup(request);
             return ResponseEntity.ok(new SimpleResponse(true, "회원가입이 완료되었습니다."));
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(new SimpleResponse(false, e.getReason()));
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("회원가입 중 에러 발생", e);
             return ResponseEntity.internalServerError().body(new SimpleResponse(false, "회원가입 중 오류가 발생했습니다."));
         }
     }
@@ -108,75 +41,12 @@ public class AuthController {
                                    HttpServletRequest httpRequest) {
         try {
             String ip = getClientIp(httpRequest);
-
-            if (loginAttemptService.isBlocked(ip)) {
-                long remaining = loginAttemptService.blockRemainingSeconds(ip);
-                return ResponseEntity.status(429).body(new SimpleResponse(false,
-                        "로그인 시도 횟수를 초과했습니다. " + remaining + "초 후에 다시 시도해주세요."));
-            }
-
-            String username = request.getUsername() == null ? "" : request.getUsername().trim();
-            String password = request.getPassword() == null ? "" : request.getPassword().trim();
-
-            if (username.isEmpty() || password.isEmpty()) {
-                return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디와 비밀번호를 입력해줘."));
-            }
-
-            Optional<User> optionalUser = userRepository.findByUsername(username);
-
-            if (optionalUser.isEmpty()) {
-                loginAttemptService.recordFailure(ip);
-                return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디 또는 비밀번호가 올바르지 않습니다."));
-            }
-
-            User user = optionalUser.get();
-
-            boolean passwordMatched = false;
-
-            if (user.getPassword() != null) {
-                if (user.getPassword().startsWith("$2a$")
-                        || user.getPassword().startsWith("$2b$")
-                        || user.getPassword().startsWith("$2y$")) {
-                    passwordMatched = passwordEncoder.matches(password, user.getPassword());
-                } else {
-                    passwordMatched = user.getPassword().equals(password);
-
-                    if (passwordMatched) {
-                        user.setPassword(passwordEncoder.encode(password));
-                        userRepository.save(user);
-                    }
-                }
-            }
-
-            if (!passwordMatched) {
-                loginAttemptService.recordFailure(ip);
-                return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디 또는 비밀번호가 올바르지 않습니다."));
-            }
-
-            loginAttemptService.recordSuccess(ip);
-
-            SessionUser sessionUser = new SessionUser(
-                    user.getId(),
-                    user.getUsername(),
-                    user.getNickname(),
-                    user.getEmail(),
-                    user.getChannelName(),
-                    user.getProfileImage(),
-                    user.getRole()
-            );
-
-            session.setAttribute("loginUser", sessionUser);
-            sessionRegistry.register(user.getId(), session);
-
-            String token = jwtUtil.generateToken(
-                    user.getId(), user.getUsername(), user.getNickname(),
-                    user.getEmail(), user.getChannelName(), user.getProfileImage(),
-                    user.getRole()
-            );
-
-            return ResponseEntity.ok(new LoginResponse(true, "로그인되었습니다.", sessionUser, token));
+            LoginResponse response = authService.login(request, ip, session);
+            return ResponseEntity.ok(response);
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(new SimpleResponse(false, e.getReason()));
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("로그인 중 에러 발생", e);
             return ResponseEntity.internalServerError().body(new SimpleResponse(false, "로그인 중 오류가 발생했습니다."));
         }
     }
@@ -191,102 +61,53 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<?> me(HttpSession session) {
-        Object loginUser = session.getAttribute("loginUser");
-
-        if (loginUser == null) {
-            return ResponseEntity.ok(new MeResponse(false, null));
-        }
-
-        SessionUser su = (SessionUser) loginUser;
-        long subscriberCount = subscriptionRepository.countByChannelOwnerId(su.getId());
-        return ResponseEntity.ok(new MeResponse(true, su.withSubscriberCount(subscriberCount)));
+        SessionUser su = (SessionUser) session.getAttribute("loginUser");
+        return ResponseEntity.ok(authService.getMe(su));
     }
 
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
-        String username = request.getUsername() == null ? "" : request.getUsername().trim();
-        String email = request.getEmail() == null ? "" : request.getEmail().trim();
-
-        if (username.isEmpty() || email.isEmpty()) {
-            return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디와 이메일을 입력해줘."));
-        }
-
-        Optional<User> optUser = userRepository.findByUsername(username);
-        if (optUser.isEmpty()) {
-            return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디 또는 이메일이 일치하지 않습니다."));
-        }
-
-        User user = optUser.get();
-        if (user.getEmail() == null || !user.getEmail().equalsIgnoreCase(email)) {
-            return ResponseEntity.badRequest().body(new SimpleResponse(false, "아이디 또는 이메일이 일치하지 않습니다."));
-        }
-
-        String token = resetTokenStore.create(user.getId());
-        String resetLink = baseUrl + "/forgot-password.html?token=" + token;
-
         try {
-            SimpleMailMessage mail = new SimpleMailMessage();
-            mail.setFrom(mailSenderUsername);
-            mail.setTo(user.getEmail());
-            mail.setSubject("[MyTube] 비밀번호 재설정 링크");
-            mail.setText(
-                "안녕하세요, " + user.getNickname() + "님!\n\n" +
-                "비밀번호 재설정을 요청하셨습니다.\n" +
-                "아래 링크를 클릭해서 새 비밀번호를 설정해주세요.\n\n" +
-                resetLink + "\n\n" +
-                "이 링크는 10분 후 만료됩니다.\n" +
-                "본인이 요청하지 않은 경우 이 이메일을 무시해주세요."
-            );
-            mailSender.send(mail);
-            log.info("비밀번호 재설정 이메일 발송: {}", user.getEmail());
+            authService.forgotPassword(request);
+            return ResponseEntity.ok(new SimpleResponse(true, "이메일을 확인해줘! 비밀번호 재설정 링크를 보냈어."));
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(new SimpleResponse(false, e.getReason()));
         } catch (Exception e) {
-            log.error("이메일 발송 실패: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError()
-                    .body(new SimpleResponse(false, "이메일 전송에 실패했습니다. 잠시 후 다시 시도해줘."));
+            return ResponseEntity.internalServerError().body(new SimpleResponse(false, "이메일 전송에 실패했습니다."));
         }
-
-        return ResponseEntity.ok(new SimpleResponse(true, "이메일을 확인해줘! 비밀번호 재설정 링크를 보냈어."));
     }
 
     @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
-        String token = request.getToken() == null ? "" : request.getToken().trim();
-        String newPassword = request.getNewPassword() == null ? "" : request.getNewPassword().trim();
-
-        if (token.isEmpty() || newPassword.isEmpty()) {
-            return ResponseEntity.badRequest().body(new SimpleResponse(false, "잘못된 요청입니다."));
+        try {
+            authService.resetPassword(request);
+            return ResponseEntity.ok(new SimpleResponse(true, "비밀번호가 변경됐어. 새 비밀번호로 로그인해줘."));
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(new SimpleResponse(false, e.getReason()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(new SimpleResponse(false, "비밀번호 재설정 중 오류가 발생했습니다."));
         }
-
-        if (newPassword.length() < 8) {
-            return ResponseEntity.badRequest().body(new SimpleResponse(false, "비밀번호는 최소 4자 이상이어야 합니다."));
-        }
-
-        Long userId = resetTokenStore.validate(token);
-        if (userId == null) {
-            return ResponseEntity.badRequest().body(new SimpleResponse(false, "인증이 만료됐어. 다시 시도해줘."));
-        }
-
-        Optional<User> optUser = userRepository.findById(userId);
-        if (optUser.isEmpty()) {
-            return ResponseEntity.badRequest().body(new SimpleResponse(false, "사용자를 찾을 수 없습니다."));
-        }
-
-        User user = optUser.get();
-        user.setPassword(passwordEncoder.encode(newPassword));
-        userRepository.save(user);
-        resetTokenStore.remove(token);
-
-        return ResponseEntity.ok(new SimpleResponse(true, "비밀번호가 변경됐어. 새 비밀번호로 로그인해줘."));
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpSession session) {
-        Object loginUser = session.getAttribute("loginUser");
-        if (loginUser instanceof SessionUser su) {
-            sessionRegistry.remove(su.getId());
-        }
+    public ResponseEntity<?> logout(HttpSession session,
+                                    @RequestParam(value = "refreshToken", required = false) String refreshToken) {
+        SessionUser su = (SessionUser) session.getAttribute("loginUser");
+        authService.logout(su, refreshToken);
         session.invalidate();
         return ResponseEntity.ok(new SimpleResponse(true, "로그아웃되었습니다."));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refresh(@RequestBody TokenRefreshRequest request) {
+        try {
+            TokenRefreshResponse response = authService.refresh(request.getRefreshToken());
+            return ResponseEntity.ok(response);
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(new SimpleResponse(false, e.getReason()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(new SimpleResponse(false, "토큰 재발급 중 오류가 발생했습니다."));
+        }
     }
 
     public static class ForgotPasswordRequest {
@@ -405,12 +226,23 @@ public class AuthController {
         private String message;
         private SessionUser user;
         private String token;
+        private String refreshToken;
+
+        public LoginResponse() {}
 
         public LoginResponse(boolean success, String message, SessionUser user, String token) {
             this.success = success;
             this.message = message;
             this.user = user;
             this.token = token;
+        }
+
+        public LoginResponse(boolean success, String message, SessionUser user, String token, String refreshToken) {
+            this.success = success;
+            this.message = message;
+            this.user = user;
+            this.token = token;
+            this.refreshToken = refreshToken;
         }
 
         public boolean isSuccess() {
@@ -427,6 +259,54 @@ public class AuthController {
 
         public String getToken() {
             return token;
+        }
+
+        public String getRefreshToken() {
+            return refreshToken;
+        }
+    }
+
+    public static class TokenRefreshRequest {
+        private String refreshToken;
+
+        public TokenRefreshRequest() {}
+
+        public String getRefreshToken() {
+            return refreshToken;
+        }
+
+        public void setRefreshToken(String refreshToken) {
+            this.refreshToken = refreshToken;
+        }
+    }
+
+    public static class TokenRefreshResponse {
+        private boolean success;
+        private String message;
+        private String accessToken;
+        private String refreshToken;
+
+        public TokenRefreshResponse(boolean success, String message, String accessToken, String refreshToken) {
+            this.success = success;
+            this.message = message;
+            this.accessToken = accessToken;
+            this.refreshToken = refreshToken;
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public String getAccessToken() {
+            return accessToken;
+        }
+
+        public String getRefreshToken() {
+            return refreshToken;
         }
     }
 

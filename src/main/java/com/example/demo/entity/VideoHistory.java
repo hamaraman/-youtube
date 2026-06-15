@@ -1,6 +1,9 @@
 package com.example.demo.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(
@@ -12,6 +15,9 @@ import jakarta.persistence.*;
                 @Index(name = "idx_video_history_user_id", columnList = "userId")
         }
 )
+@Getter
+@Setter
+@NoArgsConstructor
 public class VideoHistory {
 
     @Id
@@ -25,47 +31,4 @@ public class VideoHistory {
     private Long watchedAt;
 
     private Double lastPosition;
-
-    public VideoHistory() {
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Long getVideoId() {
-        return videoId;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public Long getWatchedAt() {
-        return watchedAt;
-    }
-
-    public Double getLastPosition() {
-        return lastPosition;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public void setVideoId(Long videoId) {
-        this.videoId = videoId;
-    }
-
-    public void setUserId(Long userId) {
-        this.userId = userId;
-    }
-
-    public void setWatchedAt(Long watchedAt) {
-        this.watchedAt = watchedAt;
-    }
-
-    public void setLastPosition(Double lastPosition) {
-        this.lastPosition = lastPosition;
-    }
 }

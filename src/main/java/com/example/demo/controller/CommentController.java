@@ -1,42 +1,29 @@
 package com.example.demo.controller;
 
 import com.example.demo.config.LoginUserResolver;
-import com.example.demo.config.NotificationService;
 import com.example.demo.dto.CommentRequest;
 import com.example.demo.entity.Comment;
-import com.example.demo.entity.CommentLike;
-import com.example.demo.entity.Video;
-import com.example.demo.repository.CommentLikeRepository;
-import com.example.demo.repository.CommentRepository;
-import com.example.demo.repository.VideoRepository;
+import com.example.demo.service.CommentService;
 import jakarta.servlet.http.HttpSession;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
 public class CommentController {
 
-    private final CommentRepository commentRepository;
-    private final VideoRepository videoRepository;
-    private final CommentLikeRepository commentLikeRepository;
+    private final CommentService commentService;
     private final LoginUserResolver loginUserResolver;
-    private final NotificationService notificationService;
 
-    public CommentController(CommentRepository commentRepository, VideoRepository videoRepository,
-                             CommentLikeRepository commentLikeRepository,
-                             LoginUserResolver loginUserResolver, NotificationService notificationService) {
-        this.commentRepository = commentRepository;
-        this.videoRepository = videoRepository;
-        this.commentLikeRepository = commentLikeRepository;
+    public CommentController(CommentService commentService, LoginUserResolver loginUserResolver) {
+        this.commentService = commentService;
         this.loginUserResolver = loginUserResolver;
-        this.notificationService = notificationService;
     }
 
     @GetMapping("/videos/{id}/comments")
@@ -45,63 +32,16 @@ public class CommentController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             HttpSession session) {
-
-        Optional<Video> optionalVideo = videoRepository.findById(id);
-        if (optionalVideo.isEmpty()) {
-            return ResponseEntity.notFound().build();
+        try {
+            Long loginUserId = loginUserResolver.getUserId(session);
+            Map<String, Object> result = commentService.getComments(id, page, size, loginUserId);
+            return ResponseEntity.ok(result);
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.status(e.getStatusCode()).body(new SimpleResponse(false, e.getReason()));
         }
-
-        final Long finalLoginUserId = loginUserResolver.getUserId(session);
-        int safeSize = Math.min(Math.max(size, 1), 50);
-
-        Page<Comment> pageResult = commentRepository
-                .findByVideoIdAndParentIdIsNullOrderByIdDesc(id, PageRequest.of(page, safeSize));
-        List<Comment> parentComments = pageResult.getContent();
-
-        if (parentComments.isEmpty()) {
-            long total = commentRepository.countAllByVideoId(id);
-            Map<String, Object> empty = new HashMap<>();
-            empty.put("comments", List.of());
-            empty.put("total", total);
-            empty.put("page", page);
-            empty.put("hasMore", false);
-            return ResponseEntity.ok(empty);
-        }
-
-        List<Long> parentIds = parentComments.stream().map(Comment::getId).collect(Collectors.toList());
-        List<Comment> allReplies = commentRepository.findByParentIdInOrderByIdAsc(parentIds);
-        Map<Long, List<Comment>> repliesByParent = allReplies.stream()
-                .collect(Collectors.groupingBy(Comment::getParentId));
-
-        List<Long> allCommentIds = new ArrayList<>(parentIds);
-        allReplies.stream().map(Comment::getId).forEach(allCommentIds::add);
-
-        Map<Long, Long> likeCounts = toCountMap(commentLikeRepository.countByCommentIdIn(allCommentIds));
-        Set<Long> likedCommentIds = finalLoginUserId != null
-                ? new HashSet<>(commentLikeRepository.findLikedCommentIdsByUserId(finalLoginUserId, allCommentIds))
-                : Collections.emptySet();
-
-        List<CommentItem> comments = parentComments.stream()
-                .map(comment -> {
-                    CommentItem item = CommentItem.from(comment, finalLoginUserId,
-                            likeCounts.getOrDefault(comment.getId(), 0L),
-                            likedCommentIds.contains(comment.getId()));
-                    item.replies = repliesByParent.getOrDefault(comment.getId(), List.of()).stream()
-                            .map(r -> CommentItem.from(r, finalLoginUserId,
-                                    likeCounts.getOrDefault(r.getId(), 0L),
-                                    likedCommentIds.contains(r.getId())))
-                            .collect(Collectors.toList());
-                    return item;
-                })
-                .collect(Collectors.toList());
-
-        long total = commentRepository.countAllByVideoId(id);
-        Map<String, Object> response = new HashMap<>();
-        response.put("comments", comments);
-        response.put("total", total);
-        response.put("page", page);
-        response.put("hasMore", pageResult.hasNext());
-        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/videos/{id}/comments")
@@ -110,47 +50,16 @@ public class CommentController {
             @RequestBody CommentRequest request,
             HttpSession session
     ) {
-        Optional<Video> optionalVideo = videoRepository.findById(id);
-
-        if (optionalVideo.isEmpty()) {
-            return ResponseEntity.notFound().build();
+        try {
+            AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+            CommentItem item = commentService.createComment(id, request.getContent(), sessionUser);
+            return ResponseEntity.ok(new CommentCreateResponse(true, item));
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.status(e.getStatusCode()).body(new SimpleResponse(false, e.getReason()));
         }
-
-        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
-        if (sessionUser == null) {
-            return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
-        }
-
-        String content = request.getContent() == null ? "" : request.getContent().trim();
-        if (content.isEmpty()) {
-            return ResponseEntity.badRequest().body(new SimpleResponse(false, "댓글 내용을 입력해줘."));
-        }
-
-        Comment comment = new Comment();
-        comment.setVideoId(id);
-        comment.setUserId(sessionUser.getId());
-        comment.setAuthor(
-                sessionUser.getNickname() != null && !sessionUser.getNickname().isBlank()
-                        ? sessionUser.getNickname()
-                        : sessionUser.getUsername()
-        );
-        comment.setText(content);
-
-        Comment saved = commentRepository.save(comment);
-
-        Video video = optionalVideo.get();
-        notificationService.send(video.getOwnerId(), sessionUser.getId(), "COMMENT",
-                comment.getAuthor() + "님이 댓글을 달았어요: " + truncate(content, 40),
-                id, video.getThumbnail());
-
-        return ResponseEntity.ok(new CommentCreateResponse(
-                true,
-                CommentItem.from(saved, sessionUser.getId(), 0L, false)
-        ));
-    }
-
-    private String truncate(String s, int max) {
-        return s.length() <= max ? s : s.substring(0, max) + "…";
     }
 
     @PostMapping("/comments/{commentId}/replies")
@@ -159,74 +68,29 @@ public class CommentController {
             @RequestBody CommentRequest request,
             HttpSession session
     ) {
-        Optional<Comment> parent = commentRepository.findById(commentId);
-        if (parent.isEmpty() || parent.get().getParentId() != null) {
-            return ResponseEntity.badRequest().body(new SimpleResponse(false, "유효하지 않은 댓글입니다."));
+        try {
+            AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+            CommentItem item = commentService.createReply(commentId, request.getContent(), sessionUser);
+            return ResponseEntity.ok(new CommentCreateResponse(true, item));
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.status(e.getStatusCode()).body(new SimpleResponse(false, e.getReason()));
         }
-
-        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
-        if (sessionUser == null) {
-            return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
-        }
-
-        String content = request.getContent() == null ? "" : request.getContent().trim();
-        if (content.isEmpty()) {
-            return ResponseEntity.badRequest().body(new SimpleResponse(false, "답글 내용을 입력해줘."));
-        }
-
-        Comment reply = new Comment();
-        reply.setVideoId(parent.get().getVideoId());
-        reply.setUserId(sessionUser.getId());
-        reply.setAuthor(sessionUser.getNickname() != null && !sessionUser.getNickname().isBlank()
-                ? sessionUser.getNickname() : sessionUser.getUsername());
-        reply.setText(content);
-        reply.setParentId(commentId);
-
-        Comment saved = commentRepository.save(reply);
-
-        String name = reply.getAuthor();
-        videoRepository.findById(parent.get().getVideoId()).ifPresent(video ->
-            notificationService.send(parent.get().getUserId(), sessionUser.getId(), "COMMENT",
-                    name + "님이 답글을 달았어요: " + truncate(content, 40),
-                    video.getId(), video.getThumbnail())
-        );
-
-        return ResponseEntity.ok(new CommentCreateResponse(true, CommentItem.from(saved, sessionUser.getId(), 0L, false)));
     }
 
     @PostMapping("/comments/{commentId}/like")
     public ResponseEntity<?> toggleCommentLike(@PathVariable Long commentId, HttpSession session) {
-        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
-        if (sessionUser == null) return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
-
-        Optional<Comment> optComment = commentRepository.findById(commentId);
-        if (optComment.isEmpty()) return ResponseEntity.notFound().build();
-
-        Comment comment = optComment.get();
-        Optional<CommentLike> existing = commentLikeRepository.findByCommentIdAndUserId(commentId, sessionUser.getId());
-
-        boolean liked;
-        if (existing.isPresent()) {
-            commentLikeRepository.delete(existing.get());
-            liked = false;
-        } else {
-            CommentLike cl = new CommentLike();
-            cl.setCommentId(commentId);
-            cl.setUserId(sessionUser.getId());
-            commentLikeRepository.save(cl);
-            liked = true;
-
-            String name = sessionUser.getChannelName() != null && !sessionUser.getChannelName().isBlank()
-                    ? sessionUser.getChannelName() : sessionUser.getNickname();
-            videoRepository.findById(comment.getVideoId()).ifPresent(video ->
-                notificationService.send(comment.getUserId(), sessionUser.getId(), "COMMENT_LIKE",
-                        name + "님이 댓글에 좋아요를 눌렀어요: " + truncate(comment.getText(), 30),
-                        video.getId(), video.getThumbnail())
-            );
+        try {
+            AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+            return ResponseEntity.ok(commentService.toggleCommentLike(commentId, sessionUser));
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.status(e.getStatusCode()).body(new SimpleResponse(false, e.getReason()));
         }
-
-        long likeCount = commentLikeRepository.countByCommentId(commentId);
-        return ResponseEntity.ok(java.util.Map.of("liked", liked, "likeCount", likeCount));
     }
 
     @PutMapping("/comments/{commentId}")
@@ -235,36 +99,16 @@ public class CommentController {
             @RequestBody CommentRequest request,
             HttpSession session
     ) {
-        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
-        if (sessionUser == null) {
-            return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
+        try {
+            AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+            CommentItem item = commentService.updateComment(commentId, request.getContent(), sessionUser);
+            return ResponseEntity.ok(new CommentCreateResponse(true, item));
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.status(e.getStatusCode()).body(new SimpleResponse(false, e.getReason()));
         }
-
-        Optional<Comment> optionalComment = commentRepository.findById(commentId);
-        if (optionalComment.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        Comment comment = optionalComment.get();
-
-        if (!sessionUser.getId().equals(comment.getUserId())) {
-            return ResponseEntity.status(403).body(new SimpleResponse(false, "본인 댓글만 수정할 수 있습니다."));
-        }
-
-        String content = request.getContent() == null ? "" : request.getContent().trim();
-        if (content.isEmpty()) {
-            return ResponseEntity.badRequest().body(new SimpleResponse(false, "수정할 댓글 내용을 입력해줘."));
-        }
-
-        comment.setText(content);
-        Comment saved = commentRepository.save(comment);
-        long likeCount = commentLikeRepository.countByCommentId(commentId);
-        boolean isLiked = commentLikeRepository.existsByCommentIdAndUserId(commentId, sessionUser.getId());
-
-        return ResponseEntity.ok(new CommentCreateResponse(
-                true,
-                CommentItem.from(saved, sessionUser.getId(), likeCount, isLiked)
-        ));
     }
 
     @DeleteMapping("/comments/{commentId}")
@@ -272,36 +116,16 @@ public class CommentController {
             @PathVariable Long commentId,
             HttpSession session
     ) {
-        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
-        if (sessionUser == null) {
-            return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
+        try {
+            AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+            commentService.deleteComment(commentId, sessionUser);
+            return ResponseEntity.ok(new SimpleResponse(true, "댓글이 삭제되었습니다."));
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.status(e.getStatusCode()).body(new SimpleResponse(false, e.getReason()));
         }
-
-        Optional<Comment> optionalComment = commentRepository.findById(commentId);
-        if (optionalComment.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        Comment comment = optionalComment.get();
-
-        if (!sessionUser.getId().equals(comment.getUserId())) {
-            return ResponseEntity.status(403).body(new SimpleResponse(false, "본인 댓글만 삭제할 수 있습니다."));
-        }
-
-        if (comment.getParentId() == null) {
-            commentRepository.deleteByParentId(commentId);
-        }
-        commentRepository.delete(comment);
-
-        return ResponseEntity.ok(new SimpleResponse(true, "댓글이 삭제되었습니다."));
-    }
-
-    private Map<Long, Long> toCountMap(List<Object[]> rows) {
-        Map<Long, Long> map = new HashMap<>();
-        for (Object[] row : rows) {
-            map.put((Long) row[0], (Long) row[1]);
-        }
-        return map;
     }
 
     public static class CommentItem {

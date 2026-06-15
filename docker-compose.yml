@@ -4,7 +4,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      DB_URL: jdbc:mariadb://168.107.58.62:3306/mytube
+      DB_URL: ${DB_URL:jdbc:mariadb://localhost:3306/mytube}
       DB_USERNAME: root
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}

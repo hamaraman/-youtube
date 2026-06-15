@@ -14,7 +14,7 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    private static final long EXPIRATION_MS = 30L * 24 * 60 * 60 * 1000; // 30일
+    private static final long EXPIRATION_MS = 60 * 60 * 1000; // 1시간 (3600000ms)
 
     private final SecretKey key;
 

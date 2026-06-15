@@ -1,6 +1,9 @@
 package com.example.demo.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(
@@ -13,6 +16,9 @@ import jakarta.persistence.*;
                 @Index(name = "idx_video_saves_user_id", columnList = "userId")
         }
 )
+@Getter
+@Setter
+@NoArgsConstructor
 public class VideoSave {
 
     @Id
@@ -22,31 +28,4 @@ public class VideoSave {
     private Long videoId;
 
     private Long userId;
-
-    public VideoSave() {
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Long getVideoId() {
-        return videoId;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public void setVideoId(Long videoId) {
-        this.videoId = videoId;
-    }
-
-    public void setUserId(Long userId) {
-        this.userId = userId;
-    }
 }

@@ -1,6 +1,9 @@
 package com.example.demo.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "comment_likes",
@@ -9,6 +12,9 @@ import jakarta.persistence.*;
                @Index(name = "idx_comment_likes_comment_id", columnList = "comment_id"),
                @Index(name = "idx_comment_likes_user_id", columnList = "user_id")
        })
+@Getter
+@Setter
+@NoArgsConstructor
 public class CommentLike {
 
     @Id
@@ -20,10 +26,4 @@ public class CommentLike {
 
     @Column(name = "user_id", nullable = false)
     private Long userId;
-
-    public Long getId() { return id; }
-    public Long getCommentId() { return commentId; }
-    public Long getUserId() { return userId; }
-    public void setCommentId(Long commentId) { this.commentId = commentId; }
-    public void setUserId(Long userId) { this.userId = userId; }
 }

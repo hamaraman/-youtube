@@ -1,10 +1,16 @@
 package com.example.demo.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "notifications")
+@Getter
+@Setter
+@NoArgsConstructor
 public class Notification {
 
     @Id
@@ -31,21 +37,4 @@ public class Notification {
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
-
-    public Long getId() { return id; }
-    public Long getReceiverId() { return receiverId; }
-    public String getMessage() { return message; }
-    public Long getRelatedVideoId() { return relatedVideoId; }
-    public String getThumbnail() { return thumbnail; }
-    public String getType() { return type; }
-    public boolean isRead() { return read; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-
-    public void setReceiverId(Long receiverId) { this.receiverId = receiverId; }
-    public void setMessage(String message) { this.message = message; }
-    public void setRelatedVideoId(Long relatedVideoId) { this.relatedVideoId = relatedVideoId; }
-    public void setThumbnail(String thumbnail) { this.thumbnail = thumbnail; }
-    public void setType(String type) { this.type = type; }
-    public void setRead(boolean read) { this.read = read; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

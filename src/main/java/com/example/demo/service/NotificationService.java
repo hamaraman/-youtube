@@ -1,4 +1,4 @@
-package com.example.demo.config;
+package com.example.demo.service;
 
 import com.example.demo.entity.Notification;
 import com.example.demo.repository.NotificationRepository;
@@ -88,6 +88,43 @@ public class NotificationService {
                     emitter.complete();
                     removeEmitter(userId, emitter);
                 }
+            }
+        });
+    }
+
+    // 데이터베이스 조작 기능 추가
+    public Map<String, Object> getNotifications(Long userId) {
+        List<Notification> notifications = notificationRepository.findByReceiverIdOrderByCreatedAtDesc(userId);
+        long unreadCount = notificationRepository.countByReceiverIdAndReadFalse(userId);
+        return Map.of(
+                "notifications", notifications,
+                "unreadCount", unreadCount
+        );
+    }
+
+    public void markRead(Long notificationId, Long userId) {
+        notificationRepository.findById(notificationId).ifPresent(n -> {
+            if (n.getReceiverId().equals(userId)) {
+                n.setRead(true);
+                notificationRepository.save(n);
+            }
+        });
+    }
+
+    public void markAllRead(Long userId) {
+        List<Notification> unread = notificationRepository.findByReceiverIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .filter(n -> !n.isRead())
+                .toList();
+
+        unread.forEach(n -> n.setRead(true));
+        notificationRepository.saveAll(unread);
+    }
+
+    public void deleteNotification(Long notificationId, Long userId) {
+        notificationRepository.findById(notificationId).ifPresent(n -> {
+            if (n.getReceiverId().equals(userId)) {
+                notificationRepository.delete(n);
             }
         });
     }

@@ -1,112 +1,51 @@
 package com.example.demo.controller;
 
 import com.example.demo.config.LoginUserResolver;
-import com.example.demo.config.NotificationService;
-import com.example.demo.entity.Video;
-import com.example.demo.entity.VideoLike;
-import com.example.demo.entity.VideoSave;
-import com.example.demo.repository.VideoLikeRepository;
-import com.example.demo.repository.VideoRepository;
-import com.example.demo.repository.VideoSaveRepository;
+import com.example.demo.service.VideoActionService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Optional;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api")
 public class VideoActionController {
 
-    private final VideoRepository videoRepository;
-    private final VideoLikeRepository videoLikeRepository;
-    private final VideoSaveRepository videoSaveRepository;
+    private final VideoActionService videoActionService;
     private final LoginUserResolver loginUserResolver;
-    private final NotificationService notificationService;
 
-    public VideoActionController(
-            VideoRepository videoRepository,
-            VideoLikeRepository videoLikeRepository,
-            VideoSaveRepository videoSaveRepository,
-            LoginUserResolver loginUserResolver,
-            NotificationService notificationService
-    ) {
-        this.videoRepository = videoRepository;
-        this.videoLikeRepository = videoLikeRepository;
-        this.videoSaveRepository = videoSaveRepository;
+    public VideoActionController(VideoActionService videoActionService,
+                                 LoginUserResolver loginUserResolver) {
+        this.videoActionService = videoActionService;
         this.loginUserResolver = loginUserResolver;
-        this.notificationService = notificationService;
     }
 
     @PostMapping("/videos/{id}/like")
     public ResponseEntity<?> toggleLike(@PathVariable Long id, HttpSession session) {
         AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
-        if (sessionUser == null) {
-            return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
+        try {
+            LikeResponse response = videoActionService.toggleLike(id, sessionUser);
+            return ResponseEntity.ok(response);
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode().value() == 401) {
+                return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
+            }
+            return ResponseEntity.status(e.getStatusCode()).build();
         }
-        Long loginUserId = sessionUser.getId();
-
-        Optional<Video> optionalVideo = videoRepository.findById(id);
-        if (optionalVideo.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        Optional<VideoLike> existing = videoLikeRepository.findByVideoIdAndUserId(id, loginUserId);
-
-        boolean liked;
-        if (existing.isPresent()) {
-            videoLikeRepository.delete(existing.get());
-            liked = false;
-        } else {
-            VideoLike videoLike = new VideoLike();
-            videoLike.setVideoId(id);
-            videoLike.setUserId(loginUserId);
-            videoLikeRepository.save(videoLike);
-            liked = true;
-            Video video = optionalVideo.get();
-            String name = sessionUser.getChannelName() != null && !sessionUser.getChannelName().isBlank()
-                    ? sessionUser.getChannelName() : sessionUser.getNickname();
-            notificationService.send(video.getOwnerId(), loginUserId, "LIKE",
-                    name + "님이 좋아요를 눌렀어요: " + video.getTitle(),
-                    id, video.getThumbnail());
-        }
-
-        long likeCount = videoLikeRepository.countByVideoId(id);
-
-        return ResponseEntity.ok(new LikeResponse(true, liked, likeCount));
     }
 
     @PostMapping("/videos/{id}/save")
     public ResponseEntity<?> toggleSave(@PathVariable Long id, HttpSession session) {
-        Long loginUserId = getLoginUserId(session);
-        if (loginUserId == null) {
-            return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
+        Long loginUserId = loginUserResolver.getUserId(session);
+        try {
+            SaveResponse response = videoActionService.toggleSave(id, loginUserId);
+            return ResponseEntity.ok(response);
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode().value() == 401) {
+                return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
+            }
+            return ResponseEntity.status(e.getStatusCode()).build();
         }
-
-        Optional<Video> optionalVideo = videoRepository.findById(id);
-        if (optionalVideo.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        Optional<VideoSave> existing = videoSaveRepository.findByVideoIdAndUserId(id, loginUserId);
-
-        boolean saved;
-        if (existing.isPresent()) {
-            videoSaveRepository.delete(existing.get());
-            saved = false;
-        } else {
-            VideoSave videoSave = new VideoSave();
-            videoSave.setVideoId(id);
-            videoSave.setUserId(loginUserId);
-            videoSaveRepository.save(videoSave);
-            saved = true;
-        }
-
-        return ResponseEntity.ok(new SaveResponse(true, saved));
-    }
-
-    private Long getLoginUserId(HttpSession session) {
-        return loginUserResolver.getUserId(session);
     }
 
     public static class SimpleResponse {

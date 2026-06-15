@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class DataInitializer implements ApplicationRunner {
 
-    @Value("${admin.password:admin1234}")
+    @Value("${admin.password}")
     private String adminPassword;
 
     private final VideoRepository videoRepository;
@@ -61,7 +61,8 @@ public class DataInitializer implements ApplicationRunner {
                     admin.setRole("ADMIN");
                     changed = true;
                 }
-                if (!adminPassword.equals("admin1234")) {
+                // 환경변수에서 지정한 비밀번호와 일치하지 않으면 업데이트
+                if (!passwordEncoder.matches(adminPassword, admin.getPassword())) {
                     admin.setPassword(passwordEncoder.encode(adminPassword));
                     changed = true;
                 }

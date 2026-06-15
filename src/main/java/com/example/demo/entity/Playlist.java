@@ -1,10 +1,16 @@
 package com.example.demo.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "playlists")
+@Getter
+@Setter
+@NoArgsConstructor
 public class Playlist {
 
     @Id
@@ -23,15 +29,4 @@ public class Playlist {
     protected void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();
     }
-
-    public Playlist() {}
-
-    public Long getId() { return id; }
-    public Long getUserId() { return userId; }
-    public String getName() { return name; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-
-    public void setId(Long id) { this.id = id; }
-    public void setUserId(Long userId) { this.userId = userId; }
-    public void setName(String name) { this.name = name; }
 }

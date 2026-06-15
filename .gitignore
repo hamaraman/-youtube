@@ -42,3 +42,8 @@ uploads/
 application-local.properties
 src/main/resources/application-local.properties
 .env
+
+### Temporary and dependencies ###
+.claude/
+node_modules/
+*.bak
