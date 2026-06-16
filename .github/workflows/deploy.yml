@@ -14,9 +14,7 @@ jobs:
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ${{ secrets.ORACLE_USERNAME }}
-          key: ${{ secrets.ORACLE_SSH_KEY }}
+          key: ${{ secrets.ORACLE_SSH_KEY }} # 이 부분에 키값이 제대로 들어갑니다.
           port: 22
           script: |
-            cd /home/ubuntu/your-project-folder
-            git pull origin main
-            ./gradlew build
+            echo "Hello, OCI!"
