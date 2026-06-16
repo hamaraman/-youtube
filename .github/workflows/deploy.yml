@@ -1,23 +1,22 @@
-name: Deploy to GCP
+name: Deploy to Oracle Cloud
+
 on:
   push:
     branches:
       - main
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Deploy to GCP
-        uses: easingthemes/ssh-deploy@main
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.GCP_SSH_KEY }}
-          ARGS: "-rltgoDzvO --delete --exclude='.env' --exclude='uploads/' --exclude='data/' --exclude='.git' --exclude='node_modules/' --exclude='build/' --exclude='.gradle/'"
-          SOURCE: "." 
-          REMOTE_HOST: "34.69.10.126"
-          REMOTE_USER: "haram61423"
-          TARGET: "/var/www/html/"
-          SCRIPT_AFTER: |
-            cd /var/www/html
-            sudo docker compose down
-            sudo docker compose up -d --build
+      - name: Deploy to OCI
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USERNAME }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          script: |
+            cd /home/ubuntu/your-project-folder
+            git pull origin main
+            ./gradlew build
