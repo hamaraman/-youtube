@@ -1,20 +1,34 @@
-name: Deploy to Oracle Cloud
+name: Deploy MyTube
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to OCI
+      - uses: actions/checkout@v3
+
+      - name: Build with Gradle
+        run: ./gradlew build -x test
+
+      - name: Deploy to Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USERNAME }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          source: "build/libs/*.jar"
+          target: "/home/ubuntu/mytube"
+
+      - name: Restart Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.ORACLE_HOST }}
           username: ${{ secrets.ORACLE_USERNAME }}
-          key: ${{ secrets.ORACLE_SSH_KEY }} # 이 부분에 키값이 제대로 들어갑니다.
+          key: ${{ secrets.ORACLE_SSH_KEY }}
           port: 22
           script: |
-            echo "Hello, OCI!"
+            pkill -f java || true
+            nohup java -jar /home/ubuntu/mytube/build/libs/demo-0.0.1-SNAPSHOT.jar > /home/ubuntu/app.log 2>&1 &
