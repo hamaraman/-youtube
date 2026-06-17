@@ -31,4 +31,6 @@ jobs:
           port: 22
           script: |
             pkill -f java || true
-            nohup java -jar /home/ubuntu/mytube/build/libs/demo-0.0.1-SNAPSHOT.jar > /home/ubuntu/app.log 2>&1 &
+            sleep 2
+            nohup java -jar /home/ubuntu/mytube/build/libs/demo-0.0.1-SNAPSHOT.jar > /home/ubuntu/app.log 2>&1 </dev/null &
+            disown $!
