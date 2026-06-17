@@ -30,5 +30,8 @@ jobs:
           key: ${{ secrets.ORACLE_SSH_KEY }}
           port: 22
           script: |
-            echo "line 1"
-            echo "line 2"
+            pkill -f "demo-0.0.1-SNAPSHOT.jar" || true
+            sleep 1
+            source /home/ubuntu/.env
+            nohup java -jar /home/ubuntu/mytube/build/libs/demo-0.0.1-SNAPSHOT.jar > /home/ubuntu/app.log 2>&1 &
+            echo "started $!"
