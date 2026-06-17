@@ -23,15 +23,15 @@ jobs:
           target: "/home/ubuntu/mytube"
 
       - name: Restart Server
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.ORACLE_HOST }}
-          username: ${{ secrets.ORACLE_USERNAME }}
-          key: ${{ secrets.ORACLE_SSH_KEY }}
-          port: 22
-          script: |
-            pkill -f java || true
-            sleep 2
-            nohup java -jar /home/ubuntu/mytube/build/libs/demo-0.0.1-SNAPSHOT.jar </dev/null > /home/ubuntu/app.log 2>&1 &
-            sleep 5
-            echo "Deploy done"
+        env:
+          SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+          SSH_HOST: ${{ secrets.ORACLE_HOST }}
+          SSH_USER: ${{ secrets.ORACLE_USERNAME }}
+        run: |
+          echo "$SSH_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          ssh -i /tmp/deploy_key \
+            -o StrictHostKeyChecking=no \
+            "${SSH_USER}@${SSH_HOST}" \
+            'pkill -f java || true; sleep 2; nohup java -jar /home/ubuntu/mytube/build/libs/demo-0.0.1-SNAPSHOT.jar </dev/null >> /home/ubuntu/app.log 2>&1 & echo "started"'
+          rm -f /tmp/deploy_key
