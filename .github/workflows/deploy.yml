@@ -29,9 +29,4 @@ jobs:
           username: ${{ secrets.ORACLE_USERNAME }}
           key: ${{ secrets.ORACLE_SSH_KEY }}
           port: 22
-          script: |
-            pkill -f "demo-0.0.1-SNAPSHOT.jar" || true
-            sleep 1
-            source /home/ubuntu/.env
-            nohup java -jar /home/ubuntu/mytube/build/libs/demo-0.0.1-SNAPSHOT.jar > /home/ubuntu/app.log 2>&1 &
-            echo "started $!"
+          script: "source /home/ubuntu/.env; pkill -f demo-0.0.1-SNAPSHOT.jar 2>/dev/null; nohup java -jar /home/ubuntu/mytube/build/libs/demo-0.0.1-SNAPSHOT.jar >> /home/ubuntu/app.log 2>&1 & echo started"
