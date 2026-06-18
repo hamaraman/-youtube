@@ -48,7 +48,7 @@ public class VideoUploadService {
     private final SubscriptionRepository subscriptionRepository;
     private final NotificationService notificationService;
 
-    private static final Semaphore BATCH_SEMAPHORE = new Semaphore(2);
+    private final Semaphore batchSemaphore;
     private static final java.util.concurrent.ConcurrentHashMap<Long, String> ENCODE_STATUS =
             new java.util.concurrent.ConcurrentHashMap<>();
     private static final java.util.concurrent.ConcurrentHashMap<Long, Long> ENCODE_STATUS_TIME =
@@ -63,11 +63,14 @@ public class VideoUploadService {
 
     public VideoUploadService(VideoRepository videoRepository, S3StorageService storageService,
                               SubscriptionRepository subscriptionRepository,
-                              NotificationService notificationService) {
+                              NotificationService notificationService,
+                              @Value("${ffmpeg.batch-concurrency:2}") int batchConcurrency) {
         this.videoRepository = videoRepository;
         this.storageService = storageService;
         this.subscriptionRepository = subscriptionRepository;
         this.notificationService = notificationService;
+        // 동시에 돌릴 트랜스코딩 작업 수. 코어 수에 맞춰 ffmpeg.batch-concurrency 로 조정.
+        this.batchSemaphore = new Semaphore(Math.max(1, batchConcurrency));
     }
 
     public UploadResponse uploadVideo(
@@ -162,8 +165,8 @@ public class VideoUploadService {
                 final Path dirPath = Paths.get(videoDir).toAbsolutePath();
                 setEncodeStatus(savedId, "QUEUED");
                 CompletableFuture.runAsync(() -> {
-                    try { BATCH_SEMAPHORE.acquire(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
-                    try { convertAndGenerateVariants(ffmpeg, uuid, dirPath, savedId); } finally { BATCH_SEMAPHORE.release(); }
+                    try { batchSemaphore.acquire(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                    try { convertAndGenerateVariants(ffmpeg, uuid, dirPath, savedId); } finally { batchSemaphore.release(); }
                 });
             }
 
@@ -214,7 +217,7 @@ public class VideoUploadService {
 
             CompletableFuture.runAsync(() -> {
                 try {
-                    BATCH_SEMAPHORE.acquire();
+                    batchSemaphore.acquire();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return;
@@ -222,7 +225,7 @@ public class VideoUploadService {
                 try {
                     generateResolutionVariants(ffmpeg, sourceInput, dirPath, uuid, videoId);
                 } finally {
-                    BATCH_SEMAPHORE.release();
+                    batchSemaphore.release();
                 }
             });
         }
@@ -245,7 +248,7 @@ public class VideoUploadService {
             final Long videoId = video.getId();
             CompletableFuture.runAsync(() -> {
                 try {
-                    BATCH_SEMAPHORE.acquire();
+                    batchSemaphore.acquire();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return;
@@ -253,7 +256,7 @@ public class VideoUploadService {
                 try {
                     migrateVideoFiles(videoId, videoDirPath, thumbDirPath);
                 } finally {
-                    BATCH_SEMAPHORE.release();
+                    batchSemaphore.release();
                 }
             });
         }
@@ -324,9 +327,9 @@ public class VideoUploadService {
             final Long videoId = id;
             final String ffmpeg = ffmpegPath;
             CompletableFuture.runAsync(() -> {
-                try { BATCH_SEMAPHORE.acquire(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                try { batchSemaphore.acquire(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
                 try { replaceVideoBackground(ffmpeg, newUuid, videoExt, dirPath, videoId,
-                        oldVideoUrl, oldUrl1080, oldUrl720, oldUrl480, oldUrl360); } finally { BATCH_SEMAPHORE.release(); }
+                        oldVideoUrl, oldUrl1080, oldUrl720, oldUrl480, oldUrl360); } finally { batchSemaphore.release(); }
             });
         } catch (Exception e) {
             log.error("비디오 대체 업로드 실패", e);
@@ -443,38 +446,11 @@ public class VideoUploadService {
             if (h <= sourceHeight) varTargets.put(h, dirPath.resolve(uuid + "_" + h + "p.mp4"));
         }
         List<Integer> heights = new ArrayList<>(varTargets.keySet());
-        int nVar = heights.size();
 
-        List<String> cmd = new ArrayList<>();
-        cmd.add(ffmpeg); cmd.add("-y");
-        cmd.add("-i"); cmd.add(origPath.toString());
-
-        if (nVar > 0) {
-            int nTotal = nVar + 1;
-            StringBuilder fc = new StringBuilder();
-            fc.append("[0:v]split=").append(nTotal).append("[sv_main]");
-            for (int i = 0; i < nVar; i++) fc.append("[sv").append(i).append("]");
-            fc.append(";[sv_main]null[ov_main]");
-            for (int i = 0; i < nVar; i++) {
-                fc.append(";[sv").append(i).append("]scale=-2:").append(heights.get(i)).append("[ov").append(i).append("]");
-            }
-            cmd.add("-filter_complex"); cmd.add(fc.toString());
-            cmd.add("-map"); cmd.add("[ov_main]"); cmd.add("-map"); cmd.add("0:a?");
-            addEncoderArgs(cmd, true);
-            cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
-            cmd.add(tmpPath.toString());
-            for (int i = 0; i < nVar; i++) {
-                int h = heights.get(i);
-                cmd.add("-map"); cmd.add("[ov" + i + "]"); cmd.add("-map"); cmd.add("0:a?");
-                addEncoderArgs(cmd, false);
-                cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("96k"); cmd.add("-movflags"); cmd.add("+faststart");
-                cmd.add(varTargets.get(h).toString());
-            }
-        } else {
-            addEncoderArgs(cmd, true);
-            cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
-            cmd.add(tmpPath.toString());
-        }
+        String srcCodec = getSourceVideoCodec(ffmpeg, origPath.toString());
+        boolean copyMain = "h264".equals(srcCodec);
+        if (copyMain) log.info("[Transcode] 원본이 H.264라 메인 스트림은 재인코딩 없이 복사 (videoId={})", videoId);
+        List<String> cmd = buildVariantCommand(ffmpeg, origPath.toString(), heights, tmpPath, varTargets, copyMain);
 
         try {
             ProcessBuilder pb = new ProcessBuilder(cmd);
@@ -563,6 +539,94 @@ public class VideoUploadService {
         } catch (Exception e) {
             return Integer.MAX_VALUE;
         }
+    }
+
+    /** 원본 영상 코덱 이름 (예: h264, hevc, vp9). 알 수 없으면 빈 문자열. */
+    private String getSourceVideoCodec(String ffmpeg, String sourceInput) {
+        try {
+            String ffprobe = ffmpeg.endsWith("ffmpeg") ? ffmpeg.replace("ffmpeg", "ffprobe")
+                    : ffmpeg.endsWith("ffmpeg.exe") ? ffmpeg.replace("ffmpeg.exe", "ffprobe.exe")
+                    : "ffprobe";
+            ProcessBuilder pb = new ProcessBuilder(
+                    ffprobe, "-v", "error",
+                    "-select_streams", "v:0",
+                    "-show_entries", "stream=codec_name",
+                    "-of", "csv=p=0",
+                    sourceInput
+            );
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String out = new String(p.getInputStream().readAllBytes()).trim();
+            p.waitFor(30, TimeUnit.SECONDS);
+            return out.split("\n")[0].trim().toLowerCase();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /**
+     * 메인(원본 해상도) + 저해상도 변형들을 한 번의 ffmpeg 호출로 만드는 커맨드 생성.
+     * copyMain=true 이면 원본이 이미 H.264라 메인은 재인코딩 없이 스트림 복사(-c:v copy)하여
+     * 가장 무거운 풀해상도 인코딩을 통째로 건너뛴다. 변형들은 그대로 다운스케일 인코딩.
+     */
+    private List<String> buildVariantCommand(String ffmpeg, String inputPath, List<Integer> heights,
+                                             Path mainOut, Map<Integer, Path> varTargets, boolean copyMain) {
+        int nVar = heights.size();
+        List<String> cmd = new ArrayList<>();
+        cmd.add(ffmpeg); cmd.add("-y");
+        cmd.add("-i"); cmd.add(inputPath);
+
+        if (nVar > 0) {
+            StringBuilder fc = new StringBuilder();
+            if (copyMain) {
+                // 메인은 split에서 제외 (원본 스트림을 그대로 복사하므로 필터 불필요)
+                fc.append("[0:v]split=").append(nVar);
+                for (int i = 0; i < nVar; i++) fc.append("[sv").append(i).append("]");
+                for (int i = 0; i < nVar; i++) {
+                    fc.append(";[sv").append(i).append("]scale=-2:").append(heights.get(i)).append("[ov").append(i).append("]");
+                }
+            } else {
+                int nTotal = nVar + 1;
+                fc.append("[0:v]split=").append(nTotal).append("[sv_main]");
+                for (int i = 0; i < nVar; i++) fc.append("[sv").append(i).append("]");
+                fc.append(";[sv_main]null[ov_main]");
+                for (int i = 0; i < nVar; i++) {
+                    fc.append(";[sv").append(i).append("]scale=-2:").append(heights.get(i)).append("[ov").append(i).append("]");
+                }
+            }
+            cmd.add("-filter_complex"); cmd.add(fc.toString());
+
+            // 메인 출력
+            if (copyMain) {
+                cmd.add("-map"); cmd.add("0:v"); cmd.add("-map"); cmd.add("0:a?");
+                cmd.add("-c:v"); cmd.add("copy");
+            } else {
+                cmd.add("-map"); cmd.add("[ov_main]"); cmd.add("-map"); cmd.add("0:a?");
+                addEncoderArgs(cmd, true);
+            }
+            cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
+            cmd.add(mainOut.toString());
+
+            // 변형 출력들
+            for (int i = 0; i < nVar; i++) {
+                int h = heights.get(i);
+                cmd.add("-map"); cmd.add("[ov" + i + "]"); cmd.add("-map"); cmd.add("0:a?");
+                addEncoderArgs(cmd, false);
+                cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("96k"); cmd.add("-movflags"); cmd.add("+faststart");
+                cmd.add(varTargets.get(h).toString());
+            }
+        } else {
+            // 변형 없이 메인만
+            if (copyMain) {
+                cmd.add("-map"); cmd.add("0:v"); cmd.add("-map"); cmd.add("0:a?");
+                cmd.add("-c:v"); cmd.add("copy");
+            } else {
+                addEncoderArgs(cmd, true);
+            }
+            cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
+            cmd.add(mainOut.toString());
+        }
+        return cmd;
     }
 
     private void generateResolutionVariants(String ffmpeg, String sourceInput, Path dirPath, String uuid, Long videoId) {
@@ -695,38 +759,11 @@ public class VideoUploadService {
                 if (h <= sourceHeight) varTargets.put(h, dirPath.resolve(newUuid + "_" + h + "p.mp4"));
             }
             List<Integer> heights = new ArrayList<>(varTargets.keySet());
-            int nVar = heights.size();
 
-            List<String> cmd = new ArrayList<>();
-            cmd.add(ffmpeg); cmd.add("-y");
-            cmd.add("-i"); cmd.add(origPath.toString());
-
-            if (nVar > 0) {
-                int nTotal = nVar + 1;
-                StringBuilder fc = new StringBuilder();
-                fc.append("[0:v]split=").append(nTotal).append("[sv_main]");
-                for (int i = 0; i < nVar; i++) fc.append("[sv").append(i).append("]");
-                fc.append(";[sv_main]null[ov_main]");
-                for (int i = 0; i < nVar; i++) {
-                    fc.append(";[sv").append(i).append("]scale=-2:").append(heights.get(i)).append("[ov").append(i).append("]");
-                }
-                cmd.add("-filter_complex"); cmd.add(fc.toString());
-                cmd.add("-map"); cmd.add("[ov_main]"); cmd.add("-map"); cmd.add("0:a?");
-                addEncoderArgs(cmd, true);
-                cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
-                cmd.add(tmpPath.toString());
-                for (int i = 0; i < nVar; i++) {
-                    int h = heights.get(i);
-                    cmd.add("-map"); cmd.add("[ov" + i + "]"); cmd.add("-map"); cmd.add("0:a?");
-                    addEncoderArgs(cmd, false);
-                    cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("96k"); cmd.add("-movflags"); cmd.add("+faststart");
-                    cmd.add(varTargets.get(h).toString());
-                }
-            } else {
-                addEncoderArgs(cmd, true);
-                cmd.add("-c:a"); cmd.add("aac"); cmd.add("-b:a"); cmd.add("128k"); cmd.add("-movflags"); cmd.add("+faststart");
-                cmd.add(tmpPath.toString());
-            }
+            String srcCodec = getSourceVideoCodec(ffmpeg, origPath.toString());
+            boolean copyMain = "h264".equals(srcCodec);
+            if (copyMain) log.info("[Transcode] 원본이 H.264라 메인 스트림은 재인코딩 없이 복사 (videoId={})", videoId);
+            List<String> cmd = buildVariantCommand(ffmpeg, origPath.toString(), heights, tmpPath, varTargets, copyMain);
 
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
