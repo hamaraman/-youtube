@@ -31,6 +31,13 @@ try:
 except ImportError:
     pass
 
+# Windows 한글 콘솔(cp949)에서도 로그의 ✓/✗/한글이 깨지거나 크래시하지 않도록 UTF-8 강제
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 
 def env(key, default=None, required=False):
     v = os.environ.get(key, default)

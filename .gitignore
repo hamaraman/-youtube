@@ -47,3 +47,4 @@ src/main/resources/application-local.properties
 .claude/
 node_modules/
 *.bak
+.localtest/
