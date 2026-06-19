@@ -43,10 +43,14 @@ public class VideoUploadService {
     @Value("${ffmpeg.hw-accel:none}")
     private String ffmpegHwAccel;
 
+    @Value("${transcode.mode:server}")
+    private String transcodeMode;
+
     private final VideoRepository videoRepository;
     private final S3StorageService storageService;
     private final SubscriptionRepository subscriptionRepository;
     private final NotificationService notificationService;
+    private final TranscodeJobService transcodeJobService;
 
     private final Semaphore batchSemaphore;
     private static final java.util.concurrent.ConcurrentHashMap<Long, String> ENCODE_STATUS =
@@ -64,13 +68,32 @@ public class VideoUploadService {
     public VideoUploadService(VideoRepository videoRepository, S3StorageService storageService,
                               SubscriptionRepository subscriptionRepository,
                               NotificationService notificationService,
+                              TranscodeJobService transcodeJobService,
                               @Value("${ffmpeg.batch-concurrency:2}") int batchConcurrency) {
         this.videoRepository = videoRepository;
         this.storageService = storageService;
         this.subscriptionRepository = subscriptionRepository;
         this.notificationService = notificationService;
+        this.transcodeJobService = transcodeJobService;
         // 동시에 돌릴 트랜스코딩 작업 수. 코어 수에 맞춰 ffmpeg.batch-concurrency 로 조정.
         this.batchSemaphore = new Semaphore(Math.max(1, batchConcurrency));
+    }
+
+    /**
+     * 로컬 GPU 워커 모드 여부. R2가 설정돼 있어야만(워커가 R2에서 원본을 받고 결과를 올림) 동작하며,
+     * 아니면 기존 서버 직접 변환으로 폴백한다.
+     */
+    private boolean isWorkerMode() {
+        return "worker".equalsIgnoreCase(transcodeMode == null ? "" : transcodeMode.trim())
+                && storageService.isConfigured();
+    }
+
+    /** 워커 모드에서 R2 업로드 후 더 이상 필요 없는 서버 로컬 임시 파일 정리. */
+    private void deleteLocalTemp(Path dirPath, String uuid) {
+        try { Files.deleteIfExists(dirPath.resolve(uuid + ".mp4")); } catch (Exception ignored) {}
+        for (String ext : new String[]{".mp4", ".mov", ".avi", ".mkv", ".webm", ".wmv", ".flv"}) {
+            try { Files.deleteIfExists(dirPath.resolve(uuid + "_orig" + ext)); } catch (Exception ignored) {}
+        }
     }
 
     public UploadResponse uploadVideo(
@@ -157,17 +180,24 @@ public class VideoUploadService {
                 }
             }
 
-            // Step 4: trigger background conversion
+            // Step 4: trigger conversion
             if (videoUuid != null) {
                 final String uuid = videoUuid;
                 final Long savedId = savedVideo.getId();
-                final String ffmpeg = ffmpegPath;
                 final Path dirPath = Paths.get(videoDir).toAbsolutePath();
                 setEncodeStatus(savedId, "QUEUED");
-                CompletableFuture.runAsync(() -> {
-                    try { batchSemaphore.acquire(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
-                    try { convertAndGenerateVariants(ffmpeg, uuid, dirPath, savedId); } finally { batchSemaphore.release(); }
-                });
+                if (isWorkerMode()) {
+                    // 로컬 GPU 워커가 R2의 videos/{uuid}.mp4(원본)을 받아 변환한다.
+                    boolean needThumb = finalThumbnailUrl == null || finalThumbnailUrl.isBlank();
+                    transcodeJobService.enqueue(savedId, uuid, "videos/" + uuid + ".mp4", needThumb);
+                    deleteLocalTemp(dirPath, uuid);
+                } else {
+                    final String ffmpeg = ffmpegPath;
+                    CompletableFuture.runAsync(() -> {
+                        try { batchSemaphore.acquire(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                        try { convertAndGenerateVariants(ffmpeg, uuid, dirPath, savedId); } finally { batchSemaphore.release(); }
+                    });
+                }
             }
 
             UploadResponse response = new UploadResponse(
@@ -321,16 +351,33 @@ public class VideoUploadService {
             video.setVideoUrl720(null);
             video.setVideoUrl480(null);
             video.setVideoUrl360(null);
-            videoRepository.save(video);
 
             setEncodeStatus(id, "QUEUED");
             final Long videoId = id;
-            final String ffmpeg = ffmpegPath;
-            CompletableFuture.runAsync(() -> {
-                try { batchSemaphore.acquire(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
-                try { replaceVideoBackground(ffmpeg, newUuid, videoExt, dirPath, videoId,
-                        oldVideoUrl, oldUrl1080, oldUrl720, oldUrl480, oldUrl360); } finally { batchSemaphore.release(); }
-            });
+
+            if (isWorkerMode()) {
+                // 새 원본을 R2에 올려 즉시(원본 화질) 재생 가능하게 하고, 워커가 이걸 입력으로 변환한다.
+                String newUrl = storageService.upload(origPath, "videos/" + newUuid + ".mp4", "video/mp4");
+                video.setVideoUrl(newUrl);
+                videoRepository.save(video);
+                // 새 uuid로 재생성되므로 기존 R2 파일들은 지금 정리
+                storageService.delete(oldVideoUrl);
+                storageService.delete(oldUrl1080);
+                storageService.delete(oldUrl720);
+                storageService.delete(oldUrl480);
+                storageService.delete(oldUrl360);
+                // 교체는 기존 썸네일을 유지하므로 썸네일 재생성 불필요
+                transcodeJobService.enqueue(videoId, newUuid, "videos/" + newUuid + ".mp4", false);
+                deleteLocalTemp(dirPath, newUuid);
+            } else {
+                videoRepository.save(video);
+                final String ffmpeg = ffmpegPath;
+                CompletableFuture.runAsync(() -> {
+                    try { batchSemaphore.acquire(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+                    try { replaceVideoBackground(ffmpeg, newUuid, videoExt, dirPath, videoId,
+                            oldVideoUrl, oldUrl1080, oldUrl720, oldUrl480, oldUrl360); } finally { batchSemaphore.release(); }
+                });
+            }
         } catch (Exception e) {
             log.error("비디오 대체 업로드 실패", e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "업로드 중 오류: " + e.getMessage());
@@ -971,6 +1018,11 @@ public class VideoUploadService {
     private static void setEncodeStatus(Long videoId, String status) {
         ENCODE_STATUS.put(videoId, status);
         ENCODE_STATUS_TIME.put(videoId, System.currentTimeMillis());
+    }
+
+    /** 외부(워커 작업 서비스)에서 인코딩 상태를 갱신할 수 있도록 노출. 프론트의 encode-status 폴링과 연동된다. */
+    public static void publishEncodeStatus(Long videoId, String status) {
+        setEncodeStatus(videoId, status);
     }
 
     @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 60_000)
