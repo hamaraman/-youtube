@@ -74,15 +74,15 @@ public class VideoUploadController {
                 "message", queued + "개 영상의 해상도 변환을 백그라운드에서 시작했습니다."));
     }
 
-    @PostMapping("/admin/migrate-to-r2")
-    public ResponseEntity<?> migrateToR2(HttpSession session) {
+    @PostMapping("/admin/migrate-to-minio")
+    public ResponseEntity<?> migrateToMinio(HttpSession session) {
         if (!adminChecker.isAdmin(session, loginUserResolver)) {
             return ResponseEntity.status(403).body(Map.of("success", false, "message", "관리자 권한이 필요합니다."));
         }
         try {
-            int queued = videoUploadService.migrateToR2();
+            int queued = videoUploadService.migrateToMinio();
             return ResponseEntity.ok(Map.of("success", true, "queued", queued,
-                    "message", queued + "개 영상의 R2 마이그레이션을 백그라운드에서 시작했습니다."));
+                    "message", queued + "개 영상의 MinIO 마이그레이션을 백그라운드에서 시작했습니다."));
         } catch (ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("success", false, "message", e.getReason()));
         }
@@ -127,8 +127,8 @@ public class VideoUploadController {
         }
     }
 
-    @GetMapping("/admin/migrate-to-r2/status")
-    public ResponseEntity<?> migrateToR2Status(HttpSession session) {
+    @GetMapping("/admin/migrate-to-minio/status")
+    public ResponseEntity<?> migrateToMinioStatus(HttpSession session) {
         if (!adminChecker.isAdmin(session, loginUserResolver)) {
             return ResponseEntity.status(403).body(Map.of("success", false));
         }

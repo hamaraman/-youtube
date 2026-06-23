@@ -5,8 +5,8 @@
 
 > **핵심 안심 포인트**
 > - 앱은 **Java JAR**라서 ARM이어도 **그대로 실행**됩니다 (재컴파일 불필요).
-> - 영상 파일은 대부분 **Cloudflare R2**에 있으니 서버를 옮겨도 영상은 그대로 유지됩니다.
-> - 옮길 핵심 데이터는 ① MariaDB DB ② `.env` 시크릿 ③ Nginx 설정 ④ (남아있다면) 로컬 업로드 파일 정도입니다.
+> - 영상 파일은 **VM 로컬 MinIO**(`~/mytube/minio-data`)에 있으니, 서버를 옮길 땐 이 디렉터리도 함께 복사해야 합니다.
+> - 옮길 핵심 데이터는 ① MariaDB DB ② `.env` 시크릿 ③ Nginx 설정 ④ MinIO 데이터(`~/mytube/minio-data`) ⑤ (남아있다면) 로컬 업로드 파일 정도입니다.
 > - 새 서버를 다 만든 뒤 **마지막에 DNS만 바꾸는** 방식이라, 잘못돼도 기존 서버로 되돌리기 쉽습니다.
 
 ---
@@ -22,7 +22,7 @@
 | DB | MariaDB `localhost:3306`, DB명 `mytube` |
 | 웹서버 | Nginx → `localhost:8080`, HTTPS(Let's Encrypt) |
 | 도메인 | `mytube.it.com`, `www.mytube.it.com` |
-| 저장소 | Cloudflare R2 (영상/썸네일) |
+| 저장소 | MinIO (영상/썸네일) — VM 로컬 도커, `~/mytube/minio-data` |
 | 배포 | GitHub Actions (`.github/workflows/deploy.yml`) → `ORACLE_HOST` 시크릿 |
 
 ---
@@ -35,7 +35,7 @@
 # 현재 사양 (왜 느렸는지 확인용)
 nproc; free -h
 
-# 로컬 업로드 파일이 남아있는지 (R2로 다 옮겼으면 거의 비어있음)
+# 로컬 업로드 파일이 남아있는지 (MinIO로 다 옮겼으면 거의 비어있음)
 du -sh /home/ubuntu/mytube/uploads 2>/dev/null
 
 # 자바 버전 (앱은 Java 21 필요)
@@ -146,7 +146,7 @@ mysql -u root -p mytube < ~/mytube_dump.sql
 새 서버에서 `/home/ubuntu/.env` 를 기존 내용 그대로 생성:
 ```bash
 nano /home/ubuntu/.env
-# Phase 0에서 복사해 둔 내용 붙여넣기 (DB_*, JWT_SECRET, ADMIN_PASSWORD, R2_*, MAIL_* 등)
+# Phase 0에서 복사해 둔 내용 붙여넣기 (DB_*, JWT_SECRET, ADMIN_PASSWORD, MINIO_*, MAIL_* 등)
 # 저장: Ctrl+O, Enter, Ctrl+X
 chmod 600 /home/ubuntu/.env
 ```
@@ -169,7 +169,7 @@ Phase 0에서 `uploads`에 파일이 남아 있었다면 통째로 복사:
 rsync -avz -e "ssh -i <키>" ubuntu@OLD_IP:/home/ubuntu/mytube/uploads/ \
     /home/ubuntu/mytube/uploads/
 ```
-(영상이 전부 R2에 있으면 이 단계는 건너뜀)
+(영상이 전부 MinIO에 있으면 이 단계는 건너뜀. 단 MinIO 데이터 `~/mytube/minio-data` 는 별도로 복사해야 함)
 
 ---
 

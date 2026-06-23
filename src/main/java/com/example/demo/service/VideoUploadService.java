@@ -80,7 +80,7 @@ public class VideoUploadService {
     }
 
     /**
-     * 로컬 GPU 워커 모드 여부. R2가 설정돼 있어야만(워커가 R2에서 원본을 받고 결과를 올림) 동작하며,
+     * 로컬 GPU 워커 모드 여부. MinIO가 설정돼 있어야만(워커가 MinIO에서 원본을 받고 결과를 올림) 동작하며,
      * 아니면 기존 서버 직접 변환으로 폴백한다.
      */
     private boolean isWorkerMode() {
@@ -88,7 +88,7 @@ public class VideoUploadService {
                 && storageService.isConfigured();
     }
 
-    /** 워커 모드에서 R2 업로드 후 더 이상 필요 없는 서버 로컬 임시 파일 정리. */
+    /** 워커 모드에서 MinIO 업로드 후 더 이상 필요 없는 서버 로컬 임시 파일 정리. */
     private void deleteLocalTemp(Path dirPath, String uuid) {
         try { Files.deleteIfExists(dirPath.resolve(uuid + ".mp4")); } catch (Exception ignored) {}
         for (String ext : new String[]{".mp4", ".mov", ".avi", ".mkv", ".webm", ".wmv", ".flv"}) {
@@ -187,7 +187,7 @@ public class VideoUploadService {
                 final Path dirPath = Paths.get(videoDir).toAbsolutePath();
                 setEncodeStatus(savedId, "QUEUED");
                 if (isWorkerMode()) {
-                    // 로컬 GPU 워커가 R2의 videos/{uuid}.mp4(원본)을 받아 변환한다.
+                    // 로컬 GPU 워커가 MinIO의 videos/{uuid}.mp4(원본)을 받아 변환한다.
                     boolean needThumb = finalThumbnailUrl == null || finalThumbnailUrl.isBlank();
                     transcodeJobService.enqueue(savedId, uuid, "videos/" + uuid + ".mp4", needThumb);
                     deleteLocalTemp(dirPath, uuid);
@@ -262,9 +262,9 @@ public class VideoUploadService {
         return targets.size();
     }
 
-    public int migrateToR2() {
+    public int migrateToMinio() {
         if (!storageService.isConfigured()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "R2가 설정되지 않았습니다.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "MinIO가 설정되지 않았습니다.");
         }
 
         List<Video> targets = videoRepository.findAll().stream()
@@ -356,11 +356,11 @@ public class VideoUploadService {
             final Long videoId = id;
 
             if (isWorkerMode()) {
-                // 새 원본을 R2에 올려 즉시(원본 화질) 재생 가능하게 하고, 워커가 이걸 입력으로 변환한다.
+                // 새 원본을 MinIO에 올려 즉시(원본 화질) 재생 가능하게 하고, 워커가 이걸 입력으로 변환한다.
                 String newUrl = storageService.upload(origPath, "videos/" + newUuid + ".mp4", "video/mp4");
                 video.setVideoUrl(newUrl);
                 videoRepository.save(video);
-                // 새 uuid로 재생성되므로 기존 R2 파일들은 지금 정리
+                // 새 uuid로 재생성되므로 기존 MinIO 파일들은 지금 정리
                 storageService.delete(oldVideoUrl);
                 storageService.delete(oldUrl1080);
                 storageService.delete(oldUrl720);
@@ -389,9 +389,9 @@ public class VideoUploadService {
                 .filter(v -> v.getVideoUrl() != null && !v.getVideoUrl().isBlank())
                 .collect(Collectors.toList());
         long local = all.stream().filter(v -> v.getVideoUrl().startsWith("/uploads/")).count();
-        long r2 = all.stream().filter(v -> v.getVideoUrl().startsWith("http")).count();
-        return Map.of("total", all.size(), "local", local, "r2", r2,
-                "message", "마이그레이션 진행 중: " + r2 + "/" + all.size() + " 완료");
+        long minio = all.stream().filter(v -> v.getVideoUrl().startsWith("http")).count();
+        return Map.of("total", all.size(), "local", local, "minio", minio,
+                "message", "마이그레이션 진행 중: " + minio + "/" + all.size() + " 완료");
     }
 
     public Map<String, Object> getGenerateResolutionsStatus() {
@@ -443,11 +443,11 @@ public class VideoUploadService {
         String ext = extensionOf(localFile.getFileName().toString());
         String contentType = fallbackContentType != null ? fallbackContentType : contentTypeFor(ext);
         try {
-            String r2Url = storageService.upload(localFile, key, contentType);
+            String uploadedUrl = storageService.upload(localFile, key, contentType);
             System.out.println("[Migrate] 업로드 완료: " + key);
-            return r2Url;
+            return uploadedUrl;
         } catch (Exception e) {
-            System.err.println("[Migrate] R2 업로드 실패 [" + key + "]: " + e.getMessage());
+            System.err.println("[Migrate] MinIO 업로드 실패 [" + key + "]: " + e.getMessage());
             return null;
         }
     }

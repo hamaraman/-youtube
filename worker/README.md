@@ -6,14 +6,14 @@
 
 ```
 [업로드] 사용자 → 서버
-   서버: 원본을 R2(videos/{uuid}.mp4)에 올림 → 즉시 원본 화질로 재생 가능
+   서버: 원본을 MinIO(videos/{uuid}.mp4)에 올림 → 즉시 원본 화질로 재생 가능
    서버: DB에 변환 작업(PENDING) 큐만 쌓음  (서버는 ffmpeg 안 돌림)
 
 [변환] 집 PC 워커(이 스크립트)
    서버에 폴링 → 작업 claim
-   R2에서 원본 다운로드 → 로컬 GPU(NVENC)로 main + 1080/720/480/360 변환
+   MinIO에서 원본 다운로드 → 로컬 GPU(NVENC)로 main + 1080/720/480/360 변환
    (+ 썸네일 없으면 자동 생성)
-   결과를 R2에 업로드 → 서버에 결과 URL 통보 → DB 갱신, 상태 DONE
+   결과를 MinIO에 업로드 → 서버에 결과 URL 통보 → DB 갱신, 상태 DONE
 ```
 
 PC가 꺼져 있으면 작업은 서버 DB 큐에 남아 대기하다가, 워커를 다시 켜면 순서대로 처리됩니다.
@@ -28,7 +28,7 @@ TRANSCODE_MODE=worker
 WORKER_TOKEN=<길고 랜덤한 비밀문자열>
 ```
 
-> `worker` 모드는 R2가 설정돼 있어야 동작합니다. R2 미설정 시 자동으로 기존 서버 변환(`server`)으로 폴백합니다.
+> `worker` 모드는 MinIO가 설정돼 있어야 동작합니다. MinIO 미설정 시 자동으로 기존 서버 변환(`server`)으로 폴백합니다.
 
 ## 워커 실행 (집 PC)
 
@@ -38,7 +38,7 @@ WORKER_TOKEN=<길고 랜덤한 비밀문자열>
 cd worker
 pip install -r requirements.txt
 cp .env.example .env      # Windows: copy .env.example .env
-# .env 편집: SERVER_URL, WORKER_TOKEN(서버와 동일), R2_* (서버와 동일)
+# .env 편집: SERVER_URL, WORKER_TOKEN(서버와 동일), MINIO_* (서버와 동일)
 python transcode_worker.py
 ```
 

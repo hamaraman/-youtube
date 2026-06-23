@@ -208,13 +208,13 @@
             </div>
         </div>
 
-        <!-- R2 마이그레이션 -->
+        <!-- MinIO 마이그레이션 -->
         <div style="margin-top:32px; border-top:1px solid #272727; padding-top:24px;">
-            <div style="font-size:15px; font-weight:700; color:#fff; margin-bottom:8px;">R2 마이그레이션</div>
-            <div style="font-size:13px; color:#888; margin-bottom:14px;">로컬 서버에 저장된 영상/썸네일을 Cloudflare R2로 이전해.</div>
+            <div style="font-size:15px; font-weight:700; color:#fff; margin-bottom:8px;">MinIO 마이그레이션</div>
+            <div style="font-size:13px; color:#888; margin-bottom:14px;">로컬 서버에 저장된 영상/썸네일을 MinIO로 이전해.</div>
             <div class="broken-toolbar">
-                <button class="btn-action" onclick="migrateToR2()">R2 마이그레이션 시작</button>
-                <span id="migrateR2Status" style="color:#888; font-size:13px;"></span>
+                <button class="btn-action" onclick="migrateToMinio()">MinIO 마이그레이션 시작</button>
+                <span id="migrateMinioStatus" style="color:#888; font-size:13px;"></span>
             </div>
         </div>
 
@@ -410,43 +410,43 @@
         btn.disabled = false;
     }
 
-    let migrateR2Timer = null;
+    let migrateMinioTimer = null;
 
-    async function checkMigrateR2Status() {
-        const status = document.getElementById('migrateR2Status');
+    async function checkMigrateMinioStatus() {
+        const status = document.getElementById('migrateMinioStatus');
         try {
-            const res = await fetch('/api/admin/migrate-to-r2/status');
+            const res = await fetch('/api/admin/migrate-to-minio/status');
             const data = await res.json();
             if (data.local === 0) {
-                clearInterval(migrateR2Timer);
-                migrateR2Timer = null;
+                clearInterval(migrateMinioTimer);
+                migrateMinioTimer = null;
                 status.style.color = '#7ce59a';
-                status.textContent = `완료! 전체 ${data.total}개 영상 모두 R2로 이전됨`;
+                status.textContent = `완료! 전체 ${data.total}개 영상 모두 MinIO로 이전됨`;
             } else {
                 status.style.color = '#f1c40f';
-                status.textContent = `이전 중... ${data.r2}/${data.total}개 완료 (${data.local}개 남음)`;
+                status.textContent = `이전 중... ${data.minio}/${data.total}개 완료 (${data.local}개 남음)`;
             }
         } catch { /* ignore */ }
     }
 
-    async function migrateToR2() {
+    async function migrateToMinio() {
         const btn = event.target;
-        const status = document.getElementById('migrateR2Status');
+        const status = document.getElementById('migrateMinioStatus');
         btn.disabled = true;
         status.style.color = '#888';
         status.textContent = '요청 중...';
         try {
-            const res = await fetch('/api/admin/migrate-to-r2', { method: 'POST' });
+            const res = await fetch('/api/admin/migrate-to-minio', { method: 'POST' });
             const data = await res.json();
             if (data.success) {
                 if (data.queued === 0) {
                     status.style.color = '#7ce59a';
-                    status.textContent = '이전할 영상이 없어. 모두 R2에 있어.';
+                    status.textContent = '이전할 영상이 없어. 모두 MinIO에 있어.';
                 } else {
                     status.style.color = '#f1c40f';
                     status.textContent = `${data.queued}개 이전 시작됨 — 진행 중...`;
-                    if (migrateR2Timer) clearInterval(migrateR2Timer);
-                    migrateR2Timer = setInterval(checkMigrateR2Status, 5000);
+                    if (migrateMinioTimer) clearInterval(migrateMinioTimer);
+                    migrateMinioTimer = setInterval(checkMigrateMinioStatus, 5000);
                 }
             } else {
                 status.style.color = '#e55';

@@ -11,7 +11,7 @@ import java.util.Map;
 
 /**
  * 로컬 GPU 워커 전용 API. 세션/JWT가 아닌 공유 토큰(X-Worker-Token 헤더)으로 인증한다.
- * 워커는 claim으로 작업을 가져가 R2에서 원본을 직접 받아 변환하고, 결과 URL을 result로 통보한다.
+ * 워커는 claim으로 작업을 가져가 MinIO에서 원본을 직접 받아 변환하고, 결과 URL을 result로 통보한다.
  */
 @RestController
 @RequestMapping("/api/worker")
@@ -53,7 +53,7 @@ public class WorkerController {
         return ResponseEntity.ok(body);
     }
 
-    /** 변환 완료 결과(R2 공개 URL들) 통보. 워커가 R2에 직접 업로드한 뒤 URL만 전달한다. */
+    /** 변환 완료 결과(MinIO 공개 URL들) 통보. 워커가 MinIO에 직접 업로드한 뒤 URL만 전달한다. */
     @PostMapping("/jobs/{id}/result")
     public ResponseEntity<?> result(@PathVariable Long id,
                                     @RequestBody TranscodeResult body,
@@ -73,7 +73,7 @@ public class WorkerController {
         return ResponseEntity.ok(Map.of("success", true));
     }
 
-    /** 워커가 R2에 업로드한 결과물의 공개 URL 모음. */
+    /** 워커가 MinIO에 업로드한 결과물의 공개 URL 모음. */
     public record TranscodeResult(
             String mainUrl,
             String url1080,

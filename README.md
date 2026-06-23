@@ -12,7 +12,7 @@ YouTube를 모티브로 만든 영상 스트리밍 웹 서비스입니다.
 |------|------|
 | 백엔드 | Spring Boot 4.0, Java 21, JPA/Hibernate |
 | DB | MariaDB |
-| 스토리지 | Cloudflare R2 (S3 호환) |
+| 스토리지 | MinIO (S3 호환 오브젝트 스토리지) |
 | 프론트엔드 | HTML / CSS / Vanilla JS |
 | 인프라 | Oracle Cloud VM (Ubuntu), Nginx, Let's Encrypt |
 | 배포 | GitHub Actions (self-hosted runner) |
@@ -22,7 +22,7 @@ YouTube를 모티브로 만든 영상 스트리밍 웹 서비스입니다.
 ## 주요 기능
 
 ### 영상
-- 영상 업로드 (mp4, 로컬 → R2 자동 업로드)
+- 영상 업로드 (mp4, 로컬 → MinIO 자동 업로드)
 - FFmpeg 백그라운드 변환 (1080p / 720p / 480p / 360p 해상도)
 - YouTube URL embed 지원
 - 영상 공개/비공개 설정
@@ -107,4 +107,4 @@ GitHub Push
 - **서버:** Oracle Cloud VM (Ubuntu 22.04)
 - **리버스 프록시:** Nginx → localhost:8080
 - **SSL:** Let's Encrypt (certbot 자동 갱신)
-- **스토리지:** Cloudflare R2 (영상, 썸네일, 변환 파일)
+- **스토리지:** MinIO (영상, 썸네일, 변환 파일) — `minio.mytube.it.com` (nginx + HTTPS)

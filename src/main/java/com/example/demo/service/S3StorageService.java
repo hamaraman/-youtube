@@ -23,11 +23,11 @@ public class S3StorageService {
     private final boolean configured;
 
     public S3StorageService(
-            @Value("${r2.endpoint:}") String endpoint,
-            @Value("${r2.access-key:}") String accessKey,
-            @Value("${r2.secret-key:}") String secretKey,
-            @Value("${r2.bucket:}") String bucket,
-            @Value("${r2.public-url:}") String publicUrl
+            @Value("${minio.endpoint:}") String endpoint,
+            @Value("${minio.access-key:}") String accessKey,
+            @Value("${minio.secret-key:}") String secretKey,
+            @Value("${minio.bucket:}") String bucket,
+            @Value("${minio.public-url:}") String publicUrl
     ) {
         this.bucket = bucket;
         String trimmedPublicUrl = publicUrl.endsWith("/") ? publicUrl.substring(0, publicUrl.length() - 1) : publicUrl;
@@ -35,7 +35,7 @@ public class S3StorageService {
         this.configured = !endpoint.isBlank() && !accessKey.isBlank() && !secretKey.isBlank()
                 && !bucket.isBlank() && !publicUrl.isBlank();
 
-        System.out.println("[R2] configured=" + configured + " endpoint=" + endpoint + " bucket=" + bucket);
+        System.out.println("[MinIO] configured=" + configured + " endpoint=" + endpoint + " bucket=" + bucket);
         if (configured) {
             this.s3Client = S3Client.builder()
                     .endpointOverride(URI.create(endpoint))
@@ -58,7 +58,7 @@ public class S3StorageService {
     }
 
     public String upload(Path localFile, String key, String contentType) throws Exception {
-        System.out.println("[R2] Uploading: " + key);
+        System.out.println("[MinIO] Uploading: " + key);
         s3Client.putObject(
                 PutObjectRequest.builder()
                         .bucket(bucket)

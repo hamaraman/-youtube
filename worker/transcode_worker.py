@@ -2,8 +2,8 @@
 """
 로컬 GPU 트랜스코딩 워커.
 
-서버(/api/worker)에 폴링하여 변환 작업을 가져온 뒤, R2에서 원본을 직접 받아
-로컬 GPU(NVENC 등)로 main + 해상도별 변형을 만들고 R2에 업로드한 다음
+서버(/api/worker)에 폴링하여 변환 작업을 가져온 뒤, MinIO에서 원본을 직접 받아
+로컬 GPU(NVENC 등)로 main + 해상도별 변형을 만들고 MinIO에 업로드한 다음
 결과 URL을 서버에 통보한다. PC가 켜져 있는 동안에만 동작하며, 꺼져 있으면
 작업은 서버 DB 큐에 그대로 남아 대기한다.
 
@@ -50,11 +50,11 @@ SERVER_URL    = env("SERVER_URL", required=True).rstrip("/")
 WORKER_TOKEN  = env("WORKER_TOKEN", required=True)
 WORKER_ID     = env("WORKER_ID", socket.gethostname())
 
-R2_ENDPOINT   = env("R2_ENDPOINT", required=True)
-R2_ACCESS_KEY = env("R2_ACCESS_KEY", required=True)
-R2_SECRET_KEY = env("R2_SECRET_KEY", required=True)
-R2_BUCKET     = env("R2_BUCKET", required=True)
-R2_PUBLIC_URL = env("R2_PUBLIC_URL", required=True).rstrip("/")
+MINIO_ENDPOINT   = env("MINIO_ENDPOINT", required=True)
+MINIO_ACCESS_KEY = env("MINIO_ACCESS_KEY", required=True)
+MINIO_SECRET_KEY = env("MINIO_SECRET_KEY", required=True)
+MINIO_BUCKET     = env("MINIO_BUCKET", required=True)
+MINIO_PUBLIC_URL = env("MINIO_PUBLIC_URL", required=True).rstrip("/")
 
 FFMPEG        = env("FFMPEG", "ffmpeg")
 FFPROBE       = env("FFPROBE", "ffprobe")
@@ -66,9 +66,9 @@ ALL_HEIGHTS = [1080, 720, 480, 360]
 
 s3 = boto3.client(
     "s3",
-    endpoint_url=R2_ENDPOINT,
-    aws_access_key_id=R2_ACCESS_KEY,
-    aws_secret_access_key=R2_SECRET_KEY,
+    endpoint_url=MINIO_ENDPOINT,
+    aws_access_key_id=MINIO_ACCESS_KEY,
+    aws_secret_access_key=MINIO_SECRET_KEY,
     region_name="auto",
     config=Config(s3={"addressing_style": "path"}),
 )
@@ -170,14 +170,14 @@ def make_thumbnail(input_path, thumb_path):
     return os.path.exists(thumb_path)
 
 
-# ---------------------------------------------------------------- R2 helpers
-def r2_download(key, dest):
-    s3.download_file(R2_BUCKET, key, dest)
+# ---------------------------------------------------------------- MinIO helpers
+def minio_download(key, dest):
+    s3.download_file(MINIO_BUCKET, key, dest)
 
 
-def r2_upload(local, key, content_type):
-    s3.upload_file(local, R2_BUCKET, key, ExtraArgs={"ContentType": content_type})
-    return f"{R2_PUBLIC_URL}/{key}"
+def minio_upload(local, key, content_type):
+    s3.upload_file(local, MINIO_BUCKET, key, ExtraArgs={"ContentType": content_type})
+    return f"{MINIO_PUBLIC_URL}/{key}"
 
 
 # ---------------------------------------------------------------- server API
@@ -219,8 +219,8 @@ def process_job(job):
     created = []
     try:
         src = os.path.join(work, "src")
-        print(f"  · R2에서 원본 다운로드: {input_key}")
-        r2_download(input_key, src)
+        print(f"  · 스토리지에서 원본 다운로드: {input_key}")
+        minio_download(input_key, src)
 
         height = probe_height(src)
         codec = probe_codec(src)
@@ -242,21 +242,21 @@ def process_job(job):
                   "url480": None, "url360": None, "thumbnailUrl": None}
 
         print(f"  · main 업로드: videos/{uuid}.mp4")
-        result["mainUrl"] = r2_upload(main_out, f"videos/{uuid}.mp4", "video/mp4")
+        result["mainUrl"] = minio_upload(main_out, f"videos/{uuid}.mp4", "video/mp4")
 
         for h in heights:
             vp = var_outs[h]
             if os.path.exists(vp):
                 key = f"videos/{uuid}_{h}p.mp4"
                 print(f"  · {h}p 업로드: {key}")
-                result[f"url{h}"] = r2_upload(vp, key, "video/mp4")
+                result[f"url{h}"] = minio_upload(vp, key, "video/mp4")
 
         if need_thumb:
             thumb = os.path.join(work, f"{uuid}_thumb.jpg")
             if make_thumbnail(main_out, thumb):
                 key = f"thumbnails/{uuid}_thumb.jpg"
                 print(f"  · 썸네일 업로드: {key}")
-                result["thumbnailUrl"] = r2_upload(thumb, key, "image/jpeg")
+                result["thumbnailUrl"] = minio_upload(thumb, key, "image/jpeg")
 
         report_result(job_id, result)
         print(f"  ✓ 완료 jobId={job_id} videoId={job.get('videoId')}")
