@@ -1,7 +1,23 @@
 services:
+  minio:
+    image: minio/minio
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - ./minio-data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+
   app:
     build: .
     network_mode: "host"
+    depends_on:
+      - minio
     environment:
       DB_URL: "${DB_URL:-jdbc:mariadb://localhost:3306/mytube}"
       DB_USERNAME: root
@@ -9,11 +25,11 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       APP_BASE_URL: https://mytube.it.com
-      R2_ENDPOINT: https://e1e200052d3d2aa249c0af7b4bdc7d9e.r2.cloudflarestorage.com
-      R2_ACCESS_KEY: ${R2_ACCESS_KEY}
-      R2_SECRET_KEY: ${R2_SECRET_KEY}
+      R2_ENDPOINT: http://localhost:9000
+      R2_ACCESS_KEY: ${MINIO_ROOT_USER}
+      R2_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       R2_BUCKET: mytube-videos
-      R2_PUBLIC_URL: https://pub-d8c43551d665481cb26bba03837e4eb5.r2.dev
+      R2_PUBLIC_URL: ${MINIO_PUBLIC_URL}
       MAIL_USERNAME: ${MAIL_USERNAME}
       MAIL_PASSWORD: ${MAIL_PASSWORD}
     restart: unless-stopped
