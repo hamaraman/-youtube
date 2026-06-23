@@ -2,9 +2,11 @@ services:
   minio:
     image: minio/minio
     container_name: minio
+    # 외부에는 nginx(minio.mytube.it.com)로만 노출하고, 포트 자체는 localhost에만 바인딩한다.
+    # 콘솔(9001)은 외부 노출하지 않으며 필요 시 SSH 터널로 접근한다.
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
