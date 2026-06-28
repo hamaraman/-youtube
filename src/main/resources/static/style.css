@@ -824,11 +824,9 @@ img {
 
 .watch-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1.65fr) 380px;
+    grid-template-columns: minmax(0, 880px) minmax(360px, 1fr);
     gap: 24px;
     align-items: start;
-    max-width: 1280px;
-    margin: 0 auto;
 }
 
 .watch-main-column,
