@@ -1195,8 +1195,8 @@ img {
 
 .recommend-thumb {
     position: relative;
-    width: 168px;
-    min-width: 168px;
+    width: 210px;
+    min-width: 210px;
     aspect-ratio: 16 / 9;
     border-radius: 12px;
     overflow: hidden;
