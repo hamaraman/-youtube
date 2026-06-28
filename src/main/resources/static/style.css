@@ -1194,8 +1194,9 @@ img {
 
 .recommend-thumb {
     position: relative;
-    width: 320px;
-    min-width: 320px;
+    /* 사이드바 폭(=모니터 해상도)에 비례하는 유동 크기, 200~360px 범위로 제한 */
+    flex-shrink: 0;
+    width: clamp(200px, 53%, 360px);
     aspect-ratio: 16 / 9;
     border-radius: 12px;
     overflow: hidden;
@@ -1228,6 +1229,7 @@ img {
 }
 
 .recommend-info {
+    flex: 1 1 0;
     min-width: 0;
     display: flex;
     flex-direction: column;
