@@ -823,14 +823,20 @@ img {
 }
 
 .watch-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 402px;
+    display: flex;
     gap: 24px;
-    align-items: start;
+    align-items: flex-start;
 }
 
-.watch-main-column,
+/* 유튜브처럼 플레이어는 최대 1337px(16:9 → 높이 752px), 추천영상이 옆 남은 공간을 채움 */
+.watch-main-column {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 1337px;
+}
+
 .watch-side-column {
+    flex: 1 1 0;
     min-width: 0;
 }
 
@@ -1686,7 +1692,11 @@ img {
     }
 
     .watch-layout {
-        grid-template-columns: minmax(0, 1fr);
+        flex-direction: column;
+    }
+
+    .watch-main-column {
+        max-width: 100%;
     }
 
     .watch-side-column {
@@ -4466,7 +4476,7 @@ html[data-theme="light"] .recommend-tag {
 body.theater-mode .watch-shell { align-items: flex-start; min-height: 0; }
 body.theater-mode .watch-shell > aside.sidebar { display: none !important; }
 body.theater-mode .watch-page { padding-left: 0 !important; padding-right: 0 !important; }
-body.theater-mode .watch-layout { grid-template-columns: 1fr !important; max-width: 100%; gap: 0; }
+body.theater-mode .watch-layout { flex-direction: column !important; max-width: 100%; gap: 0; }
 body.theater-mode .watch-side-column { position: static; padding: 0 24px; }
 body.theater-mode .watch-main-column { max-width: 100%; }
 body.theater-mode .player-box { aspect-ratio: 16/9; max-height: 80vh; border-radius: 0; }
