@@ -827,6 +827,8 @@ img {
     grid-template-columns: minmax(0, 1.65fr) 380px;
     gap: 24px;
     align-items: start;
+    max-width: 1280px;
+    margin: 0 auto;
 }
 
 .watch-main-column,
