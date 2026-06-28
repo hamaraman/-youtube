@@ -828,11 +828,11 @@ img {
     align-items: flex-start;
 }
 
-/* 유튜브처럼 플레이어는 최대 1337px(16:9 → 높이 752px), 추천영상이 옆 남은 공간을 채움 */
+/* 유튜브처럼 플레이어는 최대 1840px(16:9 → 높이 1035px), 추천영상이 옆 남은 공간을 채움 */
 .watch-main-column {
     flex: 1 1 auto;
     min-width: 0;
-    max-width: 1337px;
+    max-width: 1840px;
 }
 
 .watch-side-column {
