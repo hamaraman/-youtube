@@ -828,15 +828,14 @@ img {
     align-items: flex-start;
 }
 
-/* 유튜브처럼 플레이어는 최대 1840px(16:9 → 높이 1035px), 추천영상이 옆 남은 공간을 채움 */
+/* 화면 폭에 비례하는 유동 비율: 플레이어 75% : 추천영상 25% (모니터 해상도에 맞게 함께 늘어남) */
 .watch-main-column {
-    flex: 1 1 auto;
+    flex: 75 1 0;
     min-width: 0;
-    max-width: 1840px;
 }
 
 .watch-side-column {
-    flex: 1 1 0;
+    flex: 25 1 0;
     min-width: 0;
 }
 
