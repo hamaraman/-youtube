@@ -163,11 +163,34 @@ def build_cmd(input_path, heights, main_out, var_outs, copy_main):
 
 def make_thumbnail(input_path, thumb_path):
     dur = probe_duration(input_path)
-    seek = dur * 0.1 if dur > 10 else max(dur * 0.5, 0)
-    cmd = [FFMPEG, "-y", "-ss", f"{seek:.2f}", "-i", input_path,
-           "-vframes", "1", "-q:v", "2", "-vf", "scale=1280:-2", thumb_path]
-    subprocess.run(cmd, capture_output=True, timeout=120)
-    return os.path.exists(thumb_path)
+    # 한 지점에서 실패할 수 있으므로 여러 지점을 순서대로 시도(폴백)
+    if dur > 10:
+        seeks = [dur * 0.1, dur * 0.5, dur * 0.25, 1.0, 0.0]
+    else:
+        seeks = [max(dur * 0.5, 0.0), 1.0, 0.0]
+
+    for seek in seeks:
+        try:
+            if os.path.exists(thumb_path):
+                os.remove(thumb_path)
+        except OSError:
+            pass
+        cmd = [FFMPEG, "-y", "-ss", f"{seek:.2f}", "-i", input_path,
+               "-vframes", "1", "-q:v", "2", "-vf", "scale=1280:-2", thumb_path]
+        try:
+            proc = subprocess.run(cmd, capture_output=True, timeout=120)
+        except subprocess.TimeoutExpired:
+            print(f"  ⚠ 썸네일 생성 타임아웃(seek={seek:.2f}s)")
+            continue
+        # ffmpeg 종료코드 + 실제 파일(존재/비어있지 않음)까지 검증
+        if proc.returncode == 0 and os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
+            return True
+        err = (proc.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+        tail = err[-1] if err else f"returncode={proc.returncode}"
+        print(f"  ⚠ 썸네일 생성 실패(seek={seek:.2f}s): {tail}")
+
+    print("  ✗ 모든 지점에서 썸네일 생성 실패")
+    return False
 
 
 # ---------------------------------------------------------------- MinIO helpers
@@ -257,6 +280,8 @@ def process_job(job):
                 key = f"thumbnails/{uuid}_thumb.jpg"
                 print(f"  · 썸네일 업로드: {key}")
                 result["thumbnailUrl"] = minio_upload(thumb, key, "image/jpeg")
+            else:
+                print(f"  ⚠ 썸네일 없이 완료됨 videoId={job.get('videoId')} uuid={uuid} — 수동 지정 필요")
 
         report_result(job_id, result)
         print(f"  ✓ 완료 jobId={job_id} videoId={job.get('videoId')}")

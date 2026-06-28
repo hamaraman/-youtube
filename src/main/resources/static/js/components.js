@@ -74,7 +74,7 @@ function createVideoCard(video) {
     <article class="card" data-video-id="${video.id}">
       <a href="${getVideoUrl(video.id)}" class="card-link">
         <div class="thumbnail-wrap">
-          <img class="thumbnail-image" src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" />
+          <img class="thumbnail-image" src="${escapeHtml(video.thumbnail || DEFAULT_THUMBNAIL)}" alt="${escapeHtml(video.title)}" />
           <span class="duration">${escapeHtml(video.duration || "0:00")}</span>
           ${progressBar}
           <button type="button" class="card-pl-btn" data-video-id="${video.id}" title="재생목록에 추가" aria-label="재생목록에 추가">
@@ -113,7 +113,7 @@ function createSavedVideoCard(video) {
     <article class="card saved-card" data-saved-card-id="${video.id}">
       <a href="${getVideoUrl(video.id)}" class="card-link">
         <div class="thumbnail-wrap">
-          <img class="thumbnail-image" src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" />
+          <img class="thumbnail-image" src="${escapeHtml(video.thumbnail || DEFAULT_THUMBNAIL)}" alt="${escapeHtml(video.title)}" />
           <span class="duration">${escapeHtml(video.duration || "0:00")}</span>
         </div>
         <div class="meta">
@@ -148,7 +148,7 @@ function createLikedVideoCard(video) {
     <article class="card liked-card" data-liked-card-id="${video.id}">
       <a href="${getVideoUrl(video.id)}" class="card-link">
         <div class="thumbnail-wrap">
-          <img class="thumbnail-image" src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" />
+          <img class="thumbnail-image" src="${escapeHtml(video.thumbnail || DEFAULT_THUMBNAIL)}" alt="${escapeHtml(video.title)}" />
           <span class="duration">${escapeHtml(video.duration || "0:00")}</span>
         </div>
         <div class="meta">
@@ -178,7 +178,7 @@ function createRecommendCard(video) {
     return `
     <a class="recommend-card" href="${getVideoUrl(video.id)}">
       <div class="recommend-thumb">
-        <img src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" />
+        <img src="${escapeHtml(video.thumbnail || DEFAULT_THUMBNAIL)}" alt="${escapeHtml(video.title)}" />
         <span class="recommend-duration">${escapeHtml(video.duration || "0:00")}</span>
       </div>
       <div class="recommend-info">
@@ -199,7 +199,7 @@ function createManageCard(video) {
     <article class="studio-row" data-id="${video.id}">
       <div class="studio-video-cell">
         <a href="${getVideoUrl(video.id)}" class="studio-thumb">
-          <img src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" />
+          <img src="${escapeHtml(video.thumbnail || DEFAULT_THUMBNAIL)}" alt="${escapeHtml(video.title)}" />
           <span class="studio-duration">${escapeHtml(video.duration || "0:00")}</span>
         </a>
 
@@ -240,7 +240,7 @@ function createPlayerMarkup(video, resolutionOptions) {
     if (video.videoUrl) {
         const hasThumbnail = video.thumbnail && !video.thumbnail.startsWith("data:");
         const thumbHtml = hasThumbnail
-            ? `<img class="cp-thumb-cover" id="cpThumbCover" src="${escapeHtml(video.thumbnail)}" alt="">`
+            ? `<img class="cp-thumb-cover" id="cpThumbCover" src="${escapeHtml(video.thumbnail || DEFAULT_THUMBNAIL)}" alt="">`
             : "";
         const hasQuality = resolutionOptions && resolutionOptions.length > 0;
         const qualityOptionsHtml = hasQuality
@@ -335,7 +335,7 @@ function createPlayerMarkup(video, resolutionOptions) {
           referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
     }
 
-    return `<img src="${escapeHtml(video.thumbnail)}" alt="${escapeHtml(video.title)}" />`;
+    return `<img src="${escapeHtml(video.thumbnail || DEFAULT_THUMBNAIL)}" alt="${escapeHtml(video.title)}" />`;
 }
 
 // ── 미니 플레이어 ──────────────────────────────────────────
