@@ -11,7 +11,7 @@
         rel="stylesheet"
     />
     <script src="theme.js"></script>
-    <link rel="stylesheet" href="style.css?v=9" />
+    <link rel="stylesheet" href="style.css?v=11" />
 
     <style>
         .watch-shell {
@@ -156,12 +156,8 @@
         }
 
         .watch-recommend-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            margin-bottom: 10px;
-            padding: 0 4px;
+            margin-bottom: 12px;
+            padding: 0;
         }
 
         .watch-recommend-title {
@@ -177,7 +173,24 @@
             color: #9aa0a6;
         }
 
-        .watch-recommend-chipbar,
+        /* 유튜브처럼 '추천 영상' 제목 대신 칩 필터 바를 노출 */
+        .watch-recommend-header-default {
+            display: none;
+        }
+
+        .watch-recommend-chipbar {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            padding-bottom: 2px;
+        }
+
+        .watch-recommend-chipbar::-webkit-scrollbar {
+            display: none;
+        }
+
         .watch-recommend-nav {
             display: none;
         }
@@ -231,11 +244,12 @@
             fill: currentColor;
         }
 
+        /* 유튜브처럼 추천 목록은 감싸는 박스 없이 깔끔하게 */
         .watch-recommend-panel {
-            background: #121212;
-            border: 1px solid #232323;
-            border-radius: 18px;
-            padding: 10px 8px;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 0;
         }
 
         #watchPlaylistPanel { border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
