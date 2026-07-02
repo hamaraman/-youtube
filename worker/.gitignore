@@ -1,3 +1,9 @@
 __pycache__/
 *.pyc
 .env
+
+# 런타임 산출물 (로컬 실행 흔적)
+worker.pid
+*.log
+# 로컬 실행 런처 (머신별 절대경로 하드코딩 → 커밋 대상 아님)
+start-worker.bat
