@@ -42,6 +42,8 @@ uploads/
 application-local.properties
 src/main/resources/application-local.properties
 .env
+*.key
+*.pem
 
 ### Temporary and dependencies ###
 .claude/
