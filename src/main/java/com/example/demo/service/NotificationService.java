@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.entity.Notification;
 import com.example.demo.repository.NotificationRepository;
+import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -70,7 +71,8 @@ public class NotificationService {
         for (SseEmitter emitter : list) {
             try {
                 emitter.send(SseEmitter.event().name("notification")
-                        .data(Map.of("notification", notification, "unreadCount", unreadCount)));
+                        .data(Map.of("notification", notification, "unreadCount", unreadCount),
+                                MediaType.APPLICATION_JSON));
             } catch (IOException e) {
                 emitter.complete();
                 removeEmitter(userId, emitter);
