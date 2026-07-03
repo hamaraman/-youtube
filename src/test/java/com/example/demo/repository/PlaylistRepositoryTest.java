@@ -9,6 +9,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,31 +22,32 @@ class PlaylistRepositoryTest {
     @Autowired private PlaylistRepository playlistRepository;
     @Autowired private PlaylistVideoRepository playlistVideoRepository;
 
+    private static final LocalDateTime BASE = LocalDateTime.of(2026, 1, 1, 12, 0);
+
     private Long user1PlaylistOldId;
     private Long user1PlaylistNewId;
     private Long user2PlaylistId;
 
     @BeforeEach
-    void setUp() throws InterruptedException {
-        user1PlaylistOldId = createPlaylist(1L, "old").getId();
-        Thread.sleep(5); // ensure different createdAt
-        user1PlaylistNewId = createPlaylist(1L, "new").getId();
-        user2PlaylistId = createPlaylist(2L, "other").getId();
+    void setUp() {
+        user1PlaylistOldId = createPlaylist(1L, "old", BASE.minusHours(1)).getId();
+        user1PlaylistNewId = createPlaylist(1L, "new", BASE).getId();
+        user2PlaylistId = createPlaylist(2L, "other", BASE).getId();
 
-        addVideoToPlaylist(user1PlaylistNewId, 100L);
-        addVideoToPlaylist(user1PlaylistNewId, 200L);
-        addVideoToPlaylist(user1PlaylistOldId, 300L);
+        addVideoToPlaylist(user1PlaylistNewId, 100L, BASE.minusMinutes(1));
+        addVideoToPlaylist(user1PlaylistNewId, 200L, BASE);
+        addVideoToPlaylist(user1PlaylistOldId, 300L, BASE);
     }
 
-    private Playlist createPlaylist(Long userId, String name) {
+    private Playlist createPlaylist(Long userId, String name, LocalDateTime createdAt) {
         Playlist p = new Playlist();
-        p.setUserId(userId); p.setName(name);
+        p.setUserId(userId); p.setName(name); p.setCreatedAt(createdAt);
         return playlistRepository.save(p);
     }
 
-    private PlaylistVideo addVideoToPlaylist(Long playlistId, Long videoId) {
+    private PlaylistVideo addVideoToPlaylist(Long playlistId, Long videoId, LocalDateTime addedAt) {
         PlaylistVideo pv = new PlaylistVideo();
-        pv.setPlaylistId(playlistId); pv.setVideoId(videoId);
+        pv.setPlaylistId(playlistId); pv.setVideoId(videoId); pv.setAddedAt(addedAt);
         return playlistVideoRepository.save(pv);
     }
 
