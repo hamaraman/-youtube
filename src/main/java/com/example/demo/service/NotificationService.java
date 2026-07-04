@@ -41,6 +41,13 @@ public class NotificationService {
         return emitter;
     }
 
+    public Map<String, Object> emitterCounts() {
+        Map<Long, Integer> perUser = new java.util.TreeMap<>();
+        emitters.forEach((userId, list) -> perUser.put(userId, list.size()));
+        int total = perUser.values().stream().mapToInt(Integer::intValue).sum();
+        return Map.of("totalEmitters", total, "perUser", perUser);
+    }
+
     private void removeEmitter(Long userId, SseEmitter emitter) {
         List<SseEmitter> list = emitters.get(userId);
         if (list == null) return;

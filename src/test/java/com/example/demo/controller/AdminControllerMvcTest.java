@@ -6,6 +6,7 @@ import com.example.demo.config.LoginUserResolver;
 import com.example.demo.config.VideoAccessFilter;
 import com.example.demo.controller.AuthController.SessionUser;
 import com.example.demo.service.AdminService;
+import com.example.demo.service.NotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +45,7 @@ class AdminControllerMvcTest {
     @MockitoBean private AdminService adminService;
     @MockitoBean private AdminChecker adminChecker;
     @MockitoBean private LoginUserResolver loginUserResolver;
+    @MockitoBean private NotificationService notificationService;
 
     @BeforeEach
     void defaultNonAdmin() {
