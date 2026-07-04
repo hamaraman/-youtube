@@ -223,8 +223,24 @@ function initNotifications() {
         }
     });
 
+    let pollTimer = null;
+
+    function startPollingFallback() {
+        if (pollTimer) return;
+        pollTimer = setInterval(refresh, 30000);
+    }
+
     function connectSSE() {
         const es = new EventSource("/api/notifications/stream");
+
+        // 서버/인프라 문제로 SSE 응답이 전혀 오지 않는 경우 폴링으로 전환
+        const fallbackTimer = setTimeout(() => {
+            es.close();
+            startPollingFallback();
+        }, 10000);
+
+        es.onopen = () => clearTimeout(fallbackTimer);
+        es.addEventListener("connected", () => clearTimeout(fallbackTimer));
 
         es.addEventListener("notification", (e) => {
             let data;

@@ -4,12 +4,18 @@ import com.example.demo.config.AdminChecker;
 import com.example.demo.config.LoginUserResolver;
 import com.example.demo.service.AdminService;
 import com.example.demo.service.NotificationService;
+import jakarta.servlet.AsyncContext;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.nio.charset.StandardCharsets;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.util.List;
@@ -145,6 +151,70 @@ public class AdminController {
             return ResponseEntity.status(403).body(Map.of("message", "관리자 권한이 필요합니다."));
         }
         return ResponseEntity.ok(notificationService.emitterCounts());
+    }
+
+    @GetMapping("/diag/info")
+    public ResponseEntity<?> runtimeInfo(HttpSession session) {
+        if (!adminChecker.isAdmin(session, loginUserResolver)) {
+            return ResponseEntity.status(403).body(Map.of("message", "관리자 권한이 필요합니다."));
+        }
+        return ResponseEntity.ok(Map.of(
+                "javaVersion", System.getProperty("java.version"),
+                "javaVendor", System.getProperty("java.vendor"),
+                "osName", System.getProperty("os.name"),
+                "osArch", System.getProperty("os.arch"),
+                "springBootVersion", String.valueOf(org.springframework.boot.SpringBootVersion.getVersion()),
+                "tomcatVersion", org.apache.catalina.util.ServerInfo.getServerNumber()
+        ));
+    }
+
+    // Tomcat이 청크 단위 flush를 실시간으로 클라이언트에 내보내는지 검사 (동기 쓰기)
+    @GetMapping("/diag/flush-test")
+    public void flushTest(HttpSession session, HttpServletResponse response) throws IOException {
+        if (!adminChecker.isAdmin(session, loginUserResolver)) {
+            response.setStatus(403);
+            return;
+        }
+        response.setContentType("text/plain;charset=UTF-8");
+        response.setHeader("Cache-Control", "no-cache");
+        ServletOutputStream out = response.getOutputStream();
+        for (int i = 1; i <= 5; i++) {
+            out.write(("sync-chunk-" + i + " t=" + System.currentTimeMillis() + "\n")
+                    .getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            response.flushBuffer();
+            try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+        }
+    }
+
+    // 서블릿 async 컨텍스트에서의 flush 검사 (SseEmitter와 같은 비동기 쓰기 경로)
+    @GetMapping("/diag/flush-test-async")
+    public void flushTestAsync(HttpSession session, HttpServletRequest request,
+                               HttpServletResponse response) {
+        if (!adminChecker.isAdmin(session, loginUserResolver)) {
+            response.setStatus(403);
+            return;
+        }
+        AsyncContext ctx = request.startAsync();
+        ctx.setTimeout(30_000);
+        Thread writer = new Thread(() -> {
+            try {
+                HttpServletResponse res = (HttpServletResponse) ctx.getResponse();
+                res.setContentType("text/plain;charset=UTF-8");
+                ServletOutputStream out = res.getOutputStream();
+                for (int i = 1; i <= 5; i++) {
+                    out.write(("async-chunk-" + i + " t=" + System.currentTimeMillis() + "\n")
+                            .getBytes(StandardCharsets.UTF_8));
+                    out.flush();
+                    Thread.sleep(1000);
+                }
+            } catch (Exception ignored) {
+            } finally {
+                try { ctx.complete(); } catch (Exception ignored) {}
+            }
+        });
+        writer.setDaemon(true);
+        writer.start();
     }
 
     @PostMapping("/users/{id}/role")
