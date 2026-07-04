@@ -29,14 +29,20 @@ public class AdminController {
     private final AdminChecker adminChecker;
     private final LoginUserResolver loginUserResolver;
     private final NotificationService notificationService;
+    private final jakarta.servlet.ServletContext servletContext;
+    private final org.springframework.context.ApplicationContext applicationContext;
 
     public AdminController(AdminService adminService, AdminChecker adminChecker,
                            LoginUserResolver loginUserResolver,
-                           NotificationService notificationService) {
+                           NotificationService notificationService,
+                           jakarta.servlet.ServletContext servletContext,
+                           org.springframework.context.ApplicationContext applicationContext) {
         this.adminService = adminService;
         this.adminChecker = adminChecker;
         this.loginUserResolver = loginUserResolver;
         this.notificationService = notificationService;
+        this.servletContext = servletContext;
+        this.applicationContext = applicationContext;
     }
 
     @GetMapping("/videos/search")
@@ -166,6 +172,29 @@ public class AdminController {
                 "springBootVersion", String.valueOf(org.springframework.boot.SpringBootVersion.getVersion()),
                 "tomcatVersion", org.apache.catalina.util.ServerInfo.getServerNumber()
         ));
+    }
+
+    // JVM 인자, 서블릿 필터 체인, 커넥터 설정 등 배포 환경 심층 정보
+    @GetMapping("/diag/env")
+    public ResponseEntity<?> deepEnvInfo(HttpSession session) {
+        if (!adminChecker.isAdmin(session, loginUserResolver)) {
+            return ResponseEntity.status(403).body(Map.of("message", "관리자 권한이 필요합니다."));
+        }
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("jvmArgs", ManagementFactory.getRuntimeMXBean().getInputArguments());
+        m.put("filters", servletContext.getFilterRegistrations().entrySet().stream()
+                .map(e -> e.getKey() + " -> " + e.getValue().getClassName())
+                .toList());
+        try {
+            var webServer = ((org.springframework.boot.web.server.context.WebServerApplicationContext) applicationContext).getWebServer();
+            var tomcat = ((org.springframework.boot.tomcat.TomcatWebServer) webServer).getTomcat();
+            var connector = tomcat.getConnector();
+            m.put("connectorProtocol", connector.getProtocolHandlerClassName());
+            m.put("useAsyncIO", String.valueOf(connector.getProperty("useAsyncIO")));
+        } catch (Exception e) {
+            m.put("connectorError", e.toString());
+        }
+        return ResponseEntity.ok(m);
     }
 
     // Tomcat이 청크 단위 flush를 실시간으로 클라이언트에 내보내는지 검사 (동기 쓰기)
