@@ -37,11 +37,11 @@ class NotificationControllerMvcTest {
     @MockitoBean private LoginUserResolver loginUserResolver;
 
     @Test
-    void stream_notLoggedIn_returnsEmitterThatErrorsOut() throws Exception {
+    void stream_notLoggedIn_returns401WithoutSubscribing() throws Exception {
         when(loginUserResolver.getUserId(any())).thenReturn(null);
 
         mockMvc.perform(get("/api/notifications/stream").accept("text/event-stream"))
-                .andExpect(status().isOk());
+                .andExpect(status().isUnauthorized());
         verify(notificationService, never()).subscribe(any());
     }
 
