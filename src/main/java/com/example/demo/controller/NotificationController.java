@@ -24,16 +24,21 @@ public class NotificationController {
 
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(HttpSession session, HttpServletResponse response) {
+        Long userId = loginUserResolver.getUserId(session);
+        if (userId == null) {
+            // 미인증: 예외를 MVC 예외 파이프라인에 던지지 않고 401로 조용히 종료.
+            // completeWithError(...)를 쓰면 GlobalExceptionHandler가 Map 에러바디를
+            // text/event-stream으로 직렬화하려다 HttpMessageNotWritableException 경고를
+            // 남기므로(로그아웃/세션만료 브라우저가 붙을 때마다 발생) 사용하지 않음.
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            SseEmitter emitter = new SseEmitter(0L);
+            emitter.complete();
+            return emitter;
+        }
         // Nginx(및 프록시)가 SSE 응답을 버퍼링하지 않도록 강제 — 이게 없으면
         // 기본 proxy_buffering on 때문에 connected/heartbeat가 갇혀 클라이언트가 0바이트를 받음
         response.setHeader("X-Accel-Buffering", "no");
         response.setHeader("Cache-Control", "no-cache");
-        Long userId = loginUserResolver.getUserId(session);
-        if (userId == null) {
-            SseEmitter emitter = new SseEmitter(0L);
-            emitter.completeWithError(new IllegalStateException("로그인이 필요합니다."));
-            return emitter;
-        }
         return notificationService.subscribe(userId);
     }
 
