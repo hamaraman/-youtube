@@ -266,7 +266,9 @@ async function updateVideoById(id, payload) {
 
     const result = await response.json().catch(() => ({}));
 
-    if (!response.ok || !result.success) {
+    // PUT /api/videos/{id}는 성공 시 수정된 VideoItem을 그대로 반환(success 필드 없음).
+    // 따라서 HTTP 200 여부로만 판단해야 함 — result.success를 요구하면 정상 응답도 실패로 오독됨.
+    if (!response.ok) {
         throw new Error(result.message || "수정 실패");
     }
 
