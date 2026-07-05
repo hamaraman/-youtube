@@ -69,6 +69,37 @@ class VideoControllerMvcTest {
     }
 
     @Test
+    void getRelatedVideos_returnsRecommendedAndChannelLists() throws Exception {
+        when(loginUserResolver.getUserId(any())).thenReturn(null);
+        when(videoService.getRelatedVideos(eq(1L), any(), eq(12)))
+                .thenReturn(Map.of(
+                        "recommended", List.of(sampleItem(2L, "rec")),
+                        "channel", List.of(sampleItem(3L, "ch"))));
+
+        mockMvc.perform(get("/api/videos/1/related"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recommended[0].id").value(2))
+                .andExpect(jsonPath("$.channel[0].id").value(3));
+    }
+
+    @Test
+    void pathVariableTypeMismatch_returns400() throws Exception {
+        mockMvc.perform(get("/api/videos/abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void getRelatedVideos_missingVideo_returns404() throws Exception {
+        when(loginUserResolver.getUserId(any())).thenReturn(null);
+        when(videoService.getRelatedVideos(eq(99L), any(), eq(12)))
+                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "영상을 찾을 수 없습니다."));
+
+        mockMvc.perform(get("/api/videos/99/related"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void getVideos_anonymous_treatedAsNonAdmin() throws Exception {
         when(loginUserResolver.getUserId(any())).thenReturn(null);
         when(adminChecker.isAdmin(any(), any())).thenReturn(false);

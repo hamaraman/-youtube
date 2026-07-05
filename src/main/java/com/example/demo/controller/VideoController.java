@@ -92,6 +92,19 @@ public class VideoController {
         }
     }
 
+    @GetMapping("/videos/{id}/related")
+    public ResponseEntity<?> getRelatedVideos(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "12") int limit,
+            HttpSession session) {
+        Long loginUserId = getLoginUserId(session);
+        try {
+            return ResponseEntity.ok(videoService.getRelatedVideos(id, loginUserId, limit));
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).build();
+        }
+    }
+
     @GetMapping("/studio/videos")
     public ResponseEntity<?> getStudioVideos(HttpSession session) {
         Long loginUserId = getLoginUserId(session);

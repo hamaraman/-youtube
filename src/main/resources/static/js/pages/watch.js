@@ -48,12 +48,27 @@ async function initWatchPage() {
     const videoId = Number(rawVideoId);
     const listId = params.get("list") ? Number(params.get("list")) : null;
 
-    const uploadedVideos = await fetchUploadedVideos();
-    const allVideos = makeFeedVideos(uploadedVideos);
-
-    let currentVideo = allVideos.find((video) => video.id === videoId) || allVideos[0];
+    let currentVideo = null;
+    let videoLoadError = "영상을 찾을 수 없습니다.";
+    try {
+        if (rawVideoId != null && Number.isFinite(videoId)) {
+            const res = await fetch(`/api/videos/${videoId}`);
+            if (res.ok) {
+                currentVideo = await res.json();
+            } else if (res.status === 403) {
+                videoLoadError = "비공개 영상입니다.";
+            }
+        } else {
+            // v 파라미터 없이 진입: 최신 영상으로 폴백 (기존 동작 유지)
+            const feedRes = await fetch("/api/videos/feed?page=0&size=1");
+            if (feedRes.ok) {
+                const feed = await feedRes.json();
+                currentVideo = (feed.videos || [])[0] || null;
+            }
+        }
+    } catch {}
     if (!currentVideo) {
-        watchMain.innerHTML = `<p style="color:#aaa;">영상을 찾을 수 없습니다.</p>`;
+        watchMain.innerHTML = `<p style="color:#aaa;">${escapeHtml(videoLoadError)}</p>`;
         return;
     }
 
@@ -92,7 +107,26 @@ async function initWatchPage() {
     commentHasMore = initCommentData.hasMore || false;
     commentTotal = Number(initCommentData.total || 0);
 
-    const recommendVideos = getRecommendedVideos(currentVideo, allVideos, 12);
+    let recommendVideos = [];
+    let channelVideos = [];
+    try {
+        const relRes = await fetch(`/api/videos/${currentVideo.id}/related?limit=12`);
+        if (relRes.ok) {
+            const related = await relRes.json();
+            const baseCategory = String(currentVideo.category || "").trim();
+            const baseChannel = String(currentVideo.channel || "").trim();
+            recommendVideos = (related.recommended || []).map((video) => ({
+                ...video,
+                _recTag: (() => {
+                    const tc = String(video.category || "").trim();
+                    if (baseCategory && tc && baseCategory === tc) return "카테고리";
+                    if (baseChannel && baseChannel === String(video.channel || "").trim()) return "채널";
+                    return null;
+                })(),
+            }));
+            channelVideos = related.channel || [];
+        }
+    } catch {}
 
     const descriptionText = String(currentVideo.description || "");
     const shouldCollapseDescription = descriptionText.length > 140 || descriptionText.includes("\n");
@@ -227,8 +261,6 @@ async function initWatchPage() {
     }
 
     if (watchRecommendChipbar && watchRecommendList) {
-        const channelVideos = allVideos.filter((video) => video.id !== currentVideo.id && video.channel === currentVideo.channel);
-
         watchRecommendChipbar.addEventListener("click", (event) => {
             const chip = event.target.closest(".recommend-chip");
             if (!chip || chip.classList.contains("is-active")) return;

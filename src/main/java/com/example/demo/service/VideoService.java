@@ -181,6 +181,87 @@ public class VideoService {
         );
     }
 
+    /**
+     * 시청 페이지 추천/같은 채널 목록. 프론트가 전체 영상 목록을 내려받아
+     * 클라이언트에서 계산하던 것을 서버로 이관 (점수 로직은 기존과 동일:
+     * 카테고리 +50, 같은 채널 +25, 키워드 겹침 +5/개, 조회수·좋아요 로그 보너스, 다양성 노이즈).
+     */
+    public Map<String, Object> getRelatedVideos(Long id, Long loginUserId, int limit) {
+        Video base = videoRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "영상을 찾을 수 없습니다."));
+
+        int size = Math.max(1, Math.min(limit, 50));
+
+        List<Video> candidates = videoRepository.findAllPublic().stream()
+                .filter(v -> !v.getId().equals(id))
+                .collect(Collectors.toList());
+        List<VideoItem> items = toVideoItems(candidates, loginUserId);
+
+        List<VideoItem> channelItems = items.stream()
+                .filter(v -> base.getOwnerId() != null && base.getOwnerId().equals(v.getOwnerId()))
+                .limit(size)
+                .collect(Collectors.toList());
+
+        Set<String> baseTokens = new HashSet<>();
+        baseTokens.addAll(tokenize(base.getTitle()));
+        baseTokens.addAll(tokenize(base.getDescription()));
+        baseTokens.addAll(tokenize(base.getCategory()));
+
+        Random noise = new Random();
+        Map<Long, Double> scores = items.stream().collect(Collectors.toMap(
+                VideoItem::getId,
+                item -> recommendationScore(base, baseTokens, item, noise)));
+
+        List<VideoItem> recommended = items.stream()
+                .sorted(Comparator.comparingDouble((VideoItem v) -> scores.get(v.getId())).reversed()
+                        .thenComparing(Comparator.comparingLong(VideoItem::getViewCount).reversed()))
+                .limit(size)
+                .collect(Collectors.toList());
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("recommended", recommended);
+        result.put("channel", channelItems);
+        return result;
+    }
+
+    private double recommendationScore(Video base, Set<String> baseTokens, VideoItem target, Random noise) {
+        double score = 0;
+
+        String baseCategory = trimmed(base.getCategory());
+        String targetCategory = trimmed(target.getCategory());
+        if (!baseCategory.isEmpty() && baseCategory.equals(targetCategory)) score += 50;
+
+        String baseChannel = trimmed(base.getChannel());
+        if (!baseChannel.isEmpty() && baseChannel.equals(trimmed(target.getChannel()))) score += 25;
+
+        List<String> targetTokens = new ArrayList<>();
+        targetTokens.addAll(tokenize(target.getTitle()));
+        targetTokens.addAll(tokenize(target.getDescription()));
+        targetTokens.addAll(tokenize(target.getCategory()));
+        for (String token : targetTokens) {
+            if (baseTokens.contains(token)) score += 5;
+        }
+
+        if (target.getViewCount() > 0) score += Math.log10(target.getViewCount() + 1) * 10;
+        if (target.getLikeCount() > 0) score += Math.log10(target.getLikeCount() + 1) * 5;
+
+        // 매 요청 다른 추천 순서를 위한 다양성 노이즈 (기존 프론트 로직의 ±3점과 동일 스케일)
+        score += noise.nextDouble() * 3;
+
+        return score;
+    }
+
+    private static String trimmed(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private static List<String> tokenize(String text) {
+        if (text == null || text.isBlank()) return List.of();
+        return Arrays.stream(text.toLowerCase().replaceAll("[^a-z0-9가-힣\\s]", " ").split("\\s+"))
+                .filter(token -> token.length() >= 2)
+                .collect(Collectors.toList());
+    }
+
     public List<VideoItem> getStudioVideos(Long loginUserId) {
         if (loginUserId == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
