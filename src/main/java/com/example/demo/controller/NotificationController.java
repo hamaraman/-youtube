@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.config.LoginUserResolver;
 import com.example.demo.service.NotificationService;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,7 +23,11 @@ public class NotificationController {
     }
 
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter stream(HttpSession session) {
+    public SseEmitter stream(HttpSession session, HttpServletResponse response) {
+        // Nginx(및 프록시)가 SSE 응답을 버퍼링하지 않도록 강제 — 이게 없으면
+        // 기본 proxy_buffering on 때문에 connected/heartbeat가 갇혀 클라이언트가 0바이트를 받음
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache");
         Long userId = loginUserResolver.getUserId(session);
         if (userId == null) {
             SseEmitter emitter = new SseEmitter(0L);
