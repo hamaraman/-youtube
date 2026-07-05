@@ -530,4 +530,84 @@ class VideoServiceTest {
             verify(videoSaveRepository, never()).findSavedVideoIdsByUserId(anyLong(), anyList());
         }
     }
+
+    @Nested
+    class GetRelatedVideos {
+
+        private Video video(Long id, Long ownerId, String category, String channel) {
+            Video v = publicVideo(id, ownerId);
+            v.setCategory(category);
+            v.setChannel(channel);
+            return v;
+        }
+
+        private void stubCountsEmpty() {
+            when(videoLikeRepository.countByVideoIdIn(anyList())).thenReturn(List.of());
+            when(commentRepository.countByVideoIdIn(anyList())).thenReturn(List.of());
+        }
+
+        @Test
+        void notFound_throws404() {
+            when(videoRepository.findById(99L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> videoService.getRelatedVideos(99L, null, 12))
+                    .isInstanceOf(ResponseStatusException.class)
+                    .hasMessageContaining("404");
+        }
+
+        @Test
+        void excludesBaseVideo_andRanksSameCategoryFirst() {
+            Video base = video(1L, 5L, "게임", "chA");
+            Video sameCategory = video(2L, 6L, "게임", "chB");
+            Video other = video(3L, 7L, "요리", "chC");
+            when(videoRepository.findById(1L)).thenReturn(Optional.of(base));
+            when(videoRepository.findAllPublic())
+                    .thenReturn(new ArrayList<>(Arrays.asList(base, sameCategory, other)));
+            stubCountsEmpty();
+
+            Map<String, Object> result = videoService.getRelatedVideos(1L, null, 12);
+
+            @SuppressWarnings("unchecked")
+            List<VideoItem> recommended = (List<VideoItem>) result.get("recommended");
+            assertThat(recommended).extracting(VideoItem::getId).doesNotContain(1L);
+            // 카테고리 일치 +50점은 노이즈(최대 3점)보다 커서 항상 먼저 온다
+            assertThat(recommended.get(0).getId()).isEqualTo(2L);
+        }
+
+        @Test
+        void channelList_containsOnlySameOwnerVideos() {
+            Video base = video(1L, 5L, "게임", "chA");
+            Video sameOwner = video(2L, 5L, "요리", "chA");
+            Video otherOwner = video(3L, 7L, "게임", "chC");
+            when(videoRepository.findById(1L)).thenReturn(Optional.of(base));
+            when(videoRepository.findAllPublic())
+                    .thenReturn(new ArrayList<>(Arrays.asList(base, sameOwner, otherOwner)));
+            stubCountsEmpty();
+
+            Map<String, Object> result = videoService.getRelatedVideos(1L, null, 12);
+
+            @SuppressWarnings("unchecked")
+            List<VideoItem> channel = (List<VideoItem>) result.get("channel");
+            assertThat(channel).extracting(VideoItem::getId).containsExactly(2L);
+        }
+
+        @Test
+        void respectsLimit() {
+            Video base = video(1L, 5L, "게임", "chA");
+            List<Video> all = new ArrayList<>();
+            all.add(base);
+            for (long i = 2; i <= 20; i++) {
+                all.add(video(i, 6L, "게임", "chB"));
+            }
+            when(videoRepository.findById(1L)).thenReturn(Optional.of(base));
+            when(videoRepository.findAllPublic()).thenReturn(all);
+            stubCountsEmpty();
+
+            Map<String, Object> result = videoService.getRelatedVideos(1L, null, 5);
+
+            @SuppressWarnings("unchecked")
+            List<VideoItem> recommended = (List<VideoItem>) result.get("recommended");
+            assertThat(recommended).hasSize(5);
+        }
+    }
 }
