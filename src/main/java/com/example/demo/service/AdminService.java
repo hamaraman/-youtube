@@ -1,8 +1,11 @@
 package com.example.demo.service;
 
 import com.example.demo.config.DataInitializer;
+import com.example.demo.entity.User;
 import com.example.demo.entity.Video;
+import com.example.demo.entity.VideoReport;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.repository.VideoReportRepository;
 import com.example.demo.repository.VideoRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -21,16 +24,43 @@ public class AdminService {
 
     private final VideoRepository videoRepository;
     private final UserRepository userRepository;
+    private final VideoReportRepository videoReportRepository;
     private final DataInitializer dataInitializer;
 
     @Value("${file.video-dir}")
     private String videoDir;
 
     public AdminService(VideoRepository videoRepository, UserRepository userRepository,
+                        VideoReportRepository videoReportRepository,
                         DataInitializer dataInitializer) {
         this.videoRepository = videoRepository;
         this.userRepository = userRepository;
+        this.videoReportRepository = videoReportRepository;
         this.dataInitializer = dataInitializer;
+    }
+
+    public List<Map<String, Object>> listReports() {
+        return videoReportRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toReportMap)
+                .collect(Collectors.toList());
+    }
+
+    private Map<String, Object> toReportMap(VideoReport r) {
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("id", r.getId());
+        m.put("videoId", r.getVideoId());
+        Video v = r.getVideoId() == null ? null : videoRepository.findById(r.getVideoId()).orElse(null);
+        m.put("videoTitle", v != null ? v.getTitle() : "(삭제된 영상)");
+        m.put("thumbnail", v != null && v.getThumbnail() != null ? v.getThumbnail() : "");
+        m.put("reporterId", r.getReporterId() == null ? "" : r.getReporterId());
+        User reporter = r.getReporterId() == null ? null : userRepository.findById(r.getReporterId()).orElse(null);
+        m.put("reporter", reporter != null
+                ? (reporter.getNickname() != null ? reporter.getNickname() : reporter.getUsername())
+                : "(탈퇴한 사용자)");
+        m.put("reason", r.getReason());
+        m.put("detail", r.getDetail() == null ? "" : r.getDetail());
+        m.put("time", r.getTime());
+        return m;
     }
 
     public List<Map<String, Object>> searchVideos(String title) {

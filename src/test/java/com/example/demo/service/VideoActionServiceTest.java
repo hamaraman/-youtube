@@ -3,13 +3,16 @@ package com.example.demo.service;
 import com.example.demo.controller.AuthController.SessionUser;
 import com.example.demo.controller.VideoActionController.DislikeResponse;
 import com.example.demo.controller.VideoActionController.LikeResponse;
+import com.example.demo.controller.VideoActionController.ReportResponse;
 import com.example.demo.controller.VideoActionController.SaveResponse;
 import com.example.demo.entity.Video;
 import com.example.demo.entity.VideoDislike;
 import com.example.demo.entity.VideoLike;
+import com.example.demo.entity.VideoReport;
 import com.example.demo.entity.VideoSave;
 import com.example.demo.repository.VideoDislikeRepository;
 import com.example.demo.repository.VideoLikeRepository;
+import com.example.demo.repository.VideoReportRepository;
 import com.example.demo.repository.VideoRepository;
 import com.example.demo.repository.VideoSaveRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +40,7 @@ class VideoActionServiceTest {
     @Mock private VideoLikeRepository videoLikeRepository;
     @Mock private VideoDislikeRepository videoDislikeRepository;
     @Mock private VideoSaveRepository videoSaveRepository;
+    @Mock private VideoReportRepository videoReportRepository;
     @Mock private NotificationService notificationService;
 
     @InjectMocks private VideoActionService videoActionService;
@@ -197,6 +201,52 @@ class VideoActionServiceTest {
         verify(videoDislikeRepository).delete(existing);
         verify(videoDislikeRepository, never()).save(any());
         verify(videoLikeRepository, never()).delete(any());
+    }
+
+    @Test
+    void reportVideo_withoutLogin_throwsUnauthorized() {
+        assertThatThrownBy(() -> videoActionService.reportVideo(1L, "스팸", "", null))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("로그인");
+    }
+
+    @Test
+    void reportVideo_emptyReason_throwsBadRequest() {
+        assertThatThrownBy(() -> videoActionService.reportVideo(1L, "  ", "detail", sessionUser))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("사유");
+    }
+
+    @Test
+    void reportVideo_videoMissing_throwsNotFound() {
+        when(videoRepository.findById(1L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> videoActionService.reportVideo(1L, "스팸", "", sessionUser))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("영상");
+    }
+
+    @Test
+    void reportVideo_firstTime_savesReport() {
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(video));
+        when(videoReportRepository.existsByVideoIdAndReporterId(1L, 10L)).thenReturn(false);
+
+        ReportResponse response = videoActionService.reportVideo(1L, "저작권 침해", "내 영상이에요", sessionUser);
+
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.isAlreadyReported()).isFalse();
+        verify(videoReportRepository).save(any(VideoReport.class));
+    }
+
+    @Test
+    void reportVideo_duplicate_doesNotSaveAgain() {
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(video));
+        when(videoReportRepository.existsByVideoIdAndReporterId(1L, 10L)).thenReturn(true);
+
+        ReportResponse response = videoActionService.reportVideo(1L, "스팸", "", sessionUser);
+
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.isAlreadyReported()).isTrue();
+        verify(videoReportRepository, never()).save(any());
     }
 
     @Test

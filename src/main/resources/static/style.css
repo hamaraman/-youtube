@@ -4293,6 +4293,111 @@ html[data-theme="light"] .resume-toast-btn.dismiss-btn {
     transform: translateY(0);
 }
 
+/* 신고 모달 (share-modal 구조 재사용) */
+.report-modal-reasons {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 8px 0 12px;
+}
+
+.report-reason-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #f1f1f1;
+    font-size: 14px;
+    transition: background 0.15s;
+}
+
+.report-reason-option:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.report-reason-option input {
+    accent-color: #3ea6ff;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.report-modal-detail {
+    width: 100%;
+    background: #121212;
+    border: 1px solid #303030;
+    border-radius: 8px;
+    color: #f1f1f1;
+    padding: 10px 12px;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 64px;
+    box-sizing: border-box;
+}
+
+.report-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.report-cancel-btn,
+.report-submit-btn {
+    height: 36px;
+    padding: 0 18px;
+    border: none;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.report-cancel-btn {
+    background: transparent;
+    color: #3ea6ff;
+}
+
+.report-cancel-btn:hover {
+    background: rgba(62, 166, 255, 0.1);
+}
+
+.report-submit-btn {
+    background: #c00;
+    color: #fff;
+}
+
+.report-submit-btn:hover {
+    background: #a00;
+}
+
+.report-submit-btn:disabled {
+    background: #333;
+    color: #888;
+    cursor: default;
+}
+
+html[data-theme="light"] .report-reason-option {
+    color: #0f0f0f;
+}
+
+html[data-theme="light"] .report-reason-option:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+html[data-theme="light"] .report-modal-detail {
+    background: #fff;
+    border-color: #ccc;
+    color: #0f0f0f;
+}
+
+html[data-theme="light"] .report-submit-btn:disabled {
+    background: #e5e5e5;
+    color: #aaa;
+}
+
 .share-modal-header {
     display: flex;
     align-items: center;

@@ -255,6 +255,22 @@ async function toggleSaveByVideoId(id) {
     return result;
 }
 
+async function reportVideo(id, reason, detail) {
+    const response = await fetch(`/api/videos/${id}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason, detail: detail || "" })
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.success) {
+        throw new Error(result.message || "신고 처리 실패");
+    }
+
+    return result;
+}
+
 async function fetchVideoProgress(videoId) {
     try {
         const resp = await fetch(`/api/videos/${videoId}/progress`);
@@ -340,6 +356,82 @@ function getEditUrl(id) {
 
 function getShareUrl(videoId) {
     return `${window.location.origin}/share/video/${videoId}`;
+}
+
+const REPORT_REASONS = [
+    "스팸 또는 오해의 소지가 있는 콘텐츠",
+    "성적인 콘텐츠",
+    "폭력적 또는 혐오스러운 콘텐츠",
+    "괴롭힘 또는 폭력",
+    "저작권 침해",
+    "기타",
+];
+
+function showReportModal(videoId) {
+    document.getElementById("reportModal")?.remove();
+
+    const modal = document.createElement("div");
+    modal.id = "reportModal";
+    modal.className = "share-modal-backdrop";
+    modal.innerHTML = `
+        <div class="share-modal" role="dialog" aria-modal="true" aria-label="신고">
+            <div class="share-modal-header">
+                <h3 class="share-modal-title">신고</h3>
+                <button class="share-modal-close" id="reportModalClose" type="button" aria-label="닫기">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                </button>
+            </div>
+            <div class="report-modal-reasons">
+                ${REPORT_REASONS.map((r, i) => `
+                    <label class="report-reason-option">
+                        <input type="radio" name="reportReason" value="${escapeHtml(r)}" ${i === 0 ? "" : ""} />
+                        <span>${escapeHtml(r)}</span>
+                    </label>`).join("")}
+            </div>
+            <textarea class="report-modal-detail" id="reportDetail" rows="3" maxlength="500" placeholder="상세 내용을 입력해주세요. (선택)"></textarea>
+            <div class="report-modal-actions">
+                <button class="report-cancel-btn" id="reportCancelBtn" type="button">취소</button>
+                <button class="report-submit-btn" id="reportSubmitBtn" type="button" disabled>신고</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    requestAnimationFrame(() => modal.classList.add("show"));
+
+    const submitBtn = modal.querySelector("#reportSubmitBtn");
+    const detail = modal.querySelector("#reportDetail");
+
+    modal.querySelectorAll('input[name="reportReason"]').forEach((radio) => {
+        radio.addEventListener("change", () => { submitBtn.disabled = false; });
+    });
+
+    function closeModal() {
+        modal.classList.remove("show");
+        modal.addEventListener("transitionend", () => modal.remove(), { once: true });
+    }
+
+    submitBtn.addEventListener("click", async () => {
+        const checked = modal.querySelector('input[name="reportReason"]:checked');
+        if (!checked) return;
+        submitBtn.disabled = true;
+        submitBtn.textContent = "처리 중...";
+        try {
+            const result = await reportVideo(videoId, checked.value, detail.value.trim());
+            closeModal();
+            showToast(result.alreadyReported ? "이미 신고한 영상입니다." : "신고가 접수되었습니다.");
+        } catch (e) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "신고";
+            showToast(e.message || "신고 처리 중 오류가 발생했습니다.");
+        }
+    });
+
+    modal.querySelector("#reportCancelBtn").addEventListener("click", closeModal);
+    modal.querySelector("#reportModalClose").addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+    document.addEventListener("keydown", function onKey(e) {
+        if (e.key === "Escape") { closeModal(); document.removeEventListener("keydown", onKey); }
+    });
 }
 
 function showShareModal(videoId, getCurrentTime, videoData = {}) {

@@ -3,13 +3,16 @@ package com.example.demo.service;
 import com.example.demo.controller.AuthController.SessionUser;
 import com.example.demo.controller.VideoActionController.DislikeResponse;
 import com.example.demo.controller.VideoActionController.LikeResponse;
+import com.example.demo.controller.VideoActionController.ReportResponse;
 import com.example.demo.controller.VideoActionController.SaveResponse;
 import com.example.demo.entity.Video;
 import com.example.demo.entity.VideoDislike;
 import com.example.demo.entity.VideoLike;
+import com.example.demo.entity.VideoReport;
 import com.example.demo.entity.VideoSave;
 import com.example.demo.repository.VideoDislikeRepository;
 import com.example.demo.repository.VideoLikeRepository;
+import com.example.demo.repository.VideoReportRepository;
 import com.example.demo.repository.VideoRepository;
 import com.example.demo.repository.VideoSaveRepository;
 import org.springframework.http.HttpStatus;
@@ -25,6 +28,7 @@ public class VideoActionService {
     private final VideoLikeRepository videoLikeRepository;
     private final VideoDislikeRepository videoDislikeRepository;
     private final VideoSaveRepository videoSaveRepository;
+    private final VideoReportRepository videoReportRepository;
     private final NotificationService notificationService;
 
     public VideoActionService(
@@ -32,12 +36,14 @@ public class VideoActionService {
             VideoLikeRepository videoLikeRepository,
             VideoDislikeRepository videoDislikeRepository,
             VideoSaveRepository videoSaveRepository,
+            VideoReportRepository videoReportRepository,
             NotificationService notificationService
     ) {
         this.videoRepository = videoRepository;
         this.videoLikeRepository = videoLikeRepository;
         this.videoDislikeRepository = videoDislikeRepository;
         this.videoSaveRepository = videoSaveRepository;
+        this.videoReportRepository = videoReportRepository;
         this.notificationService = notificationService;
     }
 
@@ -133,5 +139,41 @@ public class VideoActionService {
         }
 
         return new SaveResponse(true, saved);
+    }
+
+    private static final int REPORT_DETAIL_MAX = 500;
+
+    public ReportResponse reportVideo(Long id, String reason, String detail, SessionUser sessionUser) {
+        if (sessionUser == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "로그인이 필요합니다.");
+        }
+        Long reporterId = sessionUser.getId();
+
+        String trimmedReason = reason == null ? "" : reason.trim();
+        if (trimmedReason.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "신고 사유를 선택해주세요.");
+        }
+
+        videoRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "영상을 찾을 수 없습니다."));
+
+        // 같은 사용자가 같은 영상을 중복 신고하면 조용히 성공 처리 (재접수하지 않음)
+        if (videoReportRepository.existsByVideoIdAndReporterId(id, reporterId)) {
+            return new ReportResponse(true, true);
+        }
+
+        String trimmedDetail = detail == null ? null : detail.trim();
+        if (trimmedDetail != null && trimmedDetail.length() > REPORT_DETAIL_MAX) {
+            trimmedDetail = trimmedDetail.substring(0, REPORT_DETAIL_MAX);
+        }
+
+        VideoReport report = new VideoReport();
+        report.setVideoId(id);
+        report.setReporterId(reporterId);
+        report.setReason(trimmedReason);
+        report.setDetail(trimmedDetail);
+        videoReportRepository.save(report);
+
+        return new ReportResponse(true, false);
     }
 }

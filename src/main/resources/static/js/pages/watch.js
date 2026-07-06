@@ -177,6 +177,7 @@ async function initWatchPage() {
           ${isSaved ? "저장됨" : "저장"}
         </button>
         <button class="watch-action-btn" id="plAddBtn" type="button">재생목록</button>
+        <button class="watch-action-btn" id="reportBtn" type="button">신고</button>
       </div>
     </div>
 
@@ -456,6 +457,7 @@ async function initWatchPage() {
     const shareBtn = document.getElementById("shareBtn");
     const saveBtn = document.getElementById("saveBtn");
     const plAddBtn = document.getElementById("plAddBtn");
+    const reportBtn = document.getElementById("reportBtn");
     const commentInput = document.getElementById("commentInput");
     const commentSubmitBtn = document.getElementById("commentSubmitBtn");
     const commentCancelBtn = document.getElementById("commentCancelBtn");
@@ -783,6 +785,11 @@ async function initWatchPage() {
     plAddBtn?.addEventListener("click", () => {
         if (!requireAuthRedirect()) return;
         window.__openPlaylistMenu?.(plAddBtn, currentVideo.id);
+    });
+
+    reportBtn?.addEventListener("click", () => {
+        if (!requireAuthRedirect()) return;
+        showReportModal(currentVideo.id);
     });
 
     descriptionToggle?.addEventListener("click", () => {
