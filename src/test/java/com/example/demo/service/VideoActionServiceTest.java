@@ -1,11 +1,14 @@
 package com.example.demo.service;
 
 import com.example.demo.controller.AuthController.SessionUser;
+import com.example.demo.controller.VideoActionController.DislikeResponse;
 import com.example.demo.controller.VideoActionController.LikeResponse;
 import com.example.demo.controller.VideoActionController.SaveResponse;
 import com.example.demo.entity.Video;
+import com.example.demo.entity.VideoDislike;
 import com.example.demo.entity.VideoLike;
 import com.example.demo.entity.VideoSave;
+import com.example.demo.repository.VideoDislikeRepository;
 import com.example.demo.repository.VideoLikeRepository;
 import com.example.demo.repository.VideoRepository;
 import com.example.demo.repository.VideoSaveRepository;
@@ -32,6 +35,7 @@ class VideoActionServiceTest {
 
     @Mock private VideoRepository videoRepository;
     @Mock private VideoLikeRepository videoLikeRepository;
+    @Mock private VideoDislikeRepository videoDislikeRepository;
     @Mock private VideoSaveRepository videoSaveRepository;
     @Mock private NotificationService notificationService;
 
@@ -113,6 +117,86 @@ class VideoActionServiceTest {
         verify(notificationService).send(anyLong(), anyLong(), anyString(),
                 org.mockito.ArgumentMatchers.argThat(msg -> msg != null && msg.contains("닉네임")),
                 anyLong(), anyString());
+    }
+
+    @Test
+    void toggleLike_whenNoExistingLike_removesExistingDislike() {
+        VideoDislike existingDislike = new VideoDislike();
+        existingDislike.setId(8L);
+        existingDislike.setVideoId(1L);
+        existingDislike.setUserId(10L);
+
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(video));
+        when(videoLikeRepository.findByVideoIdAndUserId(1L, 10L)).thenReturn(Optional.empty());
+        when(videoDislikeRepository.findByVideoIdAndUserId(1L, 10L)).thenReturn(Optional.of(existingDislike));
+        when(videoLikeRepository.countByVideoId(1L)).thenReturn(5L);
+        when(videoDislikeRepository.countByVideoId(1L)).thenReturn(0L);
+
+        LikeResponse response = videoActionService.toggleLike(1L, sessionUser);
+
+        assertThat(response.isLiked()).isTrue();
+        assertThat(response.isDisliked()).isFalse();
+        assertThat(response.getDislikeCount()).isEqualTo(0L);
+        verify(videoDislikeRepository).delete(existingDislike);
+        verify(videoLikeRepository).save(any(VideoLike.class));
+    }
+
+    @Test
+    void toggleDislike_withoutLogin_throwsUnauthorized() {
+        assertThatThrownBy(() -> videoActionService.toggleDislike(1L, null))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("로그인");
+    }
+
+    @Test
+    void toggleDislike_videoMissing_throwsNotFound() {
+        when(videoRepository.findById(1L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> videoActionService.toggleDislike(1L, sessionUser))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("영상");
+    }
+
+    @Test
+    void toggleDislike_whenNoExistingDislike_createsDislikeRemovesLikeAndDoesNotNotify() {
+        VideoLike existingLike = new VideoLike();
+        existingLike.setId(9L);
+        existingLike.setVideoId(1L);
+        existingLike.setUserId(10L);
+
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(video));
+        when(videoDislikeRepository.findByVideoIdAndUserId(1L, 10L)).thenReturn(Optional.empty());
+        when(videoLikeRepository.findByVideoIdAndUserId(1L, 10L)).thenReturn(Optional.of(existingLike));
+        when(videoDislikeRepository.countByVideoId(1L)).thenReturn(4L);
+
+        DislikeResponse response = videoActionService.toggleDislike(1L, sessionUser);
+
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.isDisliked()).isTrue();
+        assertThat(response.getDislikeCount()).isEqualTo(4L);
+        assertThat(response.isLiked()).isFalse();
+        verify(videoLikeRepository).delete(existingLike);
+        verify(videoDislikeRepository).save(any(VideoDislike.class));
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    void toggleDislike_whenExistingDislike_deletesDislike() {
+        VideoDislike existing = new VideoDislike();
+        existing.setId(3L);
+        existing.setVideoId(1L);
+        existing.setUserId(10L);
+
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(video));
+        when(videoDislikeRepository.findByVideoIdAndUserId(1L, 10L)).thenReturn(Optional.of(existing));
+        when(videoDislikeRepository.countByVideoId(1L)).thenReturn(2L);
+
+        DislikeResponse response = videoActionService.toggleDislike(1L, sessionUser);
+
+        assertThat(response.isDisliked()).isFalse();
+        assertThat(response.getDislikeCount()).isEqualTo(2L);
+        verify(videoDislikeRepository).delete(existing);
+        verify(videoDislikeRepository, never()).save(any());
+        verify(videoLikeRepository, never()).delete(any());
     }
 
     @Test

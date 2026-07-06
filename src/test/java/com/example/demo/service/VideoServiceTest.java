@@ -11,6 +11,7 @@ import com.example.demo.repository.CommentRepository;
 import com.example.demo.repository.SubscriptionRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.repository.VideoHistoryRepository;
+import com.example.demo.repository.VideoDislikeRepository;
 import com.example.demo.repository.VideoLikeRepository;
 import com.example.demo.repository.VideoRepository;
 import com.example.demo.repository.VideoSaveRepository;
@@ -46,6 +47,7 @@ class VideoServiceTest {
 
     @Mock private VideoRepository videoRepository;
     @Mock private VideoLikeRepository videoLikeRepository;
+    @Mock private VideoDislikeRepository videoDislikeRepository;
     @Mock private VideoSaveRepository videoSaveRepository;
     @Mock private VideoHistoryRepository videoHistoryRepository;
     @Mock private CommentRepository commentRepository;
@@ -291,6 +293,8 @@ class VideoServiceTest {
             when(commentRepository.countByVideoIdAndParentIdIsNull(1L)).thenReturn(2L);
             when(videoLikeRepository.existsByVideoIdAndUserId(1L, 99L)).thenReturn(true);
             when(videoSaveRepository.existsByVideoIdAndUserId(1L, 99L)).thenReturn(false);
+            when(videoDislikeRepository.countByVideoId(1L)).thenReturn(1L);
+            when(videoDislikeRepository.existsByVideoIdAndUserId(1L, 99L)).thenReturn(true);
 
             VideoItem item = videoService.getVideoById(1L, 99L, false);
 
@@ -298,6 +302,8 @@ class VideoServiceTest {
             assertThat(item.getCommentCount()).isEqualTo(2L);
             assertThat(item.isLikedByMe()).isTrue();
             assertThat(item.isSavedByMe()).isFalse();
+            assertThat(item.getDislikeCount()).isEqualTo(1L);
+            assertThat(item.isDislikedByMe()).isTrue();
         }
     }
 

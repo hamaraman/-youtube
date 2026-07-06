@@ -39,6 +39,7 @@ public class VideoService {
 
     private final VideoRepository videoRepository;
     private final VideoLikeRepository videoLikeRepository;
+    private final VideoDislikeRepository videoDislikeRepository;
     private final VideoSaveRepository videoSaveRepository;
     private final VideoHistoryRepository videoHistoryRepository;
     private final CommentRepository commentRepository;
@@ -49,6 +50,7 @@ public class VideoService {
     public VideoService(
             VideoRepository videoRepository,
             VideoLikeRepository videoLikeRepository,
+            VideoDislikeRepository videoDislikeRepository,
             VideoSaveRepository videoSaveRepository,
             VideoHistoryRepository videoHistoryRepository,
             CommentRepository commentRepository,
@@ -58,6 +60,7 @@ public class VideoService {
     ) {
         this.videoRepository = videoRepository;
         this.videoLikeRepository = videoLikeRepository;
+        this.videoDislikeRepository = videoDislikeRepository;
         this.videoSaveRepository = videoSaveRepository;
         this.videoHistoryRepository = videoHistoryRepository;
         this.commentRepository = commentRepository;
@@ -172,13 +175,16 @@ public class VideoService {
             }
         }
 
-        return VideoItem.from(
+        VideoItem item = VideoItem.from(
                 video,
                 videoLikeRepository.countByVideoId(video.getId()),
                 commentRepository.countByVideoIdAndParentIdIsNull(video.getId()),
                 loginUserId != null && videoLikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId),
                 loginUserId != null && videoSaveRepository.existsByVideoIdAndUserId(video.getId(), loginUserId)
         );
+        item.setDislikeCount(videoDislikeRepository.countByVideoId(video.getId()));
+        item.setDislikedByMe(loginUserId != null && videoDislikeRepository.existsByVideoIdAndUserId(video.getId(), loginUserId));
+        return item;
     }
 
     /**

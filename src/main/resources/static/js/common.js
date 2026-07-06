@@ -227,6 +227,20 @@ async function toggleLikeByVideoId(id) {
     return result;
 }
 
+async function toggleDislikeByVideoId(id) {
+    const response = await fetch(`/api/videos/${id}/dislike`, {
+        method: "POST"
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.success) {
+        throw new Error(result.message || "싫어요 처리 실패");
+    }
+
+    return result;
+}
+
 async function toggleSaveByVideoId(id) {
     const response = await fetch(`/api/videos/${id}/save`, {
         method: "POST"
@@ -239,6 +253,25 @@ async function toggleSaveByVideoId(id) {
     }
 
     return result;
+}
+
+async function fetchVideoProgress(videoId) {
+    try {
+        const resp = await fetch(`/api/videos/${videoId}/progress`);
+        if (!resp.ok) return 0;
+        const data = await resp.json();
+        return Number(data.position || 0);
+    } catch {
+        return 0;
+    }
+}
+
+function saveVideoProgress(videoId, position) {
+    fetch(`/api/videos/${videoId}/progress`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ position })
+    }).catch(() => {});
 }
 
 async function deleteVideoById(id) {
