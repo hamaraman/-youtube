@@ -192,9 +192,34 @@ public class VideoService {
 
         int size = Math.max(1, Math.min(limit, 50));
 
-        List<Video> candidates = videoRepository.findAllPublic().stream()
-                .filter(v -> !v.getId().equals(id))
-                .collect(Collectors.toList());
+        // 후보 풀을 SQL에서 1차로 좁힌다: 같은 채널 + 같은 카테고리 인기순 + 인기순 폴백.
+        // 전체 공개 영상을 통째로 로드하지 않고 최대 poolCap 건만 점수 계산 대상으로 삼는다.
+        int poolCap = size * 4;
+        PageRequest categoryPage = PageRequest.of(0, poolCap);
+        PageRequest popularPage = PageRequest.of(0, poolCap);
+        LinkedHashMap<Long, Video> pool = new LinkedHashMap<>();
+
+        // 같은 채널(주인) 영상 — 채널 목록과 추천 후보 양쪽에 쓴다
+        if (base.getOwnerId() != null) {
+            for (Video v : videoRepository.findRelatedByOwner(base.getOwnerId(), id, PageRequest.of(0, size))) {
+                pool.putIfAbsent(v.getId(), v);
+            }
+        }
+
+        // 같은 카테고리 인기순
+        String baseCategory = trimmed(base.getCategory());
+        if (!baseCategory.isEmpty()) {
+            for (Video v : videoRepository.findRelatedByCategory(baseCategory, id, categoryPage)) {
+                pool.putIfAbsent(v.getId(), v);
+            }
+        }
+
+        // 카테고리/채널이 부족할 때 풀을 채우는 인기순 폴백
+        for (Video v : videoRepository.findPopularPublicExcluding(id, popularPage)) {
+            pool.putIfAbsent(v.getId(), v);
+        }
+
+        List<Video> candidates = new ArrayList<>(pool.values());
         List<VideoItem> items = toVideoItems(candidates, loginUserId);
 
         List<VideoItem> channelItems = items.stream()

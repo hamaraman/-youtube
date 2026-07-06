@@ -140,4 +140,32 @@ class VideoRepositoryTest {
         assertThat(videos).extracting(Video::getTitle)
                 .containsExactly("숨겨진 영상", "Zelda 공략");
     }
+
+    @Test
+    void findRelatedByCategory_excludesBaseAndPrivate_ordersByViews() {
+        List<Video> results = videoRepository.findRelatedByCategory(
+                "게임", ownerA_publicGame.getId(), PageRequest.of(0, 10));
+        // 같은 카테고리 공개 영상 중 base(Zelda)와 비공개(숨겨진 영상)는 빠진다
+        assertThat(results).extracting(Video::getTitle).containsExactly("Elden Ring 리뷰");
+    }
+
+    @Test
+    void findRelatedByOwner_returnsOwnersPublic_excludingBaseAndPrivate() {
+        List<Video> forOwnerB = videoRepository.findRelatedByOwner(
+                2L, ownerB_publicMusic.getId(), PageRequest.of(0, 10));
+        assertThat(forOwnerB).extracting(Video::getTitle).containsExactly("Elden Ring 리뷰");
+
+        // 소유자 A는 base(Zelda)를 빼면 비공개 영상만 남으므로 결과 없음
+        List<Video> forOwnerA = videoRepository.findRelatedByOwner(
+                1L, ownerA_publicGame.getId(), PageRequest.of(0, 10));
+        assertThat(forOwnerA).isEmpty();
+    }
+
+    @Test
+    void findPopularPublicExcluding_ordersByViews_excludesBaseAndPrivate() {
+        List<Video> results = videoRepository.findPopularPublicExcluding(
+                ownerB_publicGameHighViews.getId(), PageRequest.of(0, 10));
+        // 조회수 순: JPop cover(300) → Zelda(100), base(Elden 999)와 비공개는 제외
+        assertThat(results).extracting(Video::getTitle).containsExactly("JPop cover", "Zelda 공략");
+    }
 }
