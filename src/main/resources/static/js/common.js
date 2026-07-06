@@ -227,6 +227,20 @@ async function toggleLikeByVideoId(id) {
     return result;
 }
 
+async function toggleDislikeByVideoId(id) {
+    const response = await fetch(`/api/videos/${id}/dislike`, {
+        method: "POST"
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.success) {
+        throw new Error(result.message || "싫어요 처리 실패");
+    }
+
+    return result;
+}
+
 async function toggleSaveByVideoId(id) {
     const response = await fetch(`/api/videos/${id}/save`, {
         method: "POST"

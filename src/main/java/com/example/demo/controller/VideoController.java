@@ -274,6 +274,8 @@ public class VideoController {
         private long commentCount;
         private boolean likedByMe;
         private boolean savedByMe;
+        private long dislikeCount;
+        private boolean dislikedByMe;
 
         public static VideoItem from(Video video, long likeCount, long commentCount, boolean likedByMe, boolean savedByMe) {
             VideoItem item = new VideoItem();
@@ -324,5 +326,9 @@ public class VideoController {
         public long getCommentCount() { return commentCount; }
         public boolean isLikedByMe() { return likedByMe; }
         public boolean isSavedByMe() { return savedByMe; }
+        public long getDislikeCount() { return dislikeCount; }
+        public boolean isDislikedByMe() { return dislikedByMe; }
+        public void setDislikeCount(long dislikeCount) { this.dislikeCount = dislikeCount; }
+        public void setDislikedByMe(boolean dislikedByMe) { this.dislikedByMe = dislikedByMe; }
     }
 }

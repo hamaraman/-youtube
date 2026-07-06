@@ -82,6 +82,8 @@ async function initWatchPage() {
 
     let isLiked = Boolean(currentVideo.likedByMe);
     let likeCount = Number(currentVideo.likeCount || 0);
+    let isDisliked = Boolean(currentVideo.dislikedByMe);
+    let dislikeCount = Number(currentVideo.dislikeCount || 0);
     let isSubscribed = false;
     let subscriberCount = 0;
     let isSaved = Boolean(currentVideo.savedByMe);
@@ -166,6 +168,9 @@ async function initWatchPage() {
       <div class="watch-actions">
         <button class="watch-action-btn ${isLiked ? "active" : ""}" id="likeBtn" type="button">
           좋아요 ${formatCount(likeCount)}
+        </button>
+        <button class="watch-action-btn ${isDisliked ? "active" : ""}" id="dislikeBtn" type="button">
+          싫어요 ${formatCount(dislikeCount)}
         </button>
         <button class="watch-action-btn" id="shareBtn" type="button">공유</button>
         <button class="watch-action-btn ${isSaved ? "active" : ""}" id="saveBtn" type="button">
@@ -447,6 +452,7 @@ async function initWatchPage() {
 
     const subscribeBtn = document.getElementById("subscribeBtn");
     const likeBtn = document.getElementById("likeBtn");
+    const dislikeBtn = document.getElementById("dislikeBtn");
     const shareBtn = document.getElementById("shareBtn");
     const saveBtn = document.getElementById("saveBtn");
     const plAddBtn = document.getElementById("plAddBtn");
@@ -474,6 +480,12 @@ async function initWatchPage() {
         if (!likeBtn) return;
         likeBtn.classList.toggle("active", isLiked);
         likeBtn.textContent = `좋아요 ${formatCount(likeCount)}`;
+    }
+
+    function refreshDislikeButton() {
+        if (!dislikeBtn) return;
+        dislikeBtn.classList.toggle("active", isDisliked);
+        dislikeBtn.textContent = `싫어요 ${formatCount(dislikeCount)}`;
     }
 
     function refreshSubscribeButton() {
@@ -718,9 +730,30 @@ async function initWatchPage() {
             const result = await toggleLikeByVideoId(currentVideo.id);
             isLiked = Boolean(result.liked);
             likeCount = Number(result.likeCount || 0);
+            // 상호배타 — 좋아요를 누르면 서버가 싫어요를 해제하므로 함께 반영
+            isDisliked = Boolean(result.disliked);
+            dislikeCount = Number(result.dislikeCount || 0);
             refreshLikeButton();
+            refreshDislikeButton();
         } catch (error) {
             alert(error.message || "좋아요 처리 중 오류가 발생했어.");
+        }
+    });
+
+    dislikeBtn?.addEventListener("click", async () => {
+        if (!requireAuthRedirect()) return;
+
+        try {
+            const result = await toggleDislikeByVideoId(currentVideo.id);
+            isDisliked = Boolean(result.disliked);
+            dislikeCount = Number(result.dislikeCount || 0);
+            // 상호배타 — 싫어요를 누르면 서버가 좋아요를 해제하므로 함께 반영
+            isLiked = Boolean(result.liked);
+            likeCount = Number(result.likeCount || 0);
+            refreshDislikeButton();
+            refreshLikeButton();
+        } catch (error) {
+            alert(error.message || "싫어요 처리 중 오류가 발생했어.");
         }
     });
 
@@ -827,6 +860,7 @@ async function initWatchPage() {
     });
 
     refreshLikeButton();
+    refreshDislikeButton();
     refreshSubscribeButton();
     refreshSaveButton();
     refreshComments();

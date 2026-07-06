@@ -5,6 +5,7 @@ import com.example.demo.repository.CommentRepository;
 import com.example.demo.repository.UserRepository;
 import com.example.demo.repository.VideoHistoryRepository;
 import com.example.demo.repository.VideoLikeRepository;
+import com.example.demo.repository.VideoDislikeRepository;
 import com.example.demo.repository.VideoRepository;
 import com.example.demo.repository.VideoSaveRepository;
 import jakarta.transaction.Transactional;
@@ -25,6 +26,7 @@ public class DataInitializer implements ApplicationRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final VideoLikeRepository videoLikeRepository;
+    private final VideoDislikeRepository videoDislikeRepository;
     private final VideoSaveRepository videoSaveRepository;
     private final CommentRepository commentRepository;
     private final VideoHistoryRepository videoHistoryRepository;
@@ -33,6 +35,7 @@ public class DataInitializer implements ApplicationRunner {
     public DataInitializer(VideoRepository videoRepository, UserRepository userRepository,
                            PasswordEncoder passwordEncoder,
                            VideoLikeRepository videoLikeRepository,
+                           VideoDislikeRepository videoDislikeRepository,
                            VideoSaveRepository videoSaveRepository,
                            CommentRepository commentRepository,
                            VideoHistoryRepository videoHistoryRepository,
@@ -41,6 +44,7 @@ public class DataInitializer implements ApplicationRunner {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.videoLikeRepository = videoLikeRepository;
+        this.videoDislikeRepository = videoDislikeRepository;
         this.videoSaveRepository = videoSaveRepository;
         this.commentRepository = commentRepository;
         this.videoHistoryRepository = videoHistoryRepository;
@@ -94,6 +98,7 @@ public class DataInitializer implements ApplicationRunner {
     @Transactional
     public void deleteVideoAndRelated(Long videoId) {
         videoLikeRepository.deleteByVideoId(videoId);
+        videoDislikeRepository.deleteByVideoId(videoId);
         videoSaveRepository.deleteByVideoId(videoId);
         commentRepository.deleteByVideoId(videoId);
         videoHistoryRepository.deleteByVideoId(videoId);
