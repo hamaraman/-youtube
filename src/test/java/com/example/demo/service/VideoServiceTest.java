@@ -561,8 +561,10 @@ class VideoServiceTest {
             Video sameCategory = video(2L, 6L, "게임", "chB");
             Video other = video(3L, 7L, "요리", "chC");
             when(videoRepository.findById(1L)).thenReturn(Optional.of(base));
-            when(videoRepository.findAllPublic())
-                    .thenReturn(new ArrayList<>(Arrays.asList(base, sameCategory, other)));
+            when(videoRepository.findRelatedByCategory(eq("게임"), eq(1L), any()))
+                    .thenReturn(new ArrayList<>(List.of(sameCategory)));
+            when(videoRepository.findPopularPublicExcluding(eq(1L), any()))
+                    .thenReturn(new ArrayList<>(Arrays.asList(sameCategory, other)));
             stubCountsEmpty();
 
             Map<String, Object> result = videoService.getRelatedVideos(1L, null, 12);
@@ -580,8 +582,12 @@ class VideoServiceTest {
             Video sameOwner = video(2L, 5L, "요리", "chA");
             Video otherOwner = video(3L, 7L, "게임", "chC");
             when(videoRepository.findById(1L)).thenReturn(Optional.of(base));
-            when(videoRepository.findAllPublic())
-                    .thenReturn(new ArrayList<>(Arrays.asList(base, sameOwner, otherOwner)));
+            when(videoRepository.findRelatedByOwner(eq(5L), eq(1L), any()))
+                    .thenReturn(new ArrayList<>(List.of(sameOwner)));
+            when(videoRepository.findRelatedByCategory(eq("게임"), eq(1L), any()))
+                    .thenReturn(new ArrayList<>(List.of(otherOwner)));
+            when(videoRepository.findPopularPublicExcluding(eq(1L), any()))
+                    .thenReturn(new ArrayList<>(Arrays.asList(sameOwner, otherOwner)));
             stubCountsEmpty();
 
             Map<String, Object> result = videoService.getRelatedVideos(1L, null, 12);
@@ -594,13 +600,13 @@ class VideoServiceTest {
         @Test
         void respectsLimit() {
             Video base = video(1L, 5L, "게임", "chA");
-            List<Video> all = new ArrayList<>();
-            all.add(base);
+            List<Video> categoryMatches = new ArrayList<>();
             for (long i = 2; i <= 20; i++) {
-                all.add(video(i, 6L, "게임", "chB"));
+                categoryMatches.add(video(i, 6L, "게임", "chB"));
             }
             when(videoRepository.findById(1L)).thenReturn(Optional.of(base));
-            when(videoRepository.findAllPublic()).thenReturn(all);
+            when(videoRepository.findRelatedByCategory(eq("게임"), eq(1L), any()))
+                    .thenReturn(new ArrayList<>(categoryMatches));
             stubCountsEmpty();
 
             Map<String, Object> result = videoService.getRelatedVideos(1L, null, 5);

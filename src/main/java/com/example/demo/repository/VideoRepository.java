@@ -65,6 +65,16 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     @Query("SELECT DISTINCT v.category FROM Video v WHERE v.category IS NOT NULL AND v.category <> '' AND (v.visibility IS NULL OR v.visibility != '비공개') ORDER BY v.category ASC")
     List<String> findAllPublicCategories();
 
+    // 시청 페이지 추천 후보 1차 필터 (전체 공개 영상 덤프 대신 SQL에서 좁힌다)
+    @Query("SELECT v FROM Video v WHERE (v.visibility IS NULL OR v.visibility != '비공개') AND v.id <> :excludeId AND v.category = :category ORDER BY v.viewCount DESC, v.id DESC")
+    List<Video> findRelatedByCategory(@Param("category") String category, @Param("excludeId") Long excludeId, Pageable pageable);
+
+    @Query("SELECT v FROM Video v WHERE (v.visibility IS NULL OR v.visibility != '비공개') AND v.id <> :excludeId AND v.ownerId = :ownerId ORDER BY v.id DESC")
+    List<Video> findRelatedByOwner(@Param("ownerId") Long ownerId, @Param("excludeId") Long excludeId, Pageable pageable);
+
+    @Query("SELECT v FROM Video v WHERE (v.visibility IS NULL OR v.visibility != '비공개') AND v.id <> :excludeId ORDER BY v.viewCount DESC, v.id DESC")
+    List<Video> findPopularPublicExcluding(@Param("excludeId") Long excludeId, Pageable pageable);
+
     @Query("SELECT v FROM Video v WHERE v.ownerId IN :ownerIds AND (v.visibility IS NULL OR v.visibility != '비공개') ORDER BY v.id DESC")
     Page<Video> findByOwnerIdsPageable(@Param("ownerIds") java.util.List<Long> ownerIds, Pageable pageable);
 
