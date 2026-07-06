@@ -255,6 +255,25 @@ async function toggleSaveByVideoId(id) {
     return result;
 }
 
+async function fetchVideoProgress(videoId) {
+    try {
+        const resp = await fetch(`/api/videos/${videoId}/progress`);
+        if (!resp.ok) return 0;
+        const data = await resp.json();
+        return Number(data.position || 0);
+    } catch {
+        return 0;
+    }
+}
+
+function saveVideoProgress(videoId, position) {
+    fetch(`/api/videos/${videoId}/progress`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ position })
+    }).catch(() => {});
+}
+
 async function deleteVideoById(id) {
     const response = await fetch(`/api/videos/${id}`, {
         method: "DELETE"
