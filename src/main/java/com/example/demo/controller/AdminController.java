@@ -109,6 +109,14 @@ public class AdminController {
         return ResponseEntity.ok(adminService.listUsers());
     }
 
+    @GetMapping("/reports")
+    public ResponseEntity<?> listReports(HttpSession session) {
+        if (!adminChecker.isAdmin(session, loginUserResolver)) {
+            return ResponseEntity.status(403).body(Map.of("message", "관리자 권한이 필요합니다."));
+        }
+        return ResponseEntity.ok(adminService.listReports());
+    }
+
     @DeleteMapping("/users/{id}")
     public ResponseEntity<?> deleteUser(@PathVariable Long id, HttpSession session) {
         if (!adminChecker.isAdmin(session, loginUserResolver)) {

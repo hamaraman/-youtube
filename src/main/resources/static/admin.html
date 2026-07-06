@@ -191,6 +191,7 @@
     <div class="tab-bar">
         <button class="tab-btn active" onclick="switchTab('videos')">영상 관리</button>
         <button class="tab-btn" onclick="switchTab('users')">회원 관리</button>
+        <button class="tab-btn" onclick="switchTab('reports')">신고 관리</button>
     </div>
 
     <!-- 영상 관리 -->
@@ -241,6 +242,12 @@
         <div class="count-badge" id="userCount"></div>
         <div id="userTableWrap"></div>
     </div>
+
+    <!-- 신고 관리 -->
+    <div class="tab-panel" id="tab-reports">
+        <div class="count-badge" id="reportCount"></div>
+        <div id="reportTableWrap"></div>
+    </div>
 </div>
 
 <script>
@@ -249,7 +256,7 @@
     function switchTab(tab) {
         currentTab = tab;
         document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-            btn.classList.toggle('active', ['videos', 'users'][i] === tab);
+            btn.classList.toggle('active', ['videos', 'users', 'reports'][i] === tab);
         });
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
         document.getElementById('tab-' + tab).classList.add('active');
@@ -325,6 +332,53 @@
                     <tr>
                         <th>ID</th><th>아이디</th><th>닉네임</th>
                         <th>채널명</th><th>이메일</th><th>권한</th><th></th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    }
+
+    function escapeHtmlAdmin(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    async function loadReports() {
+        const res = await fetch('/api/admin/reports');
+        const reports = await res.json();
+        document.getElementById('reportCount').textContent = `총 ${reports.length}건`;
+
+        if (reports.length === 0) {
+            document.getElementById('reportTableWrap').innerHTML = '<div class="empty-msg">접수된 신고가 없습니다.</div>';
+            return;
+        }
+
+        const rows = reports.map(r => {
+            const thumb = r.thumbnail
+                ? `<img src="${escapeHtmlAdmin(r.thumbnail)}" style="width:80px;height:45px;object-fit:cover;border-radius:4px;vertical-align:middle">`
+                : `<div style="width:80px;height:45px;background:#222;border-radius:4px;display:inline-block"></div>`;
+            const titleCell = r.videoId
+                ? `<a href="watch.html?v=${r.videoId}" target="_blank" style="color:#3ea6ff;text-decoration:none">${escapeHtmlAdmin(r.videoTitle)}</a>`
+                : escapeHtmlAdmin(r.videoTitle);
+            return `
+            <tr>
+                <td style="color:#888;width:40px">${r.id}</td>
+                <td style="width:90px">${thumb}</td>
+                <td style="max-width:180px">${titleCell}</td>
+                <td>${escapeHtmlAdmin(r.reason)}</td>
+                <td title="${escapeHtmlAdmin(r.detail)}" style="max-width:200px;color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtmlAdmin(r.detail)}</td>
+                <td>${escapeHtmlAdmin(r.reporter)}</td>
+                <td style="color:#888;white-space:nowrap">${escapeHtmlAdmin(r.time)}</td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('reportTableWrap').innerHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th><th>썸네일</th><th>영상</th><th>사유</th>
+                        <th>상세</th><th>신고자</th><th>시간</th>
                     </tr>
                 </thead>
                 <tbody>${rows}</tbody>
@@ -594,6 +648,7 @@
         document.getElementById('adminContent').style.display = 'block';
         loadVideos();
         loadUsers();
+        loadReports();
     });
 </script>
 </body>

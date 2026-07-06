@@ -7,6 +7,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api")
 public class VideoActionController {
@@ -59,6 +61,22 @@ public class VideoActionController {
                 return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
             }
             return ResponseEntity.status(e.getStatusCode()).build();
+        }
+    }
+
+    @PostMapping("/videos/{id}/report")
+    public ResponseEntity<?> reportVideo(@PathVariable Long id, @RequestBody(required = false) Map<String, String> body, HttpSession session) {
+        AuthController.SessionUser sessionUser = loginUserResolver.getUser(session);
+        Map<String, String> payload = body == null ? Map.of() : body;
+        try {
+            ReportResponse response = videoActionService.reportVideo(
+                    id, payload.get("reason"), payload.get("detail"), sessionUser);
+            return ResponseEntity.ok(response);
+        } catch (ResponseStatusException e) {
+            if (e.getStatusCode().value() == 401) {
+                return ResponseEntity.status(401).body(new SimpleResponse(false, "로그인이 필요합니다."));
+            }
+            return ResponseEntity.status(e.getStatusCode()).body(new SimpleResponse(false, e.getReason()));
         }
     }
 
@@ -134,5 +152,18 @@ public class VideoActionController {
 
         public boolean isSuccess() { return success; }
         public boolean isSaved() { return saved; }
+    }
+
+    public static class ReportResponse {
+        private boolean success;
+        private boolean alreadyReported;
+
+        public ReportResponse(boolean success, boolean alreadyReported) {
+            this.success = success;
+            this.alreadyReported = alreadyReported;
+        }
+
+        public boolean isSuccess() { return success; }
+        public boolean isAlreadyReported() { return alreadyReported; }
     }
 }

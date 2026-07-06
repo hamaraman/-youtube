@@ -3,7 +3,9 @@ package com.example.demo.service;
 import com.example.demo.config.DataInitializer;
 import com.example.demo.entity.User;
 import com.example.demo.entity.Video;
+import com.example.demo.entity.VideoReport;
 import com.example.demo.repository.UserRepository;
+import com.example.demo.repository.VideoReportRepository;
 import com.example.demo.repository.VideoRepository;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,7 @@ class AdminServiceTest {
 
     @Mock private VideoRepository videoRepository;
     @Mock private UserRepository userRepository;
+    @Mock private VideoReportRepository videoReportRepository;
     @Mock private DataInitializer dataInitializer;
 
     @InjectMocks private AdminService adminService;
@@ -44,6 +47,42 @@ class AdminServiceTest {
         u.setId(id); u.setUsername(username); u.setNickname("n" + id);
         u.setRole(role);
         return u;
+    }
+
+    @Test
+    void listReports_enrichesWithVideoTitleAndReporter() {
+        VideoReport r = new VideoReport();
+        r.setId(7L); r.setVideoId(1L); r.setReporterId(10L);
+        r.setReason("스팸"); r.setDetail("광고임");
+        when(videoReportRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(r));
+        when(videoRepository.findById(1L)).thenReturn(Optional.of(video(1L, 5L, "제목", "공개")));
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "reporter", "USER")));
+
+        List<Map<String, Object>> result = adminService.listReports();
+
+        assertThat(result).hasSize(1);
+        Map<String, Object> m = result.get(0);
+        assertThat(m.get("videoTitle")).isEqualTo("제목");
+        assertThat(m.get("reporter")).isEqualTo("n10");
+        assertThat(m.get("reason")).isEqualTo("스팸");
+        assertThat(m.get("detail")).isEqualTo("광고임");
+    }
+
+    @Test
+    void listReports_deletedVideoAndUser_showFallbackLabels() {
+        VideoReport r = new VideoReport();
+        r.setId(8L); r.setVideoId(99L); r.setReporterId(88L);
+        r.setReason("기타"); r.setDetail(null);
+        when(videoReportRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(r));
+        when(videoRepository.findById(99L)).thenReturn(Optional.empty());
+        when(userRepository.findById(88L)).thenReturn(Optional.empty());
+
+        List<Map<String, Object>> result = adminService.listReports();
+
+        Map<String, Object> m = result.get(0);
+        assertThat(m.get("videoTitle")).isEqualTo("(삭제된 영상)");
+        assertThat(m.get("reporter")).isEqualTo("(탈퇴한 사용자)");
+        assertThat(m.get("detail")).isEqualTo("");
     }
 
     @Nested
