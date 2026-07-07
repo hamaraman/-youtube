@@ -806,11 +806,6 @@ img {
     background: #f00;
 }
 
-@keyframes thumbPreviewFill {
-    from { width: 0; }
-    to { width: 100%; }
-}
-
 /* 미리보기 위에도 재생시간·진행바·재생목록 버튼이 보이도록 */
 .thumbnail-wrap .duration,
 .thumbnail-wrap .card-progress-bar,
