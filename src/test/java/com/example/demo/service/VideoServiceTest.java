@@ -384,6 +384,27 @@ class VideoServiceTest {
             assertThat(feedVideos(lastPage)).hasSize(1);
             assertThat(lastPage.get("hasMore")).isEqualTo(false);
         }
+
+        // 무한 스크롤(page>0)은 page 0에서 만든 랭킹 스냅샷을 재사용해 재계산하지 않는다
+        @Test
+        void paginationReusesRankingSnapshot() {
+            Subscription sub = new Subscription();
+            sub.setSubscriberId(1L); sub.setChannelOwnerId(5L);
+            when(videoLikeRepository.findByUserIdOrderByIdDesc(1L)).thenReturn(List.of());
+            when(videoHistoryRepository.findByUserIdOrderByWatchedAtDesc(1L)).thenReturn(List.of());
+            when(subscriptionRepository.findBySubscriberId(1L)).thenReturn(List.of(sub));
+            when(videoRepository.findAllById(anyList())).thenReturn(List.of());
+            List<Video> all = new ArrayList<>();
+            for (long i = 1; i <= 4; i++) all.add(publicVideo(i, 6L));
+            when(videoRepository.findAllPublic()).thenReturn(all);
+            stubToVideoItemsFor(1L);
+
+            videoService.getFeed(0, 2, null, null, null, null, null, 1L); // 랭킹 계산 + 스냅샷 저장
+            videoService.getFeed(1, 2, null, null, null, null, null, 1L); // 스냅샷 재사용(재계산 X)
+
+            verify(videoRepository, times(1)).findAllPublic();
+            verify(subscriptionRepository, times(1)).findBySubscriberId(1L);
+        }
     }
 
     @Nested
@@ -752,6 +773,34 @@ class VideoServiceTest {
             @SuppressWarnings("unchecked")
             List<VideoItem> recommended = (List<VideoItem>) result.get("recommended");
             assertThat(recommended).hasSize(5);
+        }
+
+        // 로그인 유저의 구독 채널 관련영상은 개인화 보너스로 같은 카테고리 내에서 상위로 온다
+        @Test
+        void loggedInUser_subscribedChannelRelatedVideo_isBoosted() {
+            Video base = video(1L, 5L, "게임", "chA");
+            Video plain = video(2L, 6L, "게임", "chB");       // 같은 카테고리
+            Video subscribed = video(3L, 9L, "게임", "chC");  // 같은 카테고리 + 구독 채널
+            when(videoRepository.findById(1L)).thenReturn(Optional.of(base));
+            when(videoRepository.findRelatedByCategory(eq("게임"), eq(1L), any()))
+                    .thenReturn(new ArrayList<>(Arrays.asList(plain, subscribed)));
+            when(videoRepository.findPopularPublicExcluding(eq(1L), any()))
+                    .thenReturn(new ArrayList<>(Arrays.asList(plain, subscribed)));
+            stubCountsEmpty();
+
+            Subscription sub = new Subscription();
+            sub.setSubscriberId(99L); sub.setChannelOwnerId(9L);
+            when(videoLikeRepository.findByUserIdOrderByIdDesc(99L)).thenReturn(List.of());
+            when(videoHistoryRepository.findByUserIdOrderByWatchedAtDesc(99L)).thenReturn(List.of());
+            when(subscriptionRepository.findBySubscriberId(99L)).thenReturn(List.of(sub));
+            when(videoLikeRepository.findLikedVideoIdsByUserId(eq(99L), anyList())).thenReturn(List.of());
+            when(videoSaveRepository.findSavedVideoIdsByUserId(eq(99L), anyList())).thenReturn(List.of());
+
+            Map<String, Object> result = videoService.getRelatedVideos(1L, 99L, 12);
+
+            @SuppressWarnings("unchecked")
+            List<VideoItem> recommended = (List<VideoItem>) result.get("recommended");
+            assertThat(recommended.get(0).getId()).isEqualTo(3L);
         }
     }
 }

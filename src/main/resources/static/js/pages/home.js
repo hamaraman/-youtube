@@ -50,10 +50,12 @@ async function initHomePage() {
         if (!categoryBar) return;
 
         const popularChip = `<button class="category-chip${sortMode === "popular" ? " is-active" : ""}" data-sort="popular">🔥 인기</button>`;
-        const chips = [{ label: "전체", value: "" }, ...categories.map((c) => ({ label: c, value: c }))];
+        // 로그인 상태의 기본 피드(value "")는 개인화 추천이라 라벨을 "✨ 추천"으로 노출
+        const defaultLabel = authMe?.loggedIn ? "✨ 추천" : "전체";
+        const chips = [{ label: defaultLabel, value: "" }, ...categories.map((c) => ({ label: c, value: c }))];
         const categoryChips = chips.map((chip) => `
             <button class="category-chip${sortMode !== "popular" && chip.value === selectedCategory ? " is-active" : ""}"
-                    data-category="${chip.value}">
+                    data-category="${chip.value}"${chip.value === "" && authMe?.loggedIn ? ' title="회원님의 시청·좋아요·구독 기반 맞춤 추천"' : ""}>
                 ${chip.label}
             </button>
         `).join("");
