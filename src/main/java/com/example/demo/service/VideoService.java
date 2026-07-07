@@ -21,8 +21,10 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -139,6 +141,15 @@ public class VideoService {
         boolean hasCategory = category != null && !category.isBlank();
         boolean isPopular = "popular".equals(sort) || "popular".equals(sortBy);
 
+        // 홈 기본 피드(로그인 + 검색어·카테고리·채널·인기정렬 아님)는 개인화 랭킹으로 제공한다.
+        // 신호가 하나도 없거나 후보가 비면 null을 받아 아래 기본(최신순) 로직으로 폴백한다.
+        boolean isHomeDefault = loginUserId != null && !hasKeyword && !hasCategory
+                && ownerId == null && !isPopular;
+        if (isHomeDefault) {
+            Map<String, Object> personalized = getPersonalizedFeed(page, size, loginUserId);
+            if (personalized != null) return personalized;
+        }
+
         if (ownerId != null) {
             videoPage = videoRepository.findPublicByOwnerIdPageable(ownerId, pageable);
         } else if (isPopular && hasKeyword) {
@@ -163,6 +174,116 @@ public class VideoService {
         result.put("page", page);
         result.put("totalElements", videoPage.getTotalElements());
         return result;
+    }
+
+    /**
+     * 개인화 홈 피드. 로그인 유저의 좋아요·시청기록·구독 신호로 카테고리/채널 선호도를 만들고
+     * 공개 영상 전체를 점수화해 정렬한다. 신호가 하나도 없거나 후보가 비면 null을 반환해
+     * 호출부가 기본 최신순 피드로 폴백하게 한다.
+     *
+     * 점수 = 구독 채널 부스트 + 카테고리 선호 + 채널 선호 + 최신성(지수 감쇠)
+     *        + 인기(조회수 로그) − 이미 본 영상 감점 + (user,video) 고정 노이즈.
+     *
+     * 소규모 카탈로그를 가정하고 공개 영상을 메모리에서 랭킹한다. 카탈로그가 커지면
+     * 후보를 SQL에서 1차로 좁히거나 세션 스냅샷 캐시가 필요하다.
+     */
+    private Map<String, Object> getPersonalizedFeed(int page, int size, Long userId) {
+        List<VideoLike> likes = videoLikeRepository.findByUserIdOrderByIdDesc(userId);
+        List<VideoHistory> history = videoHistoryRepository.findByUserIdOrderByWatchedAtDesc(userId);
+        Set<Long> subscribedOwnerIds = subscriptionRepository.findBySubscriberId(userId).stream()
+                .map(Subscription::getChannelOwnerId)
+                .collect(Collectors.toSet());
+
+        // 신호가 전혀 없으면 개인화 근거가 없다 → null 반환해 기본 최신순으로 폴백
+        if (likes.isEmpty() && history.isEmpty() && subscribedOwnerIds.isEmpty()) {
+            return null;
+        }
+
+        Set<Long> watchedVideoIds = history.stream()
+                .map(VideoHistory::getVideoId)
+                .collect(Collectors.toSet());
+
+        // 좋아요(강한 신호)·시청기록(중간 신호)한 영상들의 카테고리/채널 선호도 집계
+        Map<String, Double> categoryAffinity = new HashMap<>();
+        Map<Long, Double> ownerAffinity = new HashMap<>();
+        for (Video v : videoRepository.findAllById(
+                likes.stream().map(VideoLike::getVideoId).collect(Collectors.toList()))) {
+            accumulateAffinity(categoryAffinity, ownerAffinity, v, 3.0);
+        }
+        for (Video v : videoRepository.findAllById(new ArrayList<>(watchedVideoIds))) {
+            accumulateAffinity(categoryAffinity, ownerAffinity, v, 1.0);
+        }
+
+        // 후보: 공개 영상 전체에서 본인 업로드는 제외 (자기 영상은 홈 추천에 안 띄운다)
+        List<Video> candidates = videoRepository.findAllPublic().stream()
+                .filter(v -> !userId.equals(v.getOwnerId()))
+                .collect(Collectors.toList());
+        if (candidates.isEmpty()) {
+            return null;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        Map<Long, Double> scores = new HashMap<>();
+        for (Video v : candidates) {
+            scores.put(v.getId(), personalizedScore(
+                    v, categoryAffinity, ownerAffinity, subscribedOwnerIds, watchedVideoIds, now, userId));
+        }
+        candidates.sort(Comparator
+                .comparingDouble((Video v) -> scores.get(v.getId())).reversed()
+                .thenComparing(Comparator.comparingLong(Video::getId).reversed()));
+
+        int total = candidates.size();
+        int from = Math.min(page * size, total);
+        int to = Math.min(from + size, total);
+        List<VideoItem> items = toVideoItems(candidates.subList(from, to), userId);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("videos", items);
+        result.put("hasMore", to < total);
+        result.put("page", page);
+        result.put("totalElements", (long) total);
+        return result;
+    }
+
+    private void accumulateAffinity(Map<String, Double> categoryAffinity,
+                                    Map<Long, Double> ownerAffinity, Video v, double weight) {
+        String category = trimmed(v.getCategory());
+        if (!category.isEmpty()) categoryAffinity.merge(category, weight, Double::sum);
+        if (v.getOwnerId() != null) ownerAffinity.merge(v.getOwnerId(), weight, Double::sum);
+    }
+
+    private double personalizedScore(Video v, Map<String, Double> categoryAffinity,
+                                     Map<Long, Double> ownerAffinity, Set<Long> subscribedOwnerIds,
+                                     Set<Long> watchedVideoIds, LocalDateTime now, Long userId) {
+        double score = 0;
+
+        // 구독 채널: 가장 강한 신호
+        if (v.getOwnerId() != null && subscribedOwnerIds.contains(v.getOwnerId())) {
+            score += 40;
+        }
+        // 카테고리 선호도 (한 카테고리가 독식하지 않도록 상한을 둔다)
+        score += Math.min(categoryAffinity.getOrDefault(trimmed(v.getCategory()), 0.0), 10.0) * 6;
+        // 채널 선호도
+        if (v.getOwnerId() != null) {
+            score += Math.min(ownerAffinity.getOrDefault(v.getOwnerId(), 0.0), 10.0) * 4;
+        }
+        // 최신성: createdAt 기준 지수 감쇠 (반감기 약 14일)
+        if (v.getCreatedAt() != null) {
+            long days = Math.max(0, Duration.between(v.getCreatedAt(), now).toDays());
+            score += 20 * Math.exp(-days / 14.0);
+        }
+        // 인기 프라이어: 조회수 로그 (약하게 — 신호가 적은 영상도 바닥 점수를 확보)
+        if (v.getViewCount() > 0) {
+            score += Math.log10(v.getViewCount() + 1) * 6;
+        }
+        // 이미 본 영상은 크게 감점하되 완전 제외는 하지 않는다(소규모 카탈로그에서 피드가 비는 것 방지)
+        if (watchedVideoIds.contains(v.getId())) {
+            score -= 60;
+        }
+        // 무한 스크롤 페이지네이션이 흔들리지 않도록 (user,video)에 고정된 노이즈를 쓴다
+        score += new Random(userId * 1_000_003L + v.getId()).nextDouble() * 4;
+
+        return score;
     }
 
     public VideoItem getVideoById(Long id, Long loginUserId, boolean isAdmin) {

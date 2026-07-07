@@ -5,6 +5,7 @@ import com.example.demo.controller.VideoController.VideoUpdateRequest;
 import com.example.demo.entity.Subscription;
 import com.example.demo.entity.User;
 import com.example.demo.entity.Video;
+import com.example.demo.entity.VideoHistory;
 import com.example.demo.entity.VideoLike;
 import com.example.demo.entity.VideoSave;
 import com.example.demo.repository.CommentRepository;
@@ -251,6 +252,137 @@ class VideoServiceTest {
                     .thenReturn(new PageImpl<>(List.of()));
             videoService.getFeed(0, 10, null, null, null, null, null, null);
             verify(videoRepository).findAllPublicPageable(any(Pageable.class));
+        }
+    }
+
+    @Nested
+    class PersonalizedFeed {
+
+        private Video categorized(Long id, Long ownerId, String category) {
+            Video v = publicVideo(id, ownerId);
+            v.setCategory(category);
+            return v;
+        }
+
+        private void stubToVideoItemsFor(Long userId) {
+            when(videoLikeRepository.countByVideoIdIn(anyList())).thenReturn(List.of());
+            when(commentRepository.countByVideoIdIn(anyList())).thenReturn(List.of());
+            when(videoLikeRepository.findLikedVideoIdsByUserId(eq(userId), anyList())).thenReturn(List.of());
+            when(videoSaveRepository.findSavedVideoIdsByUserId(eq(userId), anyList())).thenReturn(List.of());
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<VideoItem> feedVideos(Map<String, Object> result) {
+            return (List<VideoItem>) result.get("videos");
+        }
+
+        // 신호(좋아요·시청·구독)가 하나도 없으면 개인화하지 않고 기본 최신순으로 폴백한다.
+        @Test
+        void loggedInNoSignals_fallsBackToDefaultLatest() {
+            when(videoLikeRepository.findByUserIdOrderByIdDesc(1L)).thenReturn(List.of());
+            when(videoHistoryRepository.findByUserIdOrderByWatchedAtDesc(1L)).thenReturn(List.of());
+            when(subscriptionRepository.findBySubscriberId(1L)).thenReturn(List.of());
+            when(videoRepository.findAllPublicPageable(any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            videoService.getFeed(0, 10, null, null, null, null, null, 1L);
+
+            verify(videoRepository).findAllPublicPageable(any(Pageable.class));
+            verify(videoRepository, never()).findAllPublic();
+        }
+
+        // 구독 채널 영상은 상위로 부스트되고, 본인 업로드는 홈 추천에서 제외된다.
+        @Test
+        void subscribedChannel_isBoosted_andOwnUploadsExcluded() {
+            Subscription sub = new Subscription();
+            sub.setSubscriberId(1L); sub.setChannelOwnerId(5L);
+            when(videoLikeRepository.findByUserIdOrderByIdDesc(1L)).thenReturn(List.of());
+            when(videoHistoryRepository.findByUserIdOrderByWatchedAtDesc(1L)).thenReturn(List.of());
+            when(subscriptionRepository.findBySubscriberId(1L)).thenReturn(List.of(sub));
+            when(videoRepository.findAllById(anyList())).thenReturn(List.of());
+
+            Video subscribed = publicVideo(10L, 5L);  // 구독 채널
+            Video other      = publicVideo(20L, 7L);  // 비구독
+            Video ownUpload  = publicVideo(30L, 1L);  // 본인 업로드 → 제외 대상
+            when(videoRepository.findAllPublic())
+                    .thenReturn(new ArrayList<>(Arrays.asList(other, subscribed, ownUpload)));
+            stubToVideoItemsFor(1L);
+
+            Map<String, Object> result = videoService.getFeed(0, 10, null, null, null, null, null, 1L);
+
+            assertThat(feedVideos(result)).extracting(VideoItem::getId).containsExactly(10L, 20L);
+            assertThat(result.get("totalElements")).isEqualTo(2L);
+        }
+
+        // 이미 본 영상은 크게 감점돼 안 본 영상보다 뒤로 밀린다(완전 제외는 아님).
+        @Test
+        void alreadyWatchedVideo_isDemoted() {
+            VideoHistory h = new VideoHistory();
+            h.setVideoId(20L); h.setUserId(1L); h.setWatchedAt(123L);
+            when(videoLikeRepository.findByUserIdOrderByIdDesc(1L)).thenReturn(List.of());
+            when(videoHistoryRepository.findByUserIdOrderByWatchedAtDesc(1L)).thenReturn(List.of(h));
+            when(subscriptionRepository.findBySubscriberId(1L)).thenReturn(List.of());
+            when(videoRepository.findAllById(anyList())).thenReturn(List.of());
+
+            Video fresh   = publicVideo(10L, 5L);  // 안 본 영상
+            Video watched = publicVideo(20L, 6L);  // 이미 본 영상
+            when(videoRepository.findAllPublic())
+                    .thenReturn(new ArrayList<>(Arrays.asList(watched, fresh)));
+            stubToVideoItemsFor(1L);
+
+            Map<String, Object> result = videoService.getFeed(0, 10, null, null, null, null, null, 1L);
+
+            assertThat(feedVideos(result)).extracting(VideoItem::getId).containsExactly(10L, 20L);
+        }
+
+        // 좋아요한 영상의 카테고리와 같은 카테고리 영상이 선호도 점수로 상위에 온다.
+        @Test
+        void likedCategory_boostsSameCategoryVideos() {
+            VideoLike like = new VideoLike(); like.setVideoId(100L); like.setUserId(1L);
+            when(videoLikeRepository.findByUserIdOrderByIdDesc(1L)).thenReturn(List.of(like));
+            when(videoHistoryRepository.findByUserIdOrderByWatchedAtDesc(1L)).thenReturn(List.of());
+            when(subscriptionRepository.findBySubscriberId(1L)).thenReturn(List.of());
+
+            Video likedVideo = categorized(100L, 9L, "게임");
+            when(videoRepository.findAllById(anyList())).thenAnswer(inv -> {
+                List<Long> ids = inv.getArgument(0);
+                return ids.contains(100L) ? List.of(likedVideo) : List.of();
+            });
+
+            Video game = categorized(10L, 6L, "게임");
+            Video cook = categorized(20L, 7L, "요리");
+            when(videoRepository.findAllPublic())
+                    .thenReturn(new ArrayList<>(Arrays.asList(cook, game)));
+            stubToVideoItemsFor(1L);
+
+            Map<String, Object> result = videoService.getFeed(0, 10, null, null, null, null, null, 1L);
+
+            assertThat(feedVideos(result)).extracting(VideoItem::getId).containsExactly(10L, 20L);
+        }
+
+        // 개인화 랭킹도 페이지네이션 슬라이스와 hasMore를 올바르게 계산한다.
+        @Test
+        void paginatesRankedCandidates() {
+            Subscription sub = new Subscription();
+            sub.setSubscriberId(1L); sub.setChannelOwnerId(5L);
+            when(videoLikeRepository.findByUserIdOrderByIdDesc(1L)).thenReturn(List.of());
+            when(videoHistoryRepository.findByUserIdOrderByWatchedAtDesc(1L)).thenReturn(List.of());
+            when(subscriptionRepository.findBySubscriberId(1L)).thenReturn(List.of(sub));
+            when(videoRepository.findAllById(anyList())).thenReturn(List.of());
+
+            List<Video> all = new ArrayList<>();
+            for (long i = 1; i <= 5; i++) all.add(publicVideo(i, 6L));
+            when(videoRepository.findAllPublic()).thenReturn(all);
+            stubToVideoItemsFor(1L);
+
+            Map<String, Object> page0 = videoService.getFeed(0, 2, null, null, null, null, null, 1L);
+            assertThat(feedVideos(page0)).hasSize(2);
+            assertThat(page0.get("hasMore")).isEqualTo(true);
+            assertThat(page0.get("totalElements")).isEqualTo(5L);
+
+            Map<String, Object> lastPage = videoService.getFeed(2, 2, null, null, null, null, null, 1L);
+            assertThat(feedVideos(lastPage)).hasSize(1);
+            assertThat(lastPage.get("hasMore")).isEqualTo(false);
         }
     }
 
