@@ -952,3 +952,87 @@ function formatDuration(seconds) {
 
     return `${minutes}:${String(secs).padStart(2, "0")}`;
 }
+
+// 썸네일 마우스 호버 시 영상 미리보기 (YouTube 스타일). 카드 마크업을 건드리지 않고
+// 문서 레벨 위임으로 처리 — .thumbnail-wrap 진입 시 data-video-id로 소스를 lazy fetch(캐시).
+(function initThumbnailHoverPreview() {
+    const HOVER_DELAY = 450;
+    const srcCache = new Map(); // videoId -> {videoUrl, embedUrl} | null
+    let hoverTimer = null;
+    let activeWrap = null;
+
+    async function fetchSrc(videoId) {
+        if (srcCache.has(videoId)) return srcCache.get(videoId);
+        try {
+            const res = await fetch(`/api/videos/${videoId}`);
+            if (!res.ok) { srcCache.set(videoId, null); return null; }
+            const v = await res.json();
+            const info = { videoUrl: v.videoUrl || "", embedUrl: v.embedUrl || "" };
+            srcCache.set(videoId, info);
+            return info;
+        } catch {
+            srcCache.set(videoId, null);
+            return null;
+        }
+    }
+
+    function youtubeId(embedUrl) {
+        const m = String(embedUrl || "").match(/\/embed\/([A-Za-z0-9_-]+)/);
+        return m ? m[1] : null;
+    }
+
+    async function startPreview(wrap) {
+        const card = wrap.closest("[data-video-id]");
+        if (!card) return;
+        const videoId = card.dataset.videoId;
+        const info = await fetchSrc(videoId);
+        // fetch 도중 다른 카드로 이동했으면 중단
+        if (!info || activeWrap !== wrap) return;
+        if (wrap.querySelector(".thumbnail-preview")) return;
+
+        let el;
+        if (info.videoUrl) {
+            el = document.createElement("video");
+            el.src = info.videoUrl;
+            el.muted = true;
+            el.loop = true;
+            el.playsInline = true;
+            el.autoplay = true;
+            el.className = "thumbnail-preview";
+            el.play?.().catch(() => {});
+        } else {
+            const yid = youtubeId(info.embedUrl);
+            if (!yid) return;
+            el = document.createElement("iframe");
+            el.className = "thumbnail-preview";
+            el.allow = "autoplay";
+            el.setAttribute("frameborder", "0");
+            el.src = `https://www.youtube.com/embed/${yid}?autoplay=1&mute=1&controls=0&disablekb=1&modestbranding=1&playsinline=1&loop=1&playlist=${yid}`;
+        }
+        wrap.appendChild(el);
+        requestAnimationFrame(() => el.classList.add("is-visible"));
+    }
+
+    function stopPreview(wrap) {
+        wrap.querySelector(".thumbnail-preview")?.remove();
+    }
+
+    document.addEventListener("mouseover", (e) => {
+        const wrap = e.target.closest?.(".thumbnail-wrap");
+        if (!wrap || wrap === activeWrap) return;
+        if (activeWrap) stopPreview(activeWrap);
+        clearTimeout(hoverTimer);
+        activeWrap = wrap;
+        hoverTimer = setTimeout(() => startPreview(wrap), HOVER_DELAY);
+    });
+
+    document.addEventListener("mouseout", (e) => {
+        const wrap = e.target.closest?.(".thumbnail-wrap");
+        if (!wrap) return;
+        const to = e.relatedTarget;
+        if (to && wrap.contains(to)) return; // 자식으로 이동한 경우는 무시
+        clearTimeout(hoverTimer);
+        if (activeWrap === wrap) activeWrap = null;
+        stopPreview(wrap);
+    });
+})();
