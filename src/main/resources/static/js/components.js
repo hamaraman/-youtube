@@ -967,7 +967,7 @@ function formatDuration(seconds) {
             const res = await fetch(`/api/videos/${videoId}`);
             if (!res.ok) { srcCache.set(videoId, null); return null; }
             const v = await res.json();
-            const info = { videoUrl: v.videoUrl || "", embedUrl: v.embedUrl || "" };
+            const info = { videoUrl: v.videoUrl || "", embedUrl: v.embedUrl || "", duration: v.duration || "" };
             srcCache.set(videoId, info);
             return info;
         } catch {
@@ -981,6 +981,13 @@ function formatDuration(seconds) {
         return m ? m[1] : null;
     }
 
+    // "3:32" 또는 "1:02:03" → 초. 파싱 실패 시 0.
+    function durationToSeconds(str) {
+        const parts = String(str || "").trim().split(":").map(Number);
+        if (!parts.length || parts.some(Number.isNaN)) return 0;
+        return parts.reduce((acc, n) => acc * 60 + n, 0);
+    }
+
     async function startPreview(wrap) {
         const card = wrap.closest("[data-video-id]");
         if (!card) return;
@@ -989,6 +996,11 @@ function formatDuration(seconds) {
         // fetch 도중 다른 카드로 이동했으면 중단
         if (!info || activeWrap !== wrap) return;
         if (wrap.querySelector(".thumbnail-preview")) return;
+
+        // 진행바 (유튜브 스타일 하단 바). video는 timeupdate로 실측,
+        // iframe은 재생 위치를 읽을 수 없어 duration 기반 CSS 애니메이션으로 근사.
+        const fill = document.createElement("i");
+        let bar = null;
 
         let el;
         if (info.videoUrl) {
@@ -1000,6 +1012,12 @@ function formatDuration(seconds) {
             el.autoplay = true;
             el.className = "thumbnail-preview";
             el.play?.().catch(() => {});
+            bar = document.createElement("div");
+            bar.className = "thumbnail-preview-progress";
+            bar.appendChild(fill);
+            el.addEventListener("timeupdate", () => {
+                if (el.duration) fill.style.width = (el.currentTime / el.duration) * 100 + "%";
+            });
         } else {
             const yid = youtubeId(info.embedUrl);
             if (!yid) return;
@@ -1008,13 +1026,25 @@ function formatDuration(seconds) {
             el.allow = "autoplay";
             el.setAttribute("frameborder", "0");
             el.src = `https://www.youtube.com/embed/${yid}?autoplay=1&mute=1&controls=0&disablekb=1&modestbranding=1&playsinline=1&loop=1&playlist=${yid}`;
+            const durSec = durationToSeconds(info.duration);
+            if (durSec > 0) {
+                bar = document.createElement("div");
+                bar.className = "thumbnail-preview-progress";
+                bar.appendChild(fill);
+                fill.style.animation = `thumbPreviewFill ${durSec}s linear infinite`;
+            }
         }
         wrap.appendChild(el);
-        requestAnimationFrame(() => el.classList.add("is-visible"));
+        if (bar) wrap.appendChild(bar);
+        requestAnimationFrame(() => {
+            el.classList.add("is-visible");
+            bar?.classList.add("is-visible");
+        });
     }
 
     function stopPreview(wrap) {
         wrap.querySelector(".thumbnail-preview")?.remove();
+        wrap.querySelector(".thumbnail-preview-progress")?.remove();
     }
 
     document.addEventListener("mouseover", (e) => {

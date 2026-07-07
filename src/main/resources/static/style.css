@@ -781,6 +781,36 @@ img {
     opacity: 1;
 }
 
+/* 미리보기 재생 진행바 (하단, 유튜브 스타일) */
+.thumbnail-preview-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.28);
+    z-index: 3;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+}
+
+.thumbnail-preview-progress.is-visible {
+    opacity: 1;
+}
+
+.thumbnail-preview-progress > i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: #f00;
+}
+
+@keyframes thumbPreviewFill {
+    from { width: 0; }
+    to { width: 100%; }
+}
+
 /* 미리보기 위에도 재생시간·진행바·재생목록 버튼이 보이도록 */
 .thumbnail-wrap .duration,
 .thumbnail-wrap .card-progress-bar,
