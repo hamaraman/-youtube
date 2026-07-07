@@ -781,7 +781,7 @@ img {
     opacity: 1;
 }
 
-/* 미리보기 재생 진행바 (하단, 유튜브 스타일) */
+/* 미리보기 재생 진행바 (하단, 유튜브 스타일) — 클릭·드래그로 seek */
 .thumbnail-preview-progress {
     position: absolute;
     left: 0;
@@ -791,19 +791,54 @@ img {
     background: rgba(255, 255, 255, 0.28);
     z-index: 3;
     opacity: 0;
-    transition: opacity 0.25s ease;
-    pointer-events: none;
+    transition: opacity 0.25s ease, height 0.12s ease;
+    pointer-events: auto;   /* 클릭·드래그로 재생 위치 이동 */
+    cursor: pointer;
+    touch-action: none;     /* 드래그 시 페이지 스크롤 방지 */
+}
+
+/* 얇은 바 위쪽으로 넉넉한 클릭 히트 영역 확장 (조준 쉽게) */
+.thumbnail-preview-progress::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -9px;
+    height: 16px;
 }
 
 .thumbnail-preview-progress.is-visible {
     opacity: 1;
 }
 
+.thumbnail-preview-progress:hover {
+    height: 6px;
+}
+
 .thumbnail-preview-progress > i {
+    position: relative;
     display: block;
     height: 100%;
     width: 0;
     background: #f00;
+}
+
+/* 진행 위치를 잡는 손잡이(스크러버) — 바에 호버 시 표시 */
+.thumbnail-preview-progress > i::after {
+    content: "";
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #f00;
+    transform: translateY(-50%) scale(0);
+    transition: transform 0.12s ease;
+}
+
+.thumbnail-preview-progress:hover > i::after {
+    transform: translateY(-50%) scale(1);
 }
 
 /* 미리보기 위에도 재생시간·진행바·재생목록 버튼이 보이도록 */
