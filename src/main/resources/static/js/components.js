@@ -967,7 +967,7 @@ function formatDuration(seconds) {
             const res = await fetch(`/api/videos/${videoId}`);
             if (!res.ok) { srcCache.set(videoId, null); return null; }
             const v = await res.json();
-            const info = { videoUrl: v.videoUrl || "", embedUrl: v.embedUrl || "", duration: v.duration || "" };
+            const info = { videoUrl: v.videoUrl || "", embedUrl: v.embedUrl || "" };
             srcCache.set(videoId, info);
             return info;
         } catch {
@@ -981,11 +981,23 @@ function formatDuration(seconds) {
         return m ? m[1] : null;
     }
 
-    // "3:32" 또는 "1:02:03" → 초. 파싱 실패 시 0.
-    function durationToSeconds(str) {
-        const parts = String(str || "").trim().split(":").map(Number);
-        if (!parts.length || parts.some(Number.isNaN)) return 0;
-        return parts.reduce((acc, n) => acc * 60 + n, 0);
+    // YouTube IFrame Player API를 1회만 로드. 준비되면 resolve되는 프라미스 반환.
+    let ytApiPromise = null;
+    function loadYouTubeApi() {
+        if (window.YT && window.YT.Player) return Promise.resolve();
+        if (ytApiPromise) return ytApiPromise;
+        ytApiPromise = new Promise((resolve) => {
+            const prev = window.onYouTubeIframeAPIReady;
+            window.onYouTubeIframeAPIReady = () => {
+                try { if (prev) prev(); } catch {}
+                resolve();
+            };
+            const tag = document.createElement("script");
+            tag.src = "https://www.youtube.com/iframe_api";
+            tag.async = true;
+            document.head.appendChild(tag);
+        });
+        return ytApiPromise;
     }
 
     async function startPreview(wrap) {
@@ -997,12 +1009,18 @@ function formatDuration(seconds) {
         if (!info || activeWrap !== wrap) return;
         if (wrap.querySelector(".thumbnail-preview")) return;
 
-        // 진행바 (유튜브 스타일 하단 바). video는 timeupdate로 실측,
-        // iframe은 재생 위치를 읽을 수 없어 duration 기반 CSS 애니메이션으로 근사.
+        // 진행바 (유튜브 스타일 하단 바). video는 timeupdate, YouTube는 IFrame Player API로 실측.
+        // 비동기(API) 로드 중 마우스가 벗어나는 레이스는 토큰으로 감지.
+        const token = {};
+        wrap._previewToken = token;
+
         const fill = document.createElement("i");
-        let bar = null;
+        const bar = document.createElement("div");
+        bar.className = "thumbnail-preview-progress";
+        bar.appendChild(fill);
 
         let el;
+        let yid = null;
         if (info.videoUrl) {
             el = document.createElement("video");
             el.src = info.videoUrl;
@@ -1012,38 +1030,121 @@ function formatDuration(seconds) {
             el.autoplay = true;
             el.className = "thumbnail-preview";
             el.play?.().catch(() => {});
-            bar = document.createElement("div");
-            bar.className = "thumbnail-preview-progress";
-            bar.appendChild(fill);
             el.addEventListener("timeupdate", () => {
                 if (el.duration) fill.style.width = (el.currentTime / el.duration) * 100 + "%";
             });
         } else {
-            const yid = youtubeId(info.embedUrl);
+            yid = youtubeId(info.embedUrl);
             if (!yid) return;
-            el = document.createElement("iframe");
+            // API가 이 자리에 iframe을 생성하도록 placeholder div를 둔다.
+            el = document.createElement("div");
             el.className = "thumbnail-preview";
-            el.allow = "autoplay";
-            el.setAttribute("frameborder", "0");
-            el.src = `https://www.youtube.com/embed/${yid}?autoplay=1&mute=1&controls=0&disablekb=1&modestbranding=1&playsinline=1&loop=1&playlist=${yid}`;
-            const durSec = durationToSeconds(info.duration);
-            if (durSec > 0) {
-                bar = document.createElement("div");
-                bar.className = "thumbnail-preview-progress";
-                bar.appendChild(fill);
-                fill.style.animation = `thumbPreviewFill ${durSec}s linear infinite`;
-            }
         }
         wrap.appendChild(el);
-        if (bar) wrap.appendChild(bar);
+        wrap.appendChild(bar);
         requestAnimationFrame(() => {
             el.classList.add("is-visible");
-            bar?.classList.add("is-visible");
+            bar.classList.add("is-visible");
         });
+
+        if (!yid) return; // video 경로는 여기서 끝
+
+        // YouTube: IFrame Player API 로드 → placeholder에 플레이어 생성(muted 자동재생) →
+        // getCurrentTime 폴링으로 진행바 실측. 단, 자동재생이 막힌 환경(엄격한 autoplay
+        // 정책)에서는 enablejsapi 없는 순수 iframe + duration 기반 근사 진행바로 폴백한다.
+        try {
+            await loadYouTubeApi();
+        } catch {
+            return;
+        }
+        // 로드 대기 중 마우스가 벗어났으면 중단
+        if (wrap._previewToken !== token) return;
+
+        let player = null;
+        let poll = null;
+        let fallbackTimer = null;
+
+        const startPolling = () => {
+            if (poll) return;
+            poll = setInterval(() => {
+                try {
+                    if (!player) return;
+                    const d = player.getDuration ? player.getDuration() : 0;
+                    const t = player.getCurrentTime ? player.getCurrentTime() : 0;
+                    if (d > 0) fill.style.width = (t / d) * 100 + "%";
+                } catch {}
+            }, 200);
+        };
+
+        // 자동재생 실패 감지 시: API 플레이어를 버리고 순수 iframe + 근사 진행바로 폴백.
+        const fallbackToPlainIframe = () => {
+            let durSec = 0;
+            try { durSec = (player && player.getDuration()) || 0; } catch {}
+            if (poll) { clearInterval(poll); poll = null; }
+            if (player) { try { player.destroy(); } catch {} player = null; }
+            el.remove(); // API가 남긴 placeholder div 제거
+            if (wrap._previewToken !== token) return;
+            const f2 = document.createElement("iframe");
+            f2.className = "thumbnail-preview is-visible";
+            f2.allow = "autoplay";
+            f2.setAttribute("frameborder", "0");
+            f2.src = `https://www.youtube.com/embed/${yid}?autoplay=1&mute=1&controls=0&disablekb=1&modestbranding=1&playsinline=1&loop=1&playlist=${yid}`;
+            wrap.appendChild(f2);
+            if (durSec > 0) {
+                const start = Date.now();
+                poll = setInterval(() => {
+                    const elapsed = (Date.now() - start) / 1000;
+                    fill.style.width = ((elapsed % durSec) / durSec) * 100 + "%";
+                }, 200);
+            }
+        };
+
+        player = new YT.Player(el, {
+            videoId: yid,
+            playerVars: {
+                autoplay: 1, mute: 1, controls: 0, disablekb: 1,
+                modestbranding: 1, playsinline: 1, loop: 1, playlist: yid,
+                origin: location.origin,
+            },
+            events: {
+                onReady: (e) => {
+                    try {
+                        const f = e.target.getIframe();
+                        if (f) { f.className = "thumbnail-preview"; f.classList.add("is-visible"); }
+                        e.target.mute();
+                        e.target.playVideo();
+                    } catch {}
+                },
+            },
+        });
+        // API가 생성한 iframe에 미리보기 스타일을 즉시 적용(placeholder div를 대체함).
+        const iframe = player.getIframe ? player.getIframe() : null;
+        if (iframe) {
+            iframe.className = "thumbnail-preview";
+            requestAnimationFrame(() => iframe.classList.add("is-visible"));
+        }
+        startPolling();
+        // 재생이 실제로 진행(currentTime>0)하는지로 자동재생 성공을 판정 — buffering만으로는
+        // 부족(멈출 수 있음). 2.5초 뒤에도 진행이 없으면 자동재생 차단으로 보고 폴백.
+        fallbackTimer = setTimeout(() => {
+            let t = 0;
+            try { t = (player && player.getCurrentTime) ? player.getCurrentTime() : 0; } catch {}
+            if (t <= 0.1) fallbackToPlainIframe();
+        }, 2500);
+
+        wrap._ytCleanup = () => {
+            if (fallbackTimer) clearTimeout(fallbackTimer);
+            if (poll) clearInterval(poll);
+            if (player) { try { player.destroy(); } catch {} }
+        };
     }
 
     function stopPreview(wrap) {
-        wrap.querySelector(".thumbnail-preview")?.remove();
+        wrap._previewToken = null;
+        wrap._ytCleanup?.();
+        wrap._ytCleanup = null;
+        // API가 placeholder div 안에 iframe을 만들어 둘 다 남을 수 있으므로 전부 제거
+        wrap.querySelectorAll(".thumbnail-preview").forEach((n) => n.remove());
         wrap.querySelector(".thumbnail-preview-progress")?.remove();
     }
 
