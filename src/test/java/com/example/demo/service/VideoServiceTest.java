@@ -803,4 +803,61 @@ class VideoServiceTest {
             assertThat(recommended.get(0).getId()).isEqualTo(3L);
         }
     }
+
+    // 개인화 피드 스냅샷 저장소: TTL 만료 정리 + 크기 상한으로 무한 증식을 막는지 검증(시간은 인자로 주입).
+    @Nested
+    class FeedSnapshotStoreCache {
+
+        private VideoService.FeedSnapshot snap(long createdAtMs) {
+            return new VideoService.FeedSnapshot(List.of(), createdAtMs);
+        }
+
+        // TTL 이내면 신선한 스냅샷을 반환하고, 지나면 null + 만료 엔트리를 제거한다.
+        @Test
+        void getFresh_returnsWithinTtl_removesAfterExpiry() {
+            VideoService.FeedSnapshotStore store = new VideoService.FeedSnapshotStore(1000, 10);
+            store.put(1L, snap(0), 0);
+
+            assertThat(store.getFresh(1L, 500)).isNotNull();   // 0.5s < 1s TTL → 신선
+            assertThat(store.getFresh(1L, 1500)).isNull();     // 1.5s >= 1s TTL → 만료
+            assertThat(store.size()).isZero();                 // 만료 엔트리 제거됨
+        }
+
+        // 상한을 넘으면 가장 오래된 엔트리가 축출되고 크기가 상한을 넘지 않는다.
+        @Test
+        void put_evictsOldest_whenOverCapacity() {
+            VideoService.FeedSnapshotStore store = new VideoService.FeedSnapshotStore(100_000, 3);
+            store.put(1L, snap(10), 10);
+            store.put(2L, snap(20), 20);
+            store.put(3L, snap(30), 30);
+            store.put(4L, snap(40), 40); // 상한(3) 초과 → 가장 오래된 user1 축출
+
+            assertThat(store.size()).isEqualTo(3);
+            assertThat(store.getFresh(1L, 50)).isNull();       // user1 축출됨
+            assertThat(store.getFresh(4L, 50)).isNotNull();    // 최신은 유지
+        }
+
+        // 같은 유저를 다시 저장하는 것은 크기를 늘리지 않는다(축출 트리거 아님).
+        @Test
+        void put_sameUser_doesNotGrow() {
+            VideoService.FeedSnapshotStore store = new VideoService.FeedSnapshotStore(100_000, 2);
+            store.put(1L, snap(10), 10);
+            store.put(1L, snap(20), 20);
+
+            assertThat(store.size()).isEqualTo(1);
+        }
+
+        // TTL이 지난 뒤 새로 저장하면, 저장 시점 스윕으로 만료된 다른 유저 엔트리들이 정리된다.
+        @Test
+        void put_sweepsExpiredEntries() {
+            VideoService.FeedSnapshotStore store = new VideoService.FeedSnapshotStore(1000, 100);
+            store.put(1L, snap(0), 0);
+            store.put(2L, snap(0), 0);
+
+            store.put(3L, snap(2000), 2000); // 2s 후: 스윕으로 만료된 user1,2 제거 + user3 저장
+
+            assertThat(store.size()).isEqualTo(1);
+            assertThat(store.getFresh(3L, 2000)).isNotNull();
+        }
+    }
 }
