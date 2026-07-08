@@ -37,10 +37,12 @@ public class VideoService {
             Set.of(".jpg", ".jpeg", ".png", ".gif", ".webp");
     private static final long MAX_IMAGE_BYTES = 20L * 1024 * 1024; // 20 MB
     private static final long FEED_SNAPSHOT_TTL_MS = 30_000; // 개인화 피드 랭킹 스냅샷 유효시간
+    // 유저별 스냅샷 상한. 초과 시 가장 오래된 것을 축출해 유저 수만큼 무한정 쌓이는 것을 막는다.
+    private static final int FEED_SNAPSHOT_MAX_ENTRIES = 1_000;
 
     // 개인화 홈 피드의 유저별 랭킹 스냅샷. 무한 스크롤(page>0) 중 재랭킹으로 순서가 흔들리는 걸
-    // 막는다. 소규모 단일 인스턴스 가정 — TTL이 지나면 다음 page 0 요청에서 자연히 교체된다.
-    private final Map<Long, FeedSnapshot> feedSnapshots = new ConcurrentHashMap<>();
+    // 막는다. TTL 만료 엔트리 정리 + 크기 상한으로 메모리 무한 증식을 방지한다(소규모 단일 인스턴스 가정).
+    private final FeedSnapshotStore feedSnapshots = new FeedSnapshotStore(FEED_SNAPSHOT_TTL_MS, FEED_SNAPSHOT_MAX_ENTRIES);
 
     @Value("${file.thumbnail-dir}")
     private String thumbnailDir;
@@ -223,11 +225,12 @@ public class VideoService {
      *        − 이미 본 영상 감점 + (user,video) 고정 노이즈. 소규모 카탈로그 가정(전체 메모리 랭킹).
      */
     private Map<String, Object> getPersonalizedFeed(int page, int size, Long userId) {
+        long nowMs = System.currentTimeMillis();
         List<Video> ranked;
-        FeedSnapshot snap = feedSnapshots.get(userId);
-        boolean fresh = snap != null && (System.currentTimeMillis() - snap.createdAtMs) < FEED_SNAPSHOT_TTL_MS;
+        // 무한 스크롤(page>0)일 때만 직전 랭킹 스냅샷을 재사용한다. page 0은 항상 새로 계산.
+        FeedSnapshot snap = page > 0 ? feedSnapshots.getFresh(userId, nowMs) : null;
 
-        if (page > 0 && fresh) {
+        if (snap != null) {
             ranked = snap.ranked; // 스크롤 중엔 page 0에서 만든 랭킹을 그대로 페이지네이션
         } else {
             UserAffinity aff = buildUserAffinity(userId);
@@ -248,7 +251,7 @@ public class VideoService {
                     .comparingDouble((Video v) -> scores.get(v.getId())).reversed()
                     .thenComparing(Comparator.comparingLong(Video::getId).reversed()));
             ranked = candidates;
-            feedSnapshots.put(userId, new FeedSnapshot(ranked, System.currentTimeMillis()));
+            feedSnapshots.put(userId, new FeedSnapshot(ranked, nowMs), nowMs);
         }
 
         int total = ranked.size();
@@ -321,14 +324,68 @@ public class VideoService {
         }
     }
 
-    /** 개인화 피드 랭킹 스냅샷(유저별, TTL 동안 무한 스크롤 페이지네이션에 재사용). */
-    private static final class FeedSnapshot {
+    /** 개인화 피드 랭킹 스냅샷(유저별, TTL 동안 무한 스크롤 페이지네이션에 재사용). package-private(테스트 접근). */
+    static final class FeedSnapshot {
         final List<Video> ranked;
         final long createdAtMs;
 
         FeedSnapshot(List<Video> ranked, long createdAtMs) {
             this.ranked = ranked;
             this.createdAtMs = createdAtMs;
+        }
+    }
+
+    /**
+     * 개인화 피드 랭킹 스냅샷 저장소. 유저별 스냅샷을 TTL 동안 보관하되, 만료 엔트리를 정리하고
+     * 최대 크기를 제한해 유저 수만큼 무한정 쌓이는 것(메모리 누수)을 막는다. 단일 소규모 인스턴스 가정.
+     * 시간(nowMs)을 인자로 받아 테스트에서 결정적으로 검증 가능하게 한다. package-private(테스트 접근).
+     */
+    static final class FeedSnapshotStore {
+        private final long ttlMs;
+        private final int maxEntries;
+        private final Map<Long, FeedSnapshot> map = new ConcurrentHashMap<>();
+        private volatile long lastSweepMs = 0;
+
+        FeedSnapshotStore(long ttlMs, int maxEntries) {
+            this.ttlMs = ttlMs;
+            this.maxEntries = maxEntries;
+        }
+
+        /** TTL 이내의 신선한 스냅샷만 반환. 만료됐으면 제거하고 null. */
+        FeedSnapshot getFresh(Long userId, long nowMs) {
+            FeedSnapshot snap = map.get(userId);
+            if (snap == null) return null;
+            if (isExpired(snap, nowMs)) { map.remove(userId, snap); return null; }
+            return snap;
+        }
+
+        /** 스냅샷 저장. 저장 전 만료 엔트리를 정리하고, 상한 초과(신규 유저)면 가장 오래된 것을 축출한다. */
+        void put(Long userId, FeedSnapshot snap, long nowMs) {
+            sweepExpired(nowMs);
+            if (!map.containsKey(userId) && map.size() >= maxEntries) evictOldest();
+            map.put(userId, snap);
+        }
+
+        void remove(Long userId) { map.remove(userId); }
+
+        int size() { return map.size(); }
+
+        private boolean isExpired(FeedSnapshot snap, long nowMs) {
+            return nowMs - snap.createdAtMs >= ttlMs;
+        }
+
+        /** 핫패스에서 O(n) 스윕이 남발되지 않도록 TTL당 최대 1회만 전체 만료 정리를 수행한다. */
+        private void sweepExpired(long nowMs) {
+            if (nowMs - lastSweepMs < ttlMs) return;
+            lastSweepMs = nowMs;
+            map.values().removeIf(snap -> isExpired(snap, nowMs));
+        }
+
+        private void evictOldest() {
+            map.entrySet().stream()
+                    .min(Comparator.comparingLong(e -> e.getValue().createdAtMs))
+                    .map(Map.Entry::getKey)
+                    .ifPresent(map::remove);
         }
     }
 
