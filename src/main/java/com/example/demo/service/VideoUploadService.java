@@ -51,6 +51,7 @@ public class VideoUploadService {
     private final SubscriptionRepository subscriptionRepository;
     private final NotificationService notificationService;
     private final TranscodeJobService transcodeJobService;
+    private final VideoService videoService;
 
     private final Semaphore batchSemaphore;
     private static final java.util.concurrent.ConcurrentHashMap<Long, String> ENCODE_STATUS =
@@ -69,12 +70,14 @@ public class VideoUploadService {
                               SubscriptionRepository subscriptionRepository,
                               NotificationService notificationService,
                               TranscodeJobService transcodeJobService,
+                              VideoService videoService,
                               @Value("${ffmpeg.batch-concurrency:2}") int batchConcurrency) {
         this.videoRepository = videoRepository;
         this.storageService = storageService;
         this.subscriptionRepository = subscriptionRepository;
         this.notificationService = notificationService;
         this.transcodeJobService = transcodeJobService;
+        this.videoService = videoService;
         // 동시에 돌릴 트랜스코딩 작업 수. 코어 수에 맞춰 ffmpeg.batch-concurrency 로 조정.
         this.batchSemaphore = new Semaphore(Math.max(1, batchConcurrency));
     }
@@ -169,6 +172,12 @@ public class VideoUploadService {
 
             // Step 3: save entity to get ID
             Video savedVideo = videoRepository.save(video);
+
+            // 새 공개 영상이 공개 카탈로그에 추가됐으니, 개인화 피드 후보 공유 캐시를 무효화해
+            // 다음 랭킹 계산부터 즉시 반영되게 한다(TTL 만료를 기다리지 않음).
+            if ("공개".equals(savedVideo.getVisibility())) {
+                videoService.invalidatePublicVideoCache();
+            }
 
             // notify subscribers
             if ("공개".equals(savedVideo.getVisibility())) {

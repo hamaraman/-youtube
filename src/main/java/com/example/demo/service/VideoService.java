@@ -192,6 +192,14 @@ public class VideoService {
     }
 
     /**
+     * 공개 영상 카탈로그가 바뀌었을 때(예: 새 공개 영상 업로드) 개인화 피드 후보 공유 캐시를 비운다.
+     * 다음 랭킹 계산부터 변경이 즉시 반영되고, TTL 만료를 기다리지 않는다.
+     */
+    public void invalidatePublicVideoCache() {
+        publicVideoCache.invalidate();
+    }
+
+    /**
      * 유저의 좋아요·시청기록·구독 신호로 카테고리/채널 선호도 프로필을 만든다.
      * 개인화 홈 피드와 시청 페이지 관련영상 개인화가 공유한다.
      */
