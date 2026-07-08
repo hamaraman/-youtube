@@ -1014,10 +1014,50 @@ function formatDuration(seconds) {
         const token = {};
         wrap._previewToken = token;
 
+        let seekFn = null;   // (frac 0..1)=>void; 재생 소스가 준비되면 설정된다
+        let dragging = false;
+
         const fill = document.createElement("i");
         const bar = document.createElement("div");
         bar.className = "thumbnail-preview-progress";
         bar.appendChild(fill);
+
+        // 진행바 클릭·드래그로 미리보기 재생 위치 이동(seek). 카드 링크(<a>) 이동은 막는다.
+        // seekFn이 없는 경로(자동재생 폴백의 순수 iframe)는 JS 제어 불가라 무시한다.
+        const seekFromEvent = (ev) => {
+            const rect = bar.getBoundingClientRect();
+            if (rect.width <= 0) return;
+            let frac = (ev.clientX - rect.left) / rect.width;
+            frac = Math.max(0, Math.min(1, frac));
+            fill.style.width = (frac * 100) + "%";
+            if (seekFn) seekFn(frac);
+        };
+        bar.addEventListener("pointerdown", (ev) => {
+            if (!seekFn) return;
+            ev.preventDefault(); ev.stopPropagation();
+            dragging = true; wrap._seeking = true;
+            try { bar.setPointerCapture(ev.pointerId); } catch {}
+            seekFromEvent(ev);
+        });
+        bar.addEventListener("pointermove", (ev) => {
+            if (!dragging) return;
+            ev.preventDefault();
+            seekFromEvent(ev);
+        });
+        const endDrag = (ev) => {
+            if (!dragging) return;
+            dragging = false; wrap._seeking = false;
+            try { bar.releasePointerCapture(ev.pointerId); } catch {}
+            // 드래그가 썸네일 밖에서 끝났으면 미리보기를 정리한다
+            const r = wrap.getBoundingClientRect();
+            if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) {
+                if (activeWrap === wrap) activeWrap = null;
+                stopPreview(wrap);
+            }
+        };
+        bar.addEventListener("pointerup", endDrag);
+        bar.addEventListener("pointercancel", endDrag);
+        bar.addEventListener("click", (ev) => { if (seekFn) { ev.preventDefault(); ev.stopPropagation(); } });
 
         let el;
         let yid = null;
@@ -1031,8 +1071,9 @@ function formatDuration(seconds) {
             el.className = "thumbnail-preview";
             el.play?.().catch(() => {});
             el.addEventListener("timeupdate", () => {
-                if (el.duration) fill.style.width = (el.currentTime / el.duration) * 100 + "%";
+                if (el.duration && !dragging) fill.style.width = (el.currentTime / el.duration) * 100 + "%";
             });
+            seekFn = (frac) => { if (el.duration) el.currentTime = frac * el.duration; };
         } else {
             yid = youtubeId(info.embedUrl);
             if (!yid) return;
@@ -1068,7 +1109,7 @@ function formatDuration(seconds) {
             if (poll) return;
             poll = setInterval(() => {
                 try {
-                    if (!player) return;
+                    if (!player || dragging) return;
                     const d = player.getDuration ? player.getDuration() : 0;
                     const t = player.getCurrentTime ? player.getCurrentTime() : 0;
                     if (d > 0) fill.style.width = (t / d) * 100 + "%";
@@ -1078,6 +1119,7 @@ function formatDuration(seconds) {
 
         // 자동재생 실패 감지 시: API 플레이어를 버리고 순수 iframe + 근사 진행바로 폴백.
         const fallbackToPlainIframe = () => {
+            seekFn = null;   // 순수 iframe은 JS 제어 불가 → 진행바 시크 비활성화(클릭 시 카드 이동)
             let durSec = 0;
             try { durSec = (player && player.getDuration()) || 0; } catch {}
             if (poll) { clearInterval(poll); poll = null; }
@@ -1123,6 +1165,13 @@ function formatDuration(seconds) {
             iframe.className = "thumbnail-preview";
             requestAnimationFrame(() => iframe.classList.add("is-visible"));
         }
+        // 플레이어가 생기면 진행바 시크를 seekTo로 연결
+        seekFn = (frac) => {
+            try {
+                const d = player && player.getDuration ? player.getDuration() : 0;
+                if (d > 0) player.seekTo(frac * d, true);
+            } catch {}
+        };
         startPolling();
         // 재생이 실제로 진행(currentTime>0)하는지로 자동재생 성공을 판정 — buffering만으로는
         // 부족(멈출 수 있음). 2.5초 뒤에도 진행이 없으면 자동재생 차단으로 보고 폴백.
@@ -1160,6 +1209,7 @@ function formatDuration(seconds) {
     document.addEventListener("mouseout", (e) => {
         const wrap = e.target.closest?.(".thumbnail-wrap");
         if (!wrap) return;
+        if (wrap._seeking) return; // 진행바 드래그(시크) 중엔 미리보기 유지
         const to = e.relatedTarget;
         if (to && wrap.contains(to)) return; // 자식으로 이동한 경우는 무시
         clearTimeout(hoverTimer);
