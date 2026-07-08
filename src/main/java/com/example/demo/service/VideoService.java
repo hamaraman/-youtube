@@ -21,10 +21,13 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,6 +36,11 @@ public class VideoService {
     private static final Set<String> ALLOWED_IMAGE_EXTS =
             Set.of(".jpg", ".jpeg", ".png", ".gif", ".webp");
     private static final long MAX_IMAGE_BYTES = 20L * 1024 * 1024; // 20 MB
+    private static final long FEED_SNAPSHOT_TTL_MS = 30_000; // 개인화 피드 랭킹 스냅샷 유효시간
+
+    // 개인화 홈 피드의 유저별 랭킹 스냅샷. 무한 스크롤(page>0) 중 재랭킹으로 순서가 흔들리는 걸
+    // 막는다. 소규모 단일 인스턴스 가정 — TTL이 지나면 다음 page 0 요청에서 자연히 교체된다.
+    private final Map<Long, FeedSnapshot> feedSnapshots = new ConcurrentHashMap<>();
 
     @Value("${file.thumbnail-dir}")
     private String thumbnailDir;
@@ -139,6 +147,15 @@ public class VideoService {
         boolean hasCategory = category != null && !category.isBlank();
         boolean isPopular = "popular".equals(sort) || "popular".equals(sortBy);
 
+        // 홈 기본 피드(로그인 + 검색어·카테고리·채널·인기정렬 아님)는 개인화 랭킹으로 제공한다.
+        // 신호가 하나도 없거나 후보가 비면 null을 받아 아래 기본(최신순) 로직으로 폴백한다.
+        boolean isHomeDefault = loginUserId != null && !hasKeyword && !hasCategory
+                && ownerId == null && !isPopular;
+        if (isHomeDefault) {
+            Map<String, Object> personalized = getPersonalizedFeed(page, size, loginUserId);
+            if (personalized != null) return personalized;
+        }
+
         if (ownerId != null) {
             videoPage = videoRepository.findPublicByOwnerIdPageable(ownerId, pageable);
         } else if (isPopular && hasKeyword) {
@@ -163,6 +180,156 @@ public class VideoService {
         result.put("page", page);
         result.put("totalElements", videoPage.getTotalElements());
         return result;
+    }
+
+    /**
+     * 유저의 좋아요·시청기록·구독 신호로 카테고리/채널 선호도 프로필을 만든다.
+     * 개인화 홈 피드와 시청 페이지 관련영상 개인화가 공유한다.
+     */
+    private UserAffinity buildUserAffinity(Long userId) {
+        List<VideoLike> likes = videoLikeRepository.findByUserIdOrderByIdDesc(userId);
+        List<VideoHistory> history = videoHistoryRepository.findByUserIdOrderByWatchedAtDesc(userId);
+        Set<Long> subscribedOwnerIds = subscriptionRepository.findBySubscriberId(userId).stream()
+                .map(Subscription::getChannelOwnerId)
+                .collect(Collectors.toSet());
+        Set<Long> watchedVideoIds = history.stream()
+                .map(VideoHistory::getVideoId)
+                .collect(Collectors.toSet());
+
+        Map<String, Double> categoryAffinity = new HashMap<>();
+        Map<Long, Double> ownerAffinity = new HashMap<>();
+        boolean hasSignal = !likes.isEmpty() || !history.isEmpty() || !subscribedOwnerIds.isEmpty();
+        if (hasSignal) {
+            // 좋아요(강한 신호)·시청기록(중간 신호)한 영상들의 카테고리/채널 선호도 집계
+            for (Video v : videoRepository.findAllById(
+                    likes.stream().map(VideoLike::getVideoId).collect(Collectors.toList()))) {
+                accumulateAffinity(categoryAffinity, ownerAffinity, v, 3.0);
+            }
+            for (Video v : videoRepository.findAllById(new ArrayList<>(watchedVideoIds))) {
+                accumulateAffinity(categoryAffinity, ownerAffinity, v, 1.0);
+            }
+        }
+        return new UserAffinity(categoryAffinity, ownerAffinity, subscribedOwnerIds, watchedVideoIds, hasSignal);
+    }
+
+    /**
+     * 개인화 홈 피드. buildUserAffinity 선호도로 공개 영상을 점수화·정렬한다. 신호가 없거나
+     * 후보가 비면 null을 반환해 호출부가 기본 최신순 피드로 폴백하게 한다.
+     *
+     * 랭킹 결과는 유저별 스냅샷(TTL)으로 캐시해, 무한 스크롤(page>0) 도중 재랭킹으로 순서가
+     * 흔들리는 것을 막는다. page 0 요청 또는 TTL 만료 시에만 새로 계산한다.
+     *
+     * 점수 = 구독 부스트 + 카테고리/채널 선호 + 최신성(지수 감쇠) + 인기(조회수 로그)
+     *        − 이미 본 영상 감점 + (user,video) 고정 노이즈. 소규모 카탈로그 가정(전체 메모리 랭킹).
+     */
+    private Map<String, Object> getPersonalizedFeed(int page, int size, Long userId) {
+        List<Video> ranked;
+        FeedSnapshot snap = feedSnapshots.get(userId);
+        boolean fresh = snap != null && (System.currentTimeMillis() - snap.createdAtMs) < FEED_SNAPSHOT_TTL_MS;
+
+        if (page > 0 && fresh) {
+            ranked = snap.ranked; // 스크롤 중엔 page 0에서 만든 랭킹을 그대로 페이지네이션
+        } else {
+            UserAffinity aff = buildUserAffinity(userId);
+            if (!aff.hasSignal) { feedSnapshots.remove(userId); return null; }
+
+            // 후보: 공개 영상 전체에서 본인 업로드는 제외 (자기 영상은 홈 추천에 안 띄운다)
+            List<Video> candidates = videoRepository.findAllPublic().stream()
+                    .filter(v -> !userId.equals(v.getOwnerId()))
+                    .collect(Collectors.toList());
+            if (candidates.isEmpty()) { feedSnapshots.remove(userId); return null; }
+
+            LocalDateTime now = LocalDateTime.now();
+            Map<Long, Double> scores = new HashMap<>();
+            for (Video v : candidates) {
+                scores.put(v.getId(), personalizedScore(v, aff, now, userId));
+            }
+            candidates.sort(Comparator
+                    .comparingDouble((Video v) -> scores.get(v.getId())).reversed()
+                    .thenComparing(Comparator.comparingLong(Video::getId).reversed()));
+            ranked = candidates;
+            feedSnapshots.put(userId, new FeedSnapshot(ranked, System.currentTimeMillis()));
+        }
+
+        int total = ranked.size();
+        int from = Math.min(page * size, total);
+        int to = Math.min(from + size, total);
+        List<VideoItem> items = toVideoItems(ranked.subList(from, to), userId);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("videos", items);
+        result.put("hasMore", to < total);
+        result.put("page", page);
+        result.put("totalElements", (long) total);
+        return result;
+    }
+
+    private void accumulateAffinity(Map<String, Double> categoryAffinity,
+                                    Map<Long, Double> ownerAffinity, Video v, double weight) {
+        String category = trimmed(v.getCategory());
+        if (!category.isEmpty()) categoryAffinity.merge(category, weight, Double::sum);
+        if (v.getOwnerId() != null) ownerAffinity.merge(v.getOwnerId(), weight, Double::sum);
+    }
+
+    private double personalizedScore(Video v, UserAffinity aff, LocalDateTime now, Long userId) {
+        double score = 0;
+
+        // 구독 채널: 가장 강한 신호
+        if (v.getOwnerId() != null && aff.subscribedOwnerIds.contains(v.getOwnerId())) {
+            score += 40;
+        }
+        // 카테고리 선호도 (한 카테고리가 독식하지 않도록 상한을 둔다)
+        score += Math.min(aff.categoryAffinity.getOrDefault(trimmed(v.getCategory()), 0.0), 10.0) * 6;
+        // 채널 선호도
+        if (v.getOwnerId() != null) {
+            score += Math.min(aff.ownerAffinity.getOrDefault(v.getOwnerId(), 0.0), 10.0) * 4;
+        }
+        // 최신성: createdAt 기준 지수 감쇠 (반감기 약 14일)
+        if (v.getCreatedAt() != null) {
+            long days = Math.max(0, Duration.between(v.getCreatedAt(), now).toDays());
+            score += 20 * Math.exp(-days / 14.0);
+        }
+        // 인기 프라이어: 조회수 로그 (약하게 — 신호가 적은 영상도 바닥 점수를 확보)
+        if (v.getViewCount() > 0) {
+            score += Math.log10(v.getViewCount() + 1) * 6;
+        }
+        // 이미 본 영상은 크게 감점하되 완전 제외는 하지 않는다(소규모 카탈로그에서 피드가 비는 것 방지)
+        if (aff.watchedVideoIds.contains(v.getId())) {
+            score -= 60;
+        }
+        // 무한 스크롤 페이지네이션이 흔들리지 않도록 (user,video)에 고정된 노이즈를 쓴다
+        score += new Random(userId * 1_000_003L + v.getId()).nextDouble() * 4;
+
+        return score;
+    }
+
+    /** 유저 신호 기반 선호도 프로필(개인화 홈 피드·관련영상 공유). */
+    private static final class UserAffinity {
+        final Map<String, Double> categoryAffinity;
+        final Map<Long, Double> ownerAffinity;
+        final Set<Long> subscribedOwnerIds;
+        final Set<Long> watchedVideoIds;
+        final boolean hasSignal;
+
+        UserAffinity(Map<String, Double> categoryAffinity, Map<Long, Double> ownerAffinity,
+                     Set<Long> subscribedOwnerIds, Set<Long> watchedVideoIds, boolean hasSignal) {
+            this.categoryAffinity = categoryAffinity;
+            this.ownerAffinity = ownerAffinity;
+            this.subscribedOwnerIds = subscribedOwnerIds;
+            this.watchedVideoIds = watchedVideoIds;
+            this.hasSignal = hasSignal;
+        }
+    }
+
+    /** 개인화 피드 랭킹 스냅샷(유저별, TTL 동안 무한 스크롤 페이지네이션에 재사용). */
+    private static final class FeedSnapshot {
+        final List<Video> ranked;
+        final long createdAtMs;
+
+        FeedSnapshot(List<Video> ranked, long createdAtMs) {
+            this.ranked = ranked;
+            this.createdAtMs = createdAtMs;
+        }
     }
 
     public VideoItem getVideoById(Long id, Long loginUserId, boolean isAdmin) {
@@ -238,10 +405,12 @@ public class VideoService {
         baseTokens.addAll(tokenize(base.getDescription()));
         baseTokens.addAll(tokenize(base.getCategory()));
 
+        // 로그인 유저면 취향(구독·좋아요·시청) 프로필을 관련영상 점수에도 소폭 반영해 홈 피드와 일관성
+        UserAffinity aff = loginUserId != null ? buildUserAffinity(loginUserId) : null;
         Random noise = new Random();
         Map<Long, Double> scores = items.stream().collect(Collectors.toMap(
                 VideoItem::getId,
-                item -> recommendationScore(base, baseTokens, item, noise)));
+                item -> recommendationScore(base, baseTokens, item, noise) + personalBonus(aff, item)));
 
         List<VideoItem> recommended = items.stream()
                 .sorted(Comparator.comparingDouble((VideoItem v) -> scores.get(v.getId())).reversed()
@@ -280,6 +449,21 @@ public class VideoService {
         score += noise.nextDouble() * 3;
 
         return score;
+    }
+
+    /**
+     * 로그인 유저의 취향(구독 채널·좋아요/시청 카테고리·채널)을 관련영상 점수에 소폭 가산한다.
+     * 보고 있는 영상과의 관련성(카테고리 일치 +50 등)이 지배하도록 보너스는 작게 잡는다.
+     */
+    private double personalBonus(UserAffinity aff, VideoItem t) {
+        if (aff == null || !aff.hasSignal) return 0;
+        double bonus = 0;
+        if (t.getOwnerId() != null && aff.subscribedOwnerIds.contains(t.getOwnerId())) bonus += 15;
+        bonus += Math.min(aff.categoryAffinity.getOrDefault(trimmed(t.getCategory()), 0.0), 10.0) * 2;
+        if (t.getOwnerId() != null) {
+            bonus += Math.min(aff.ownerAffinity.getOrDefault(t.getOwnerId(), 0.0), 10.0) * 1.5;
+        }
+        return bonus;
     }
 
     private static String trimmed(String value) {
