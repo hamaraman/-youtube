@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -858,6 +859,64 @@ class VideoServiceTest {
 
             assertThat(store.size()).isEqualTo(1);
             assertThat(store.getFresh(3L, 2000)).isNotNull();
+        }
+    }
+
+    // 공개 영상 후보 공유 캐시: TTL 동안 loader 1회만 호출·공유, 만료·invalidate 시 재로드, 반환은 불변.
+    @Nested
+    class PublicVideoCandidateCache {
+
+        private List<Video> twoVideos() {
+            return List.of(publicVideo(1L, 5L), publicVideo(2L, 6L));
+        }
+
+        // TTL 이내에는 loader를 다시 호출하지 않고 같은 공유 인스턴스를 반환한다.
+        @Test
+        void get_withinTtl_loadsOnceAndShares() {
+            VideoService.PublicVideoCache cache = new VideoService.PublicVideoCache(1000);
+            AtomicInteger calls = new AtomicInteger();
+
+            List<Video> a = cache.get(0, () -> { calls.incrementAndGet(); return twoVideos(); });
+            List<Video> b = cache.get(500, () -> { calls.incrementAndGet(); return twoVideos(); });
+
+            assertThat(calls.get()).isEqualTo(1);   // 두 번째는 캐시 재사용
+            assertThat(b).isSameAs(a);              // 같은 공유 인스턴스
+            assertThat(a).hasSize(2);
+        }
+
+        // TTL이 지나면 loader를 다시 호출해 갱신한다.
+        @Test
+        void get_afterTtl_reloads() {
+            VideoService.PublicVideoCache cache = new VideoService.PublicVideoCache(1000);
+            AtomicInteger calls = new AtomicInteger();
+
+            cache.get(0, () -> { calls.incrementAndGet(); return twoVideos(); });
+            cache.get(1500, () -> { calls.incrementAndGet(); return twoVideos(); }); // 1.5s >= 1s TTL
+
+            assertThat(calls.get()).isEqualTo(2);
+        }
+
+        // invalidate() 후에는 TTL 이내라도 다시 로드한다.
+        @Test
+        void invalidate_forcesReload() {
+            VideoService.PublicVideoCache cache = new VideoService.PublicVideoCache(1000);
+            AtomicInteger calls = new AtomicInteger();
+
+            cache.get(0, () -> { calls.incrementAndGet(); return twoVideos(); });
+            cache.invalidate();
+            cache.get(100, () -> { calls.incrementAndGet(); return twoVideos(); }); // TTL 이내지만 무효화됨
+
+            assertThat(calls.get()).isEqualTo(2);
+        }
+
+        // 반환 리스트는 불변이라 호출부가 변경할 수 없다(공유 캐시 오염 방지).
+        @Test
+        void returnedList_isImmutable() {
+            VideoService.PublicVideoCache cache = new VideoService.PublicVideoCache(1000);
+            List<Video> list = cache.get(0, this::twoVideos);
+
+            assertThatThrownBy(() -> list.add(publicVideo(9L, 9L)))
+                    .isInstanceOf(UnsupportedOperationException.class);
         }
     }
 }

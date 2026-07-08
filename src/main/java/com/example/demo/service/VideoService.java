@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,6 +44,12 @@ public class VideoService {
     // 개인화 홈 피드의 유저별 랭킹 스냅샷. 무한 스크롤(page>0) 중 재랭킹으로 순서가 흔들리는 걸
     // 막는다. TTL 만료 엔트리 정리 + 크기 상한으로 메모리 무한 증식을 방지한다(소규모 단일 인스턴스 가정).
     private final FeedSnapshotStore feedSnapshots = new FeedSnapshotStore(FEED_SNAPSHOT_TTL_MS, FEED_SNAPSHOT_MAX_ENTRIES);
+
+    // 개인화 랭킹 후보(공개 영상 전체) 공유 캐시. 유저마다 findAllPublic()로 전체 카탈로그를 다시
+    // 로드하던 것을, TTL 동안 1회만 로드해 유저 간 공유한다(동접 유저 수와 무관하게 DB 부하 상수화).
+    // 새 공개 영상은 최대 이 TTL만큼 지연 노출된다. 개인화 경로에서만 쓰고, 검색·목록 등은 그대로 직접 조회.
+    private static final long FEED_CANDIDATE_CACHE_TTL_MS = 10_000;
+    private final PublicVideoCache publicVideoCache = new PublicVideoCache(FEED_CANDIDATE_CACHE_TTL_MS);
 
     @Value("${file.thumbnail-dir}")
     private String thumbnailDir;
@@ -236,8 +243,9 @@ public class VideoService {
             UserAffinity aff = buildUserAffinity(userId);
             if (!aff.hasSignal) { feedSnapshots.remove(userId); return null; }
 
-            // 후보: 공개 영상 전체에서 본인 업로드는 제외 (자기 영상은 홈 추천에 안 띄운다)
-            List<Video> candidates = videoRepository.findAllPublic().stream()
+            // 후보: 공개 영상 전체(공유 캐시)에서 본인 업로드는 제외 (자기 영상은 홈 추천에 안 띄운다).
+            // 캐시 리스트는 불변이므로 stream/collect로 새 리스트를 만들어 정렬한다(캐시를 오염시키지 않음).
+            List<Video> candidates = publicVideoCache.get(nowMs, videoRepository::findAllPublic).stream()
                     .filter(v -> !userId.equals(v.getOwnerId()))
                     .collect(Collectors.toList());
             if (candidates.isEmpty()) { feedSnapshots.remove(userId); return null; }
@@ -386,6 +394,44 @@ public class VideoService {
                     .min(Comparator.comparingLong(e -> e.getValue().createdAtMs))
                     .map(Map.Entry::getKey)
                     .ifPresent(map::remove);
+        }
+    }
+
+    /**
+     * 공개 영상 후보 목록 공유 캐시. 개인화 랭킹이 유저마다 findAllPublic()로 전체 카탈로그를 다시
+     * 로드하던 것을, TTL 동안 1회만 로드해 유저 간 공유한다(단일 소규모 인스턴스 가정). 반환 리스트는
+     * 불변 스냅샷이라 호출부가 변경할 수 없다. 시간(nowMs)을 인자로 받아 결정적 테스트가 가능하다.
+     * package-private(테스트 접근).
+     */
+    static final class PublicVideoCache {
+        private final long ttlMs;
+        private volatile List<Video> cached;
+        private volatile long loadedAtMs = 0;
+
+        PublicVideoCache(long ttlMs) {
+            this.ttlMs = ttlMs;
+        }
+
+        /** TTL 이내면 공유 캐시를 반환, 아니면 loader로 1회 로드해 불변 스냅샷으로 공유한다. */
+        List<Video> get(long nowMs, Supplier<List<Video>> loader) {
+            List<Video> snapshot = cached;
+            if (snapshot != null && nowMs - loadedAtMs < ttlMs) return snapshot;
+            return reload(nowMs, loader);
+        }
+
+        // 동시 미스로 여러 스레드가 한꺼번에 로드하는 것(thundering herd)을 막기 위해 직렬화 + 더블체크.
+        private synchronized List<Video> reload(long nowMs, Supplier<List<Video>> loader) {
+            if (cached != null && nowMs - loadedAtMs < ttlMs) return cached;
+            List<Video> fresh = List.copyOf(loader.get());
+            cached = fresh;
+            loadedAtMs = nowMs;
+            return fresh;
+        }
+
+        /** 새 영상 업로드/공개상태 변경 등으로 즉시 갱신이 필요할 때 캐시를 비운다(현재는 TTL 만료에 의존). */
+        void invalidate() {
+            cached = null;
+            loadedAtMs = 0;
         }
     }
 
